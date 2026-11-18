@@ -1,0 +1,653 @@
+"""Config flow, options flow and the subentry flows."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
+import probatio
+import pytest
+from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER, ConfigSubentry
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.heat_ledger.const import (
+    CONF_CIRCUIT,
+    CONF_CONVERSION,
+    CONF_DEMAND_ENTITY,
+    CONF_DEMAND_TYPE,
+    CONF_ENTITY,
+    CONF_FACTOR,
+    CONF_FACTOR_ENTITY,
+    CONF_KIND,
+    CONF_LOSS_KW,
+    CONF_METER_ENTITY,
+    CONF_PUMP_ENTITY,
+    CONF_SIZE_TYPE,
+    CONF_SIZE_VALUE,
+    DOMAIN,
+    SUBENTRY_CIRCUIT,
+    SUBENTRY_CONSUMER,
+    SUBENTRY_SOURCE,
+)
+from custom_components.heat_ledger.engine import DemandMethod, SizeMethod
+from custom_components.heat_ledger.model import Subentry, build_plant
+
+COMPONENT = Path(__file__).parents[1] / "custom_components" / DOMAIN
+ACCURACY = "accuracy"
+
+ENERGY = "sensor.boiler_energy"
+POWER = "sensor.boiler_power"
+COP = "sensor.heat_pump_cop"
+METER = "sensor.radiator_heat_meter"
+PUMP = "binary_sensor.circuit_pump"
+HOT_WATER_PUMP = "binary_sensor.hot_water_pump"
+CLIMATE = "climate.living_room"
+DEMAND = "sensor.living_room_heating"
+HUMIDITY = "sensor.living_room_humidity"
+BATTERY = "sensor.living_room_battery"
+VALVE = "sensor.study_valve"
+TEMPERATURE = "sensor.study_temperature"
+
+
+@pytest.fixture(autouse=True)
+def no_setup():
+    """The flows are tested on their own; setting up the entry would start the runtime."""
+    with patch("custom_components.heat_ledger.async_setup_entry", return_value=True):
+        yield
+
+
+@pytest.fixture
+def entities(hass: HomeAssistant) -> None:
+    set_states(hass)
+
+
+def set_states(hass: HomeAssistant) -> None:
+    cumulative = {"state_class": "total_increasing", "unit_of_measurement": "kWh", "device_class": "energy"}
+    hass.states.async_set(ENERGY, "1234.5", cumulative | {"friendly_name": "Boiler energy"})
+    hass.states.async_set(METER, "12.3", cumulative)
+    hass.states.async_set(POWER, "3.2", {"state_class": "measurement", "unit_of_measurement": "kW"})
+    hass.states.async_set(COP, "3.4", {"state_class": "measurement"})
+    hass.states.async_set(PUMP, "on")
+    hass.states.async_set(HOT_WATER_PUMP, "off")
+    hass.states.async_set(CLIMATE, "heat", {"hvac_action": "heating", "friendly_name": "Living room"})
+    hass.states.async_set(VALVE, "40", {"state_class": "measurement", "unit_of_measurement": "%"})
+    hass.states.async_set(TEMPERATURE, "21.0", {"state_class": "measurement", "unit_of_measurement": "°C"})
+
+
+@pytest.fixture
+def entry(hass: HomeAssistant) -> MockConfigEntry:
+    entry = MockConfigEntry(domain=DOMAIN, title="House")
+    entry.add_to_hass(hass)
+    return entry
+
+
+@pytest.fixture
+def thermostat(hass: HomeAssistant) -> None:
+    """A thermostat device with a heating demand in %, next to humidity and battery in %."""
+    device_entry = MockConfigEntry(domain="thermostat_vendor")
+    device_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=device_entry.entry_id, identifiers={("thermostat_vendor", "living_room")}
+    )
+    registry = er.async_get(hass)
+    for entity_id, unique_id, device_class in (
+        (CLIMATE, "climate", None),
+        (BATTERY, "battery", "battery"),
+        (HUMIDITY, "humidity", "humidity"),
+        (DEMAND, "demand", None),
+    ):
+        domain, object_id = entity_id.split(".")
+        registry.async_get_or_create(
+            domain,
+            "thermostat_vendor",
+            unique_id,
+            suggested_object_id=object_id,
+            device_id=device.id,
+            config_entry=device_entry,
+            original_device_class=device_class,
+        )
+    set_states(hass)  # after the registry, so the IDs stay as suggested
+    percent = {"state_class": "measurement", "unit_of_measurement": "%"}
+    hass.states.async_set(BATTERY, "80", percent | {"device_class": "battery"})
+    hass.states.async_set(HUMIDITY, "55", percent | {"device_class": "humidity"})
+    hass.states.async_set(DEMAND, "35", percent | {"friendly_name": "Living room heating"})
+
+
+def add_subentry(hass: HomeAssistant, entry: MockConfigEntry, subentry_type: str, title: str, data: dict) -> str:
+    before = set(entry.subentries)
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(data=data, subentry_type=subentry_type, title=title, unique_id=None),
+    )
+    (subentry_id,) = set(entry.subentries) - before
+    return subentry_id
+
+
+def serializable(result):
+    """Every form must serialize the way the frontend receives it (sections, selectors)."""
+    if result.get("data_schema") is not None:
+        probatio.to_field_list(result["data_schema"], custom_serializer=cv.custom_serializer)
+    return result
+
+
+async def start(hass: HomeAssistant, entry: MockConfigEntry, subentry_type: str, subentry_id: str | None = None):
+    context: dict[str, Any] = {"source": SOURCE_USER}
+    if subentry_id is not None:
+        context = {"source": SOURCE_RECONFIGURE, "subentry_id": subentry_id}
+    return serializable(
+        await hass.config_entries.subentries.async_init((entry.entry_id, subentry_type), context=context)
+    )
+
+
+async def configure(hass: HomeAssistant, result, user_input: dict[str, Any]):
+    return serializable(await hass.config_entries.subentries.async_configure(result["flow_id"], user_input))
+
+
+def only_subentry(entry: MockConfigEntry, subentry_type: str):
+    (subentry,) = [s for s in entry.subentries.values() if s.subentry_type == subentry_type]
+    return subentry
+
+
+def suggested(result, key: str, section: str | None = None) -> Any:
+    schema = result["data_schema"].schema
+    if section is not None:
+        schema = next(v for k, v in schema.items() if k == section).schema.schema
+    marker = next(k for k in schema if k == key)
+    return (marker.description or {}).get("suggested_value")
+
+
+# --- Main entry and options --------------------------------------------------------------------------------------
+
+
+async def test_user_minimal(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    assert result["type"] is FlowResultType.FORM
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": " House "})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "House"
+    assert result["data"] == {}
+    assert result["result"].options == {}
+
+
+async def test_user_with_losses(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "House", CONF_LOSS_KW: 0})
+    assert result["errors"] == {CONF_LOSS_KW: "not_positive"}
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": " ", CONF_LOSS_KW: 0.4})
+    assert result["errors"] == {"name": "name_required"}
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "House", CONF_LOSS_KW: 0.4})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].options == {CONF_LOSS_KW: 0.4}
+
+
+async def test_options_flow(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_LOSS_KW: -1})
+    assert result["errors"] == {CONF_LOSS_KW: "not_positive"}
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_LOSS_KW: 0.5})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {CONF_LOSS_KW: 0.5}
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert suggested(result, CONF_LOSS_KW) == 0.5
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {})
+    assert entry.options == {}
+
+
+# --- Sources -----------------------------------------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("entities")
+async def test_source_minimal(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "source"
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {}})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    source = only_subentry(entry, SUBENTRY_SOURCE)
+    assert source.title == "Boiler energy"
+    assert dict(source.data) == {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct"}
+
+
+@pytest.mark.usefixtures("entities")
+@pytest.mark.parametrize(("conversion", "factor"), [("efficiency", 0.9), ("cop", 3.0)])
+async def test_source_default_factor(hass: HomeAssistant, entry: MockConfigEntry, conversion: str, factor) -> None:
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: conversion, ACCURACY: {}})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert dict(only_subentry(entry, SUBENTRY_SOURCE).data) == {
+        CONF_ENTITY: ENERGY,
+        CONF_CONVERSION: conversion,
+        CONF_FACTOR: factor,
+    }
+
+
+@pytest.mark.usefixtures("entities")
+async def test_source_cop_entity(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    result = await configure(
+        hass,
+        result,
+        {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", ACCURACY: {CONF_FACTOR: 3.5, CONF_FACTOR_ENTITY: COP}},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert dict(only_subentry(entry, SUBENTRY_SOURCE).data) == {
+        CONF_ENTITY: ENERGY,
+        CONF_CONVERSION: "cop",
+        CONF_FACTOR: 3.5,
+        CONF_FACTOR_ENTITY: COP,
+    }
+
+
+@pytest.mark.usefixtures("entities")
+@pytest.mark.parametrize(
+    ("user_input", "errors"),
+    [
+        ({CONF_ENTITY: "sensor.missing", CONF_CONVERSION: "direct"}, {CONF_ENTITY: "entity_not_found"}),
+        ({CONF_ENTITY: POWER, CONF_CONVERSION: "direct"}, {CONF_ENTITY: "not_cumulative"}),
+        ({CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", ACCURACY: {CONF_FACTOR: 0}}, {ACCURACY: "not_positive"}),
+        (
+            {CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", ACCURACY: {CONF_FACTOR_ENTITY: COP}},
+            {ACCURACY: "factor_entity_cop_only"},
+        ),
+        (
+            {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", ACCURACY: {CONF_FACTOR_ENTITY: "sensor.missing"}},
+            {ACCURACY: "entity_not_found"},
+        ),
+    ],
+)
+async def test_source_errors(hass: HomeAssistant, entry: MockConfigEntry, user_input, errors) -> None:
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    result = await configure(hass, result, {ACCURACY: {}} | user_input)
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == errors
+    assert not entry.subentries
+
+
+@pytest.mark.usefixtures("entities")
+async def test_source_exists(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    sid = add_subentry(hass, entry, SUBENTRY_SOURCE, "Boiler", {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct"})
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {}})
+    assert result["errors"] == {CONF_ENTITY: "source_exists"}
+    # Its own entity is no conflict when it is reconfigured.
+    result = await start(hass, entry, SUBENTRY_SOURCE, sid)
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {}})
+    assert result["type"] is FlowResultType.ABORT
+
+
+@pytest.mark.usefixtures("entities")
+async def test_source_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    data = {CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", CONF_FACTOR: 0.9}
+    sid = add_subentry(hass, entry, SUBENTRY_SOURCE, "Boiler", data)
+    result = await start(hass, entry, SUBENTRY_SOURCE, sid)
+    assert result["step_id"] == "source"
+    assert suggested(result, CONF_ENTITY) == ENERGY
+    assert suggested(result, CONF_FACTOR, ACCURACY) == 0.9
+
+    # Conversion changed, factor left as it was: the new conversion gets its own default.
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", ACCURACY: {CONF_FACTOR: 0.9}})
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert list(entry.subentries) == [sid]
+    assert dict(entry.subentries[sid].data) == {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", CONF_FACTOR: 3.0}
+
+
+# --- Circuits ----------------------------------------------------------------------------------------------------
+
+
+async def test_circuit_minimal(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await start(hass, entry, SUBENTRY_CIRCUIT)
+    assert result["step_id"] == "circuit"
+    result = await configure(hass, result, {"name": "Ground floor"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    circuit = only_subentry(entry, SUBENTRY_CIRCUIT)
+    assert circuit.title == "Ground floor"
+    assert dict(circuit.data) == {}
+
+
+@pytest.mark.usefixtures("entities")
+async def test_circuit_pump_and_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await start(hass, entry, SUBENTRY_CIRCUIT)
+    result = await configure(hass, result, {"name": "Ground floor", CONF_PUMP_ENTITY: "binary_sensor.missing"})
+    assert result["errors"] == {CONF_PUMP_ENTITY: "entity_not_found"}
+    result = await configure(hass, result, {"name": "Ground floor", CONF_PUMP_ENTITY: PUMP})
+    sid = only_subentry(entry, SUBENTRY_CIRCUIT).subentry_id
+    assert dict(entry.subentries[sid].data) == {CONF_PUMP_ENTITY: PUMP}
+
+    result = await start(hass, entry, SUBENTRY_CIRCUIT, sid)
+    assert suggested(result, "name") == "Ground floor"
+    assert suggested(result, CONF_PUMP_ENTITY) == PUMP
+    result = await configure(hass, result, {"name": "Upstairs"})
+    assert result["type"] is FlowResultType.ABORT
+    assert list(entry.subentries) == [sid]
+    assert entry.subentries[sid].title == "Upstairs"
+    assert dict(entry.subentries[sid].data) == {}
+
+
+# --- Radiators ---------------------------------------------------------------------------------------------------
+
+
+async def radiator_form(hass: HomeAssistant, entry: MockConfigEntry):
+    result = await start(hass, entry, SUBENTRY_CONSUMER)
+    assert result["type"] is FlowResultType.MENU
+    assert result["menu_options"] == ["radiator", "hot_water"]
+    return await configure(hass, result, {"next_step_id": "radiator"})
+
+
+async def test_radiator_minimal(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await radiator_form(hass, entry)
+    assert result["step_id"] == "radiator"
+    result = await configure(hass, result, {"name": "Bathroom", ACCURACY: {}})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    consumer = only_subentry(entry, SUBENTRY_CONSUMER)
+    assert consumer.title == "Bathroom"
+    assert dict(consumer.data) == {CONF_KIND: "radiator", CONF_DEMAND_TYPE: "always", CONF_SIZE_TYPE: "default"}
+
+
+@pytest.mark.usefixtures("entities")
+@pytest.mark.parametrize(
+    ("demand", "demand_type", "expected"),
+    [
+        (CLIMATE, None, "hvac_action"),  # no device, so no suggestion
+        (PUMP, None, "on_off"),
+        (VALVE, None, "percent"),
+        (VALVE, "valve", "valve"),
+    ],
+)
+async def test_radiator_demand_type(hass: HomeAssistant, entry: MockConfigEntry, demand, demand_type, expected) -> None:
+    result = await radiator_form(hass, entry)
+    more = {CONF_DEMAND_TYPE: demand_type} if demand_type else {}
+    result = await configure(hass, result, {"name": "Study", CONF_DEMAND_ENTITY: demand, ACCURACY: more})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    data = only_subentry(entry, SUBENTRY_CONSUMER).data
+    assert data[CONF_DEMAND_ENTITY] == demand
+    assert data[CONF_DEMAND_TYPE] == expected
+
+
+@pytest.mark.usefixtures("entities")
+async def test_radiator_everything(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    circuit = add_subentry(hass, entry, SUBENTRY_CIRCUIT, "Ground floor", {CONF_PUMP_ENTITY: PUMP})
+    result = await radiator_form(hass, entry)
+    result = await configure(
+        hass,
+        result,
+        {
+            "name": "Study",
+            CONF_CIRCUIT: circuit,
+            CONF_DEMAND_ENTITY: VALVE,
+            ACCURACY: {
+                CONF_DEMAND_TYPE: "valve",
+                CONF_SIZE_TYPE: "nominal_power",
+                CONF_SIZE_VALUE: 1450,
+                CONF_METER_ENTITY: METER,
+            },
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert dict(only_subentry(entry, SUBENTRY_CONSUMER).data) == {
+        CONF_KIND: "radiator",
+        CONF_CIRCUIT: circuit,
+        CONF_DEMAND_ENTITY: VALVE,
+        CONF_DEMAND_TYPE: "valve",
+        CONF_SIZE_TYPE: "nominal_power",
+        CONF_SIZE_VALUE: 1450,
+        CONF_METER_ENTITY: METER,
+    }
+
+
+@pytest.mark.usefixtures("entities")
+@pytest.mark.parametrize(
+    ("user_input", "errors"),
+    [
+        ({"name": " "}, {"name": "name_required"}),
+        ({CONF_DEMAND_ENTITY: "climate.missing"}, {CONF_DEMAND_ENTITY: "entity_not_found"}),
+        ({CONF_DEMAND_ENTITY: TEMPERATURE}, {CONF_DEMAND_ENTITY: "not_percent"}),
+        ({CONF_DEMAND_ENTITY: "light.lamp"}, {CONF_DEMAND_ENTITY: "entity_not_found"}),
+        ({ACCURACY: {CONF_SIZE_TYPE: "area"}}, {ACCURACY: "size_value_required"}),
+        ({ACCURACY: {CONF_SIZE_TYPE: "area", CONF_SIZE_VALUE: 0}}, {ACCURACY: "not_positive"}),
+        ({ACCURACY: {CONF_METER_ENTITY: POWER}}, {ACCURACY: "not_cumulative"}),
+    ],
+)
+async def test_radiator_errors(hass: HomeAssistant, entry: MockConfigEntry, user_input, errors) -> None:
+    result = await radiator_form(hass, entry)
+    result = await configure(hass, result, {"name": "Study", ACCURACY: {}} | user_input)
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == errors
+    assert not entry.subentries
+
+
+@pytest.mark.usefixtures("entities")
+async def test_radiator_wrong_domain(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    hass.states.async_set("light.lamp", "on")
+    result = await radiator_form(hass, entry)
+    result = await configure(hass, result, {"name": "Study", CONF_DEMAND_ENTITY: "light.lamp", ACCURACY: {}})
+    assert result["errors"] == {CONF_DEMAND_ENTITY: "wrong_domain"}
+
+
+@pytest.mark.usefixtures("entities")
+async def test_radiator_size_value_without_type_is_dropped(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await radiator_form(hass, entry)
+    result = await configure(hass, result, {"name": "Study", ACCURACY: {CONF_SIZE_VALUE: 1200}})
+    data = only_subentry(entry, SUBENTRY_CONSUMER).data
+    assert data[CONF_SIZE_TYPE] == "default"
+    assert CONF_SIZE_VALUE not in data
+
+
+@pytest.mark.usefixtures("thermostat")
+@pytest.mark.parametrize(
+    ("use", "entity_id", "demand_type"), [(True, DEMAND, "percent"), (False, CLIMATE, "hvac_action")]
+)
+async def test_radiator_suggests_percent_sensor(
+    hass: HomeAssistant, entry: MockConfigEntry, use: bool, entity_id: str, demand_type: str
+) -> None:
+    result = await radiator_form(hass, entry)
+    result = await configure(hass, result, {"name": "Living room", CONF_DEMAND_ENTITY: CLIMATE, ACCURACY: {}})
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "demand_suggestion"
+    assert result["description_placeholders"] == {"climate": "Living room", "sensor": "Living room heating"}
+    result = await configure(hass, result, {"use_suggestion": use})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    data = only_subentry(entry, SUBENTRY_CONSUMER).data
+    assert data[CONF_DEMAND_ENTITY] == entity_id
+    assert data[CONF_DEMAND_TYPE] == demand_type
+
+
+@pytest.mark.usefixtures("thermostat")
+async def test_radiator_no_suggestion_without_demand_sensor(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    er.async_get(hass).async_remove(DEMAND)
+    hass.states.async_remove(DEMAND)
+    result = await radiator_form(hass, entry)
+    result = await configure(hass, result, {"name": "Living room", CONF_DEMAND_ENTITY: CLIMATE, ACCURACY: {}})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert only_subentry(entry, SUBENTRY_CONSUMER).data[CONF_DEMAND_TYPE] == "hvac_action"
+
+
+@pytest.mark.usefixtures("thermostat")
+async def test_radiator_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    circuit = add_subentry(hass, entry, SUBENTRY_CIRCUIT, "Ground floor", {})
+    data = {
+        CONF_KIND: "radiator",
+        CONF_CIRCUIT: circuit,
+        CONF_DEMAND_ENTITY: DEMAND,
+        CONF_DEMAND_TYPE: "percent",
+        CONF_SIZE_TYPE: "area",
+        CONF_SIZE_VALUE: 18.5,
+    }
+    sid = add_subentry(hass, entry, SUBENTRY_CONSUMER, "Living room", data)
+    result = await start(hass, entry, SUBENTRY_CONSUMER, sid)
+    assert result["step_id"] == "radiator"
+    assert suggested(result, "name") == "Living room"
+    assert suggested(result, CONF_CIRCUIT) == circuit
+    assert suggested(result, CONF_DEMAND_ENTITY) == DEMAND
+    assert suggested(result, CONF_SIZE_TYPE, ACCURACY) == "area"
+    assert suggested(result, CONF_SIZE_VALUE, ACCURACY) == 18.5
+
+    # Switching to the thermostat offers the % sensor again; accepting it ends the flow in place.
+    result = await configure(
+        hass,
+        result,
+        {
+            "name": "Lounge",
+            CONF_DEMAND_ENTITY: CLIMATE,
+            ACCURACY: {CONF_SIZE_TYPE: "nominal_power", CONF_SIZE_VALUE: 2000},
+        },
+    )
+    assert result["step_id"] == "demand_suggestion"
+    result = await configure(hass, result, {"use_suggestion": False})
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert sid in entry.subentries
+    assert len(entry.subentries) == 2
+    assert entry.subentries[sid].title == "Lounge"
+    assert dict(entry.subentries[sid].data) == {
+        CONF_KIND: "radiator",
+        CONF_DEMAND_ENTITY: CLIMATE,
+        CONF_DEMAND_TYPE: "hvac_action",
+        CONF_SIZE_TYPE: "nominal_power",
+        CONF_SIZE_VALUE: 2000,
+    }
+
+
+async def test_radiator_reconfigure_removed_circuit(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    sid = add_subentry(
+        hass,
+        entry,
+        SUBENTRY_CONSUMER,
+        "Bathroom",
+        {CONF_KIND: "radiator", CONF_CIRCUIT: "gone", CONF_DEMAND_TYPE: "always", CONF_SIZE_TYPE: "default"},
+    )
+    result = await start(hass, entry, SUBENTRY_CONSUMER, sid)
+    assert not any(k == CONF_CIRCUIT for k in result["data_schema"].schema)
+    result = await configure(hass, result, {"name": "Bathroom", ACCURACY: {}})
+    assert CONF_CIRCUIT not in entry.subentries[sid].data
+
+
+# --- Hot water ---------------------------------------------------------------------------------------------------
+
+
+async def hot_water_form(hass: HomeAssistant, entry: MockConfigEntry):
+    result = await start(hass, entry, SUBENTRY_CONSUMER)
+    return await configure(hass, result, {"next_step_id": "hot_water"})
+
+
+@pytest.mark.usefixtures("entities")
+async def test_hot_water_minimal(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await hot_water_form(hass, entry)
+    assert result["step_id"] == "hot_water"
+    result = await configure(hass, result, {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {}})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert dict(only_subentry(entry, SUBENTRY_CONSUMER).data) == {
+        CONF_KIND: "hot_water",
+        CONF_DEMAND_ENTITY: HOT_WATER_PUMP,
+        CONF_DEMAND_TYPE: "on_off",
+        CONF_SIZE_TYPE: "default",
+    }
+
+
+@pytest.mark.usefixtures("entities")
+@pytest.mark.parametrize(
+    ("user_input", "errors"),
+    [
+        ({CONF_DEMAND_ENTITY: "binary_sensor.missing"}, {CONF_DEMAND_ENTITY: "entity_not_found"}),
+        ({ACCURACY: {"charging_power_kw": 0}}, {ACCURACY: "not_positive"}),
+        ({ACCURACY: {CONF_METER_ENTITY: "sensor.missing"}}, {ACCURACY: "entity_not_found"}),
+    ],
+)
+async def test_hot_water_errors(hass: HomeAssistant, entry: MockConfigEntry, user_input, errors) -> None:
+    result = await hot_water_form(hass, entry)
+    result = await configure(
+        hass, result, {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {}} | user_input
+    )
+    assert result["errors"] == errors
+    assert not entry.subentries
+
+
+@pytest.mark.usefixtures("entities")
+async def test_hot_water_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await hot_water_form(hass, entry)
+    result = await configure(
+        hass,
+        result,
+        {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {"charging_power_kw": 12}},
+    )
+    sid = only_subentry(entry, SUBENTRY_CONSUMER).subentry_id
+    assert entry.subentries[sid].data[CONF_SIZE_TYPE] == "nominal_power"
+    assert entry.subentries[sid].data[CONF_SIZE_VALUE] == 12000
+
+    result = await start(hass, entry, SUBENTRY_CONSUMER, sid)
+    assert result["step_id"] == "hot_water"
+    assert suggested(result, "charging_power_kw", ACCURACY) == 12
+    result = await configure(
+        hass, result, {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {CONF_METER_ENTITY: METER}}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert list(entry.subentries) == [sid]
+    assert dict(entry.subentries[sid].data) == {
+        CONF_KIND: "hot_water",
+        CONF_DEMAND_ENTITY: HOT_WATER_PUMP,
+        CONF_DEMAND_TYPE: "on_off",
+        CONF_SIZE_TYPE: "default",
+        CONF_METER_ENTITY: METER,
+    }
+
+
+# --- The stored format is what the model reads -------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("thermostat")
+async def test_flows_build_a_plant(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", ACCURACY: {}})
+    result = await start(hass, entry, SUBENTRY_CIRCUIT)
+    await configure(hass, result, {"name": "Ground floor", CONF_PUMP_ENTITY: PUMP})
+    circuit = only_subentry(entry, SUBENTRY_CIRCUIT).subentry_id
+    result = await radiator_form(hass, entry)
+    result = await configure(
+        hass, result, {"name": "Living room", CONF_CIRCUIT: circuit, CONF_DEMAND_ENTITY: CLIMATE, ACCURACY: {}}
+    )
+    await configure(hass, result, {"use_suggestion": True})
+    result = await radiator_form(hass, entry)
+    await configure(hass, result, {"name": "Study", ACCURACY: {CONF_SIZE_TYPE: "area", CONF_SIZE_VALUE: 12}})
+    result = await hot_water_form(hass, entry)
+    await configure(hass, result, {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {}})
+
+    plant = build_plant(
+        entry.options,
+        [Subentry(s.subentry_id, s.subentry_type, s.title, s.data) for s in entry.subentries.values()],
+    )
+    assert plant.sources[0].factor == 0.9
+    assert plant.circuits[0].pump_key == PUMP
+    by_title = {entry.subentries[c.id].title: c for c in plant.consumers}
+    assert by_title["Living room"].circuit_id == circuit
+    assert by_title["Living room"].demand.method is DemandMethod.PERCENT
+    assert by_title["Living room"].demand.key == DEMAND
+    assert by_title["Study"].demand.method is DemandMethod.ALWAYS
+    assert by_title["Study"].size.method is SizeMethod.AREA
+    assert by_title["Hot water"].hot_water
+    assert by_title["Hot water"].demand.method is DemandMethod.ON_OFF
+
+
+# --- Translations ------------------------------------------------------------------------------------------------
+
+
+def _keys(data: Any, prefix: str = "") -> set[str]:
+    if not isinstance(data, dict):
+        return {prefix}
+    return set().union(*(_keys(v, f"{prefix}.{k}") for k, v in data.items()))
+
+
+def test_translations_match() -> None:
+    strings = json.loads((COMPONENT / "strings.json").read_text(encoding="utf-8"))
+    english = json.loads((COMPONENT / "translations" / "en.json").read_text(encoding="utf-8"))
+    german = json.loads((COMPONENT / "translations" / "de.json").read_text(encoding="utf-8"))
+    assert strings == english
+    assert _keys(german) == _keys(english)
