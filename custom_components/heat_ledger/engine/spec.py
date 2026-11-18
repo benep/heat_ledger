@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 DEFAULT_RADIATOR_POWER_W = 1000.0
+DEFAULT_HOT_WATER_POWER_W = 10000.0
 DEFAULT_SPECIFIC_POWER_W_PER_M2 = 60.0
 
 
@@ -42,12 +43,14 @@ class ActiveMethod(StrEnum):
 @dataclass(frozen=True)
 class Size:
     method: SizeMethod = SizeMethod.DEFAULT
-    value: float | None = None  # W for nominal power and calculated, m² for area
+    value: float | None = None  # W for nominal power and calculated, m² for area, W default for DEFAULT
 
     @property
     def watts(self) -> float:
-        if self.method is SizeMethod.DEFAULT or self.value is None:
+        if self.value is None:
             return DEFAULT_RADIATOR_POWER_W
+        if self.method is SizeMethod.DEFAULT:
+            return self.value
         if self.method is SizeMethod.AREA:
             return self.value * DEFAULT_SPECIFIC_POWER_W_PER_M2
         return self.value
@@ -83,6 +86,7 @@ class ConsumerSpec:
     size: Size = field(default_factory=Size)
     demand: Demand = field(default_factory=Demand)
     meter_key: str | None = None  # cumulative heat in kWh: measured, takes no part in the split
+    hot_water: bool = False  # size is a charging power, floor area makes no sense
 
 
 @dataclass(frozen=True)

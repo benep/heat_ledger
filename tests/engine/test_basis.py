@@ -44,8 +44,13 @@ PLANT = PlantSpec(
             Level.ESTIMATED,
             None,
         ),
-        # Hot water: on/off is all a pump can say, no circuit; the hint goes to the size.
-        (ConsumerSpec("dhw", None, Size(), Demand(DemandMethod.ON_OFF, "p")), Level.ESTIMATED, "size_area"),
+        # Hot water: on/off is all a pump can say, no circuit; the hint goes to the charging power.
+        (
+            ConsumerSpec("dhw", None, Size(), Demand(DemandMethod.ON_OFF, "p"), hot_water=True),
+            Level.ESTIMATED,
+            "size_nominal_power",
+        ),
+        (ConsumerSpec("act", "plain", Size(), Demand(DemandMethod.ON_OFF, "p")), Level.ESTIMATED, "size_area"),
         (ConsumerSpec("m", meter_key="meter"), Level.MEASURED, None),
     ],
 )

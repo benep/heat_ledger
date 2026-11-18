@@ -51,6 +51,8 @@ def consumer_basis(plant: PlantSpec, consumer: ConsumerSpec) -> Basis:
         current = methods[factor]
         if current is DemandMethod.ON_OFF:
             continue  # actuators and pumps cannot report more than on or off
+        if factor == "size" and consumer.hot_water:
+            order = [SizeMethod.DEFAULT, SizeMethod.NOMINAL_POWER]  # the charging power, nothing in between
         index = order.index(current)
         if index < len(order) - 1:
             improvement = hint.format(order[index + 1])

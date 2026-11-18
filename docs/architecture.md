@@ -24,7 +24,8 @@ Sources ──► Account (per source, kWh) ──► Consumers
   weight [W] = size [W] × demand [0..1] × circuit active [0 or 1]
   ```
 
-  Hot water is a consumer like a radiator: size = charging power, demand = hot water pump running, no circuit.
+  Hot water is a consumer like a radiator: size = charging power (default 10 kW), demand = hot water pump
+  running, no circuit. Its share depends mostly on when the pump runs, little on the charging power.
 - **Circuit:** a group of radiators behind one pump. Inactive (pump off) means no heat for any of them, whatever
   their valves say. Its counter is the sum of its radiators, which the Energy dashboard uses as parent
   (`included_in_stat`).
@@ -73,8 +74,9 @@ Rules:
 - **Source decreases:** treated as a meter reset; the new value becomes the baseline, nothing is booked.
 - **Source unavailable:** its increase is booked when it is back, measured from the last valid value.
 - **Fixed loss rate** (optional): taken from the account first, every interval.
-- **Release:** the whole account by default. With a storage tank, an optional time constant releases only
-  `account × (1 − e^(−Δt/τ))` per interval, as the tank empties over hours, not at once.
+- **Release:** the whole account every interval. The engine also supports a time constant that releases only
+  `account × (1 − e^(−Δt/τ))` per interval, but it is not offered in the UI: it shifts heat from
+  burner times to whatever runs hours later, which is less plausible, not more.
 - **Downtime:** heat that arrived while Home Assistant was down shows up as one increase after the restart and is
   split by the weights after the restart. The backfill can correct this from recorded history.
 
