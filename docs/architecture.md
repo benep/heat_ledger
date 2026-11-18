@@ -98,7 +98,9 @@ Devices: one per subentry, so the Home Assistant UI groups the sensors of a cons
 
 Backfill (later milestone): a service that feeds hourly long-term statistics of the inputs into a fresh ledger and
 imports the resulting hourly counters with `async_import_statistics`, adjusting the live statistics after them so
-the sums stay continuous.
+the sums stay continuous. The recorder continues a sum from the last short-term (5-minute) row only, never from
+imported hourly rows: the adjustment must run once the sensor has its first short-term row, otherwise it changes
+nothing and the live sum starts at 0 again.
 
 ## Tests
 
