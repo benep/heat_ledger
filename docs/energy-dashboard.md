@@ -14,7 +14,11 @@ In **Settings → Dashboards → Energy → Gas**:
 3. Add each radiator's heat counter as an individual device with its circuit as **upstream device**.
 4. Add hot water as an individual device without upstream device.
 
-The Sankey then shows sources → home → circuits and hot water → radiators. "Untracked" is what the sources
+The Sankey then shows sources → home → circuits and hot water → radiators. Like on the electricity tab, it groups
+the consumers by floor and area: Heat Ledger puts each consumer's device into the area of its thermostat (or
+pump, or heat meter) when it is created, so assign floors to your areas and the grouping follows. Home Assistant
+then puts the area in front of the entity ID, for example `sensor.living_room_living_room_heat` for a radiator
+named after its room. "Untracked" is what the sources
 delivered beyond the counters: fixed losses, and heat from before Heat Ledger was set up.
 
 A heat pump or an immersion heater shows up twice: on the electricity tab as electricity, on the gas tab as heat.

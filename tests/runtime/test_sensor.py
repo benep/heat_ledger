@@ -6,6 +6,7 @@ import pytest
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry, mock_restore_cache_with_extra_data
@@ -172,3 +173,30 @@ async def test_counter_continues_from_restored_value(hass: HomeAssistant, entry:
     hass.states.async_set(BOILER, "101.0", {"unit_of_measurement": "kWh"})
     await next_interval(hass, freezer)
     assert value(hass, "living_heat") == pytest.approx(5.0 + LIVING_SHARE)
+
+
+async def test_consumer_lands_in_the_area_of_its_thermostat(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """The Energy dashboard groups consumers by floor and area: take the area of the demand entity's device."""
+    other = MockConfigEntry(domain="thermostats")
+    other.add_to_hass(hass)
+    area = ar.async_get(hass).async_create("Living room")
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=other.entry_id, identifiers={("thermostats", "living")}, name="Thermostat"
+    )
+    dr.async_get(hass).async_update_device(device.id, area_id=area.id)
+    state = hass.states.get(LIVING_DEMAND)
+    hass.states.async_remove(LIVING_DEMAND)  # else the registry picks another entity ID
+    thermostat = er.async_get(hass).async_get_or_create(
+        "sensor", "thermostats", "living_demand", suggested_object_id="living_demand", device_id=device.id
+    )
+    assert thermostat.entity_id == LIVING_DEMAND
+    hass.states.async_set(LIVING_DEMAND, state.state, state.attributes)
+
+    await setup(hass, entry)
+
+    def device_area(unique_id: str) -> str | None:
+        entity = er.async_get(hass).async_get(entity_id(hass, unique_id))
+        return dr.async_get(hass).async_get(entity.device_id).area_id
+
+    assert device_area("living_heat") == area.id
+    assert device_area("hot_water_heat") is None  # its pump is in no area

@@ -15,6 +15,9 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EntityCategory, UnitOfEnergy
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -26,6 +29,8 @@ from .const import (
     ATTR_LEVEL,
     ATTR_NEXT_IMPROVEMENT,
     CONF_CONVERSION,
+    CONF_DEMAND_ENTITY,
+    CONF_METER_ENTITY,
     CONVERSION_DIRECT,
     DOMAIN,
     SUBENTRY_CIRCUIT,
@@ -54,7 +59,7 @@ async def async_setup_entry(
     for subentry in entry.subentries.values():
         entity: SensorEntity | None = None
         if subentry.subentry_type == SUBENTRY_CONSUMER:
-            entity = ConsumerHeatSensor(runtime, subentry, titles)
+            entity = ConsumerHeatSensor(runtime, subentry, titles, _input_area(hass, subentry))
         elif subentry.subentry_type == SUBENTRY_CIRCUIT:
             entity = CircuitHeatSensor(runtime, subentry, titles)
         elif subentry.subentry_type == SUBENTRY_SOURCE and subentry.data.get(CONF_CONVERSION) not in (
@@ -85,12 +90,34 @@ class _LedgerSensor(SensorEntity):
         self.async_on_remove(self.runtime.async_add_listener(self.async_write_ha_state))
 
 
-def _subentry_device(subentry: ConfigSubentry) -> DeviceInfo:
+def _subentry_device(subentry: ConfigSubentry, area: str | None = None) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, subentry.subentry_id)},
         name=subentry.title,
+        suggested_area=area,
         entry_type=DeviceEntryType.SERVICE,
     )
+
+
+def _input_area(hass: HomeAssistant, subentry: ConfigSubentry) -> str | None:
+    """Name of the area of the consumer's demand or meter entity (or of its device), if it has one.
+
+    Only used when the consumer's device is created; moving it to another area later is up to the user.
+    """
+    entities = er.async_get(hass)
+    devices = dr.async_get(hass)
+    areas = ar.async_get(hass)
+    for key in (CONF_DEMAND_ENTITY, CONF_METER_ENTITY):
+        entity_id = subentry.data.get(key)
+        entry = entities.async_get(entity_id) if entity_id else None
+        if entry is None:
+            continue
+        area_id = entry.area_id
+        if area_id is None and entry.device_id and (device := devices.async_get(entry.device_id)):
+            area_id = device.area_id
+        if area_id and (area := areas.async_get_area(area_id)):
+            return area.name
+    return None
 
 
 class _CounterSensor(_LedgerSensor, RestoreSensor):
@@ -160,6 +187,17 @@ class _SplitSensor(_CounterSensor):
 
 
 class ConsumerHeatSensor(_SplitSensor):
+    def __init__(
+        self,
+        runtime: HeatLedgerRuntime,
+        subentry: ConfigSubentry,
+        titles: Mapping[str, str],
+        area: str | None = None,
+    ) -> None:
+        super().__init__(runtime, subentry, titles)
+        # In the room of its thermostat: the Energy dashboard groups consumers by floor and area.
+        self._attr_device_info = _subentry_device(subentry, area)
+
     def _total(self) -> float:
         return self.runtime.ledger.consumer_total(self._id)
 
