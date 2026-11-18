@@ -1,0 +1,72 @@
+# Energy dashboard
+
+Heat Ledger's counters are meant for the **gas** tab of the Energy dashboard, which accepts any energy sensor as an
+individual device since Home Assistant 2026.12. The tab is called "Gas" even when the heat comes from oil, wood or
+a heat pump.
+
+## Setup
+
+In **Settings → Dashboards → Energy → Gas**:
+
+1. Add each heat source as a gas source (the energy entity you gave Heat Ledger as source, or its converted
+   "heat" sensor). The name you enter there is the one the dashboard shows.
+2. Add each circuit's heat counter as an individual device.
+3. Add each radiator's heat counter as an individual device with its circuit as **upstream device**.
+4. Add hot water as an individual device without upstream device.
+
+The Sankey then shows sources → home → circuits and hot water → radiators. "Untracked" is what the sources
+delivered beyond the counters: fixed losses, and heat from before Heat Ledger was set up.
+
+A heat pump or an immersion heater shows up twice: on the electricity tab as electricity, on the gas tab as heat.
+That is not double counting, the tabs are not added up. Set the price of the heat source to 0, or the costs
+appear twice in the overview.
+
+## Per-device charts
+
+The electricity tab has bar charts per device ("Individual devices" and its detail chart); the gas tab does not
+have them yet. Two statistics graph cards on any dashboard give the same view. List the radiators and hot water,
+not the circuits, or the stacked bars count every radiator twice.
+
+Heat per consumer and day, stacked:
+
+```yaml
+type: statistics-graph
+title: Heat per day
+chart_type: bar-stack
+period: day
+days_to_show: 7
+stat_types:
+  - change
+entities:
+  - entity: sensor.living_room_heat
+    name: Living room
+  - entity: sensor.bedroom_heat
+    name: Bedroom
+  - entity: sensor.bathroom_heat
+    name: Bathroom
+  - entity: sensor.hot_water_heat
+    name: Hot water
+```
+
+Consumers side by side, per month:
+
+```yaml
+type: statistics-graph
+title: Consumers compared
+chart_type: bar
+period: month
+days_to_show: 30
+stat_types:
+  - change
+entities:
+  - entity: sensor.living_room_heat
+    name: Living room
+  - entity: sensor.bedroom_heat
+    name: Bedroom
+  - entity: sensor.bathroom_heat
+    name: Bathroom
+  - entity: sensor.hot_water_heat
+    name: Hot water
+```
+
+Change `period` and `days_to_show` for other ranges, for example `period: week` with `days_to_show: 90`.
