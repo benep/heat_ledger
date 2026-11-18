@@ -16,9 +16,11 @@ In **Settings → Dashboards → Energy → Gas**:
 
 The Sankey then shows sources → home → circuits and hot water → radiators. Like on the electricity tab, it groups
 the consumers by floor and area: Heat Ledger puts each consumer's device into the area of its thermostat (or
-pump, or heat meter) when it is created, so assign floors to your areas and the grouping follows. Home Assistant
-then puts the area in front of the entity ID, for example `sensor.living_room_living_room_heat` for a radiator
-named after its room.
+pump, or heat meter) when it is created, so assign floors to your areas and the grouping follows. Name the radiators for what they are ("Radiator",
+or "Radiator window" when a room has two), not after the room: the area already says where they are. Named after
+the room, the room appears twice in the Sankey and in the entity ID (`sensor.living_room_living_room_heat`,
+because Home Assistant puts the area in front). Enter the same name as display name in the Energy settings, or the
+Sankey shows the sensor's name ("Radiator Heat").
 
 The grouping applies to the top level only: radiators below a circuit stay below it, without floors. With a
 single circuit, the circuit adds little; leave it out and add the radiators without upstream device, and the Sankey
