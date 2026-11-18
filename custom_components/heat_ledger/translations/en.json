@@ -1,0 +1,271 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Heating system",
+        "description": "Add heat sources, circuits and consumers afterwards on the integration page.",
+        "data": {
+          "name": "Name",
+          "loss_kw": "Fixed losses"
+        },
+        "data_description": {
+          "name": "For example the building.",
+          "loss_kw": "Heat lost all the time by a storage tank and pipes, in kW. It is taken off before the split. Leave empty if unknown."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Enter a name.",
+      "not_positive": "Enter a number greater than 0."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Heating system",
+        "data": {
+          "loss_kw": "Fixed losses"
+        },
+        "data_description": {
+          "loss_kw": "Heat lost all the time by a storage tank and pipes, in kW. It is taken off before the split. Leave empty if unknown."
+        }
+      }
+    },
+    "error": {
+      "not_positive": "Enter a number greater than 0."
+    }
+  },
+  "config_subentries": {
+    "source": {
+      "entry_type": "Heat source",
+      "initiate_flow": {
+        "user": "Add heat source",
+        "reconfigure": "Edit heat source"
+      },
+      "step": {
+        "source": {
+          "title": "Heat source",
+          "description": "An entity that counts energy or fuel. Its increase, converted to heat, is split between the consumers.",
+          "data": {
+            "entity_id": "Reading",
+            "conversion": "Conversion"
+          },
+          "data_description": {
+            "entity_id": "A meter reading that only increases, e.g. heat or electricity in kWh, gas in m³ or oil in L.",
+            "conversion": "How the reading becomes heat."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "More accurate",
+              "data": {
+                "factor": "Factor",
+                "factor_entity_id": "COP sensor"
+              },
+              "data_description": {
+                "factor": "kWh of heat per unit of the reading. Default: 0.9 for efficiency, 3.0 for COP. Not used for heat.",
+                "factor_entity_id": "Current COP of the heat pump. While it is unavailable, the factor applies."
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entity not found.",
+        "wrong_domain": "This type of entity is not supported here.",
+        "not_cumulative": "Choose a meter reading, not a momentary value.",
+        "not_positive": "Enter a number greater than 0.",
+        "factor_entity_cop_only": "A COP sensor only works with the conversion electricity × COP.",
+        "source_exists": "This entity is already a heat source."
+      }
+    },
+    "circuit": {
+      "entry_type": "Heating circuit",
+      "initiate_flow": {
+        "user": "Add heating circuit",
+        "reconfigure": "Edit heating circuit"
+      },
+      "step": {
+        "circuit": {
+          "title": "Heating circuit",
+          "description": "Radiators behind one pump. Without a running pump, none of them gets heat.",
+          "data": {
+            "name": "Name",
+            "pump_entity_id": "Pump"
+          },
+          "data_description": {
+            "name": "For example the floor.",
+            "pump_entity_id": "Binary sensor that is on while the circuit pump runs. Without it, the circuit counts as always running."
+          }
+        }
+      },
+      "error": {
+        "name_required": "Enter a name.",
+        "entity_not_found": "Entity not found.",
+        "wrong_domain": "This type of entity is not supported here."
+      }
+    },
+    "consumer": {
+      "entry_type": "Consumer",
+      "initiate_flow": {
+        "user": "Add consumer",
+        "reconfigure": "Edit consumer"
+      },
+      "step": {
+        "user": {
+          "title": "Consumer",
+          "menu_options": {
+            "radiator": "Radiator",
+            "hot_water": "Hot water"
+          }
+        },
+        "radiator": {
+          "title": "Radiator",
+          "description": "Gets a share of the heat by its size and demand.",
+          "data": {
+            "name": "Name",
+            "circuit": "Heating circuit",
+            "demand_entity_id": "Demand"
+          },
+          "data_description": {
+            "name": "For example the room.",
+            "circuit": "Without a circuit, the radiator is always supplied.",
+            "demand_entity_id": "Thermostat, heating demand or valve position in %, or an on/off actuator. Without one, the radiator counts as always heating."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "More accurate",
+              "data": {
+                "demand_type": "Demand in % is",
+                "size_type": "Size",
+                "size_value": "Area or nominal power",
+                "meter_entity_id": "Heat meter"
+              },
+              "data_description": {
+                "demand_type": "Only for a demand sensor in %.",
+                "size_type": "By default, all radiators count as equal.",
+                "size_value": "Floor area in m² or nominal power in W, as chosen above.",
+                "meter_entity_id": "Measures the heat of this radiator. Replaces the estimate."
+              }
+            }
+          }
+        },
+        "demand_suggestion": {
+          "title": "Demand in %",
+          "description": "{sensor} reports the heating demand of {climate} in percent. That is more accurate than heating on/off.",
+          "data": {
+            "use_suggestion": "Use the demand in %"
+          },
+          "data_description": {
+            "use_suggestion": "Off: use heating on/off of the thermostat."
+          }
+        },
+        "hot_water": {
+          "title": "Hot water",
+          "description": "Gets heat while its charging pump runs.",
+          "data": {
+            "name": "Name",
+            "demand_entity_id": "Pump"
+          },
+          "data_description": {
+            "name": "For example the storage tank.",
+            "demand_entity_id": "Binary sensor that is on while the hot water pump runs."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "More accurate",
+              "data": {
+                "charging_power_kw": "Charging power",
+                "meter_entity_id": "Heat meter"
+              },
+              "data_description": {
+                "charging_power_kw": "Heat while the pump runs, in kW. Default: 10 kW.",
+                "meter_entity_id": "Measures the heat for hot water. Replaces the estimate."
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "name_required": "Enter a name.",
+        "entity_not_found": "Entity not found.",
+        "wrong_domain": "This type of entity is not supported here.",
+        "not_cumulative": "Choose a meter reading, not a momentary value.",
+        "not_percent": "A sensor needs the unit %.",
+        "not_positive": "Enter a number greater than 0.",
+        "size_value_required": "Enter the area or nominal power for this size."
+      }
+    }
+  },
+  "selector": {
+    "conversion": {
+      "options": {
+        "direct": "Heat (no conversion)",
+        "efficiency": "Fuel or electricity × efficiency",
+        "cop": "Electricity × COP (heat pump)"
+      }
+    },
+    "demand_type": {
+      "options": {
+        "percent": "Heating demand",
+        "valve": "Valve position"
+      }
+    },
+    "size_type": {
+      "options": {
+        "default": "Standard (all equal)",
+        "area": "Floor area in m²",
+        "nominal_power": "Nominal power in W"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "heat": {
+        "name": "Heat",
+        "state_attributes": {
+          "level": {
+            "name": "Level",
+            "state": {
+              "estimated": "Estimated",
+              "calculated": "Calculated",
+              "measured": "Measured"
+            }
+          },
+          "basis": {
+            "name": "Basis"
+          },
+          "next_improvement": {
+            "name": "Next improvement"
+          },
+          "by_source": {
+            "name": "By source"
+          }
+        }
+      },
+      "source_heat": {
+        "name": "Heat produced",
+        "state_attributes": {
+          "level": {
+            "name": "Level",
+            "state": {
+              "estimated": "Estimated",
+              "calculated": "Calculated",
+              "measured": "Measured"
+            }
+          }
+        }
+      },
+      "account": {
+        "name": "Unassigned heat",
+        "state_attributes": {
+          "by_source": {
+            "name": "By source"
+          },
+          "blocked_by": {
+            "name": "Blocked by"
+          }
+        }
+      }
+    }
+  }
+}
