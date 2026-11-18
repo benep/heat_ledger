@@ -1,0 +1,271 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Heizungsanlage",
+        "description": "Wärmequellen, Heizkreise und Verbraucher fügst du danach auf der Seite der Integration hinzu.",
+        "data": {
+          "name": "Name",
+          "loss_kw": "Feste Verluste"
+        },
+        "data_description": {
+          "name": "Zum Beispiel das Gebäude.",
+          "loss_kw": "Wärme, die Speicher und Leitungen ständig verlieren, in kW. Wird vor der Aufteilung abgezogen. Leer lassen, wenn unbekannt."
+        }
+      }
+    },
+    "error": {
+      "name_required": "Gib einen Namen ein.",
+      "not_positive": "Gib eine Zahl größer als 0 ein."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Heizungsanlage",
+        "data": {
+          "loss_kw": "Feste Verluste"
+        },
+        "data_description": {
+          "loss_kw": "Wärme, die Speicher und Leitungen ständig verlieren, in kW. Wird vor der Aufteilung abgezogen. Leer lassen, wenn unbekannt."
+        }
+      }
+    },
+    "error": {
+      "not_positive": "Gib eine Zahl größer als 0 ein."
+    }
+  },
+  "config_subentries": {
+    "source": {
+      "entry_type": "Wärmequelle",
+      "initiate_flow": {
+        "user": "Wärmequelle hinzufügen",
+        "reconfigure": "Wärmequelle bearbeiten"
+      },
+      "step": {
+        "source": {
+          "title": "Wärmequelle",
+          "description": "Eine Entität, die Energie oder Brennstoff zählt. Ihr Zuwachs wird in Wärme umgerechnet und auf die Verbraucher aufgeteilt.",
+          "data": {
+            "entity_id": "Zählerstand",
+            "conversion": "Umrechnung"
+          },
+          "data_description": {
+            "entity_id": "Ein Zählerstand, der nur steigt, z. B. Wärme oder Strom in kWh, Gas in m³ oder Öl in L.",
+            "conversion": "Wie aus dem Zählerstand Wärme wird."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "Genauer machen",
+              "data": {
+                "factor": "Faktor",
+                "factor_entity_id": "COP-Sensor"
+              },
+              "data_description": {
+                "factor": "kWh Wärme pro Einheit des Zählerstands. Standard: 0,9 für Wirkungsgrad, 3,0 für COP. Bei Wärme ohne Wirkung.",
+                "factor_entity_id": "Aktueller COP der Wärmepumpe. Solange er nicht verfügbar ist, gilt der Faktor."
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entität nicht gefunden.",
+        "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
+        "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
+        "not_positive": "Gib eine Zahl größer als 0 ein.",
+        "factor_entity_cop_only": "Ein COP-Sensor gilt nur mit der Umrechnung Strom × COP.",
+        "source_exists": "Diese Entität ist schon eine Wärmequelle."
+      }
+    },
+    "circuit": {
+      "entry_type": "Heizkreis",
+      "initiate_flow": {
+        "user": "Heizkreis hinzufügen",
+        "reconfigure": "Heizkreis bearbeiten"
+      },
+      "step": {
+        "circuit": {
+          "title": "Heizkreis",
+          "description": "Heizkörper hinter einer Pumpe. Läuft die Pumpe nicht, bekommt keiner von ihnen Wärme.",
+          "data": {
+            "name": "Name",
+            "pump_entity_id": "Pumpe"
+          },
+          "data_description": {
+            "name": "Zum Beispiel das Stockwerk.",
+            "pump_entity_id": "Binärsensor, der an ist, solange die Heizkreispumpe läuft. Ohne ihn gilt der Kreis als immer aktiv."
+          }
+        }
+      },
+      "error": {
+        "name_required": "Gib einen Namen ein.",
+        "entity_not_found": "Entität nicht gefunden.",
+        "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt."
+      }
+    },
+    "consumer": {
+      "entry_type": "Verbraucher",
+      "initiate_flow": {
+        "user": "Verbraucher hinzufügen",
+        "reconfigure": "Verbraucher bearbeiten"
+      },
+      "step": {
+        "user": {
+          "title": "Verbraucher",
+          "menu_options": {
+            "radiator": "Heizkörper",
+            "hot_water": "Warmwasser"
+          }
+        },
+        "radiator": {
+          "title": "Heizkörper",
+          "description": "Bekommt einen Anteil der Wärme nach Größe und Anforderung.",
+          "data": {
+            "name": "Name",
+            "circuit": "Heizkreis",
+            "demand_entity_id": "Anforderung"
+          },
+          "data_description": {
+            "name": "Zum Beispiel der Raum.",
+            "circuit": "Ohne Heizkreis wird der Heizkörper immer versorgt.",
+            "demand_entity_id": "Thermostat, Wärmeanforderung oder Ventilstellung in % oder ein Stellantrieb (an/aus). Ohne gilt der Heizkörper als immer heizend."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "Genauer machen",
+              "data": {
+                "demand_type": "Anforderung in % ist",
+                "size_type": "Größe",
+                "size_value": "Fläche oder Nennleistung",
+                "meter_entity_id": "Wärmemengenzähler"
+              },
+              "data_description": {
+                "demand_type": "Nur für einen Anforderungssensor in %.",
+                "size_type": "Standardmäßig zählen alle Heizkörper gleich.",
+                "size_value": "Raumfläche in m² oder Nennleistung in W, je nach Auswahl oben.",
+                "meter_entity_id": "Misst die Wärme dieses Heizkörpers. Ersetzt die Schätzung."
+              }
+            }
+          }
+        },
+        "demand_suggestion": {
+          "title": "Anforderung in %",
+          "description": "{sensor} meldet die Wärmeanforderung von {climate} in Prozent. Das ist genauer als Heizen an/aus.",
+          "data": {
+            "use_suggestion": "Anforderung in % verwenden"
+          },
+          "data_description": {
+            "use_suggestion": "Aus: Heizen an/aus des Thermostats verwenden."
+          }
+        },
+        "hot_water": {
+          "title": "Warmwasser",
+          "description": "Bekommt Wärme, solange die Ladepumpe läuft.",
+          "data": {
+            "name": "Name",
+            "demand_entity_id": "Pumpe"
+          },
+          "data_description": {
+            "name": "Zum Beispiel der Speicher.",
+            "demand_entity_id": "Binärsensor, der an ist, solange die Warmwasserpumpe läuft."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "Genauer machen",
+              "data": {
+                "charging_power_kw": "Ladeleistung",
+                "meter_entity_id": "Wärmemengenzähler"
+              },
+              "data_description": {
+                "charging_power_kw": "Wärme, solange die Pumpe läuft, in kW. Standard: 10 kW.",
+                "meter_entity_id": "Misst die Wärme für Warmwasser. Ersetzt die Schätzung."
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "name_required": "Gib einen Namen ein.",
+        "entity_not_found": "Entität nicht gefunden.",
+        "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
+        "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
+        "not_percent": "Ein Sensor braucht die Einheit %.",
+        "not_positive": "Gib eine Zahl größer als 0 ein.",
+        "size_value_required": "Gib für diese Größe die Fläche oder Nennleistung ein."
+      }
+    }
+  },
+  "selector": {
+    "conversion": {
+      "options": {
+        "direct": "Wärme (keine Umrechnung)",
+        "efficiency": "Brennstoff oder Strom × Wirkungsgrad",
+        "cop": "Strom × COP (Wärmepumpe)"
+      }
+    },
+    "demand_type": {
+      "options": {
+        "percent": "Wärmeanforderung",
+        "valve": "Ventilstellung"
+      }
+    },
+    "size_type": {
+      "options": {
+        "default": "Standard (alle gleich)",
+        "area": "Raumfläche in m²",
+        "nominal_power": "Nennleistung in W"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "heat": {
+        "name": "Wärme",
+        "state_attributes": {
+          "level": {
+            "name": "Stufe",
+            "state": {
+              "estimated": "Geschätzt",
+              "calculated": "Berechnet",
+              "measured": "Gemessen"
+            }
+          },
+          "basis": {
+            "name": "Grundlage"
+          },
+          "next_improvement": {
+            "name": "Nächste Verbesserung"
+          },
+          "by_source": {
+            "name": "Nach Quelle"
+          }
+        }
+      },
+      "source_heat": {
+        "name": "Erzeugte Wärme",
+        "state_attributes": {
+          "level": {
+            "name": "Stufe",
+            "state": {
+              "estimated": "Geschätzt",
+              "calculated": "Berechnet",
+              "measured": "Gemessen"
+            }
+          }
+        }
+      },
+      "account": {
+        "name": "Nicht verteilte Wärme",
+        "state_attributes": {
+          "by_source": {
+            "name": "Nach Quelle"
+          },
+          "blocked_by": {
+            "name": "Blockiert durch"
+          }
+        }
+      }
+    }
+  }
+}
