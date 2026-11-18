@@ -110,7 +110,7 @@ async def test_attributes(hass: HomeAssistant, entry: MockConfigEntry, freezer) 
     living = attributes(hass, "living_heat")
     assert living["level"] == "estimated"
     assert living["basis"] == {"size": "nominal_power", "demand": "percent", "circuit": "pump"}
-    assert living["next_improvement"] == "demand_valve"
+    assert living["next_improvement"] is None
     assert living["by_source"] == {
         "Boiler": pytest.approx(round(LIVING_SHARE, 3)),
         "Heat pump": pytest.approx(round(3 * LIVING_SHARE, 3)),
@@ -119,7 +119,7 @@ async def test_attributes(hass: HomeAssistant, entry: MockConfigEntry, freezer) 
     circuit = attributes(hass, "ground_floor_heat")
     assert circuit["level"] == "estimated"
     assert circuit["basis"] == {"size": "area", "demand": "always", "circuit": "pump"}
-    assert circuit["next_improvement"] == "demand_valve"
+    assert circuit["next_improvement"] == "demand_hvac_action"
     assert circuit["by_source"] == {"Boiler": pytest.approx(1.0), "Heat pump": pytest.approx(3.0)}
 
     hot_water = attributes(hass, "hot_water_heat")

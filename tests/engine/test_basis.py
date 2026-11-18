@@ -35,6 +35,11 @@ PLANT = PlantSpec(
             "size_area",
         ),
         (
+            ConsumerSpec("x", "plain", Size(), Demand(DemandMethod.PERCENT, "p")),
+            Level.ESTIMATED,
+            "size_area",
+        ),
+        (
             ConsumerSpec("x", "plain", Size(SizeMethod.NOMINAL_POWER, 900), Demand(DemandMethod.VALVE, "v")),
             Level.ESTIMATED,
             "circuit_pump",

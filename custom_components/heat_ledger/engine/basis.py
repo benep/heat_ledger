@@ -49,8 +49,10 @@ def consumer_basis(plant: PlantSpec, consumer: ConsumerSpec) -> Basis:
         if factor == "circuit" and circuit is None:
             continue
         current = methods[factor]
-        if current is DemandMethod.ON_OFF:
-            continue  # actuators and pumps cannot report more than on or off
+        if current in (DemandMethod.ON_OFF, DemandMethod.PERCENT):
+            # Actuators and pumps cannot report more than on or off. A thermostat that reports a heating demand in %
+            # rarely offers a valve position as well, so suggesting one would not help.
+            continue
         if factor == "size" and consumer.hot_water:
             order = [SizeMethod.DEFAULT, SizeMethod.NOMINAL_POWER]  # the charging power, nothing in between
         index = order.index(current)
