@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from homeassistant.const import UnitOfEnergy
-from homeassistant.util.unit_conversion import EnergyConverter
+from homeassistant.const import UnitOfEnergy, UnitOfVolume
+from homeassistant.util.unit_conversion import EnergyConverter, VolumeConverter
 
 from custom_components.heat_ledger.const import (
     CONF_CIRCUIT,
@@ -19,6 +19,7 @@ from custom_components.heat_ledger.const import (
     CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
+    CONF_UNIT,
     KIND_HOT_WATER,
     KIND_RADIATOR,
     QUANTITY_HEAT,
@@ -30,11 +31,14 @@ from custom_components.heat_ledger.const import (
 from custom_components.heat_ledger.engine import ActiveMethod, DemandMethod, SizeMethod
 from custom_components.heat_ledger.model import (
     ENERGY_TO_KWH,
+    VOLUME_TO_M3,
     InputKind,
     Subentry,
     build_plant,
+    convert,
     input_kinds,
     parse_state,
+    reference_units,
 )
 
 SUBENTRIES = [
@@ -151,3 +155,48 @@ def test_energy_units_match_home_assistant(unit):
     """Every energy unit of Home Assistant is converted, with its own factor."""
     assert unit in ENERGY_TO_KWH
     assert ENERGY_TO_KWH[unit] == pytest.approx(EnergyConverter.convert(1, unit, UnitOfEnergy.KILO_WATT_HOUR))
+
+
+@pytest.mark.parametrize("unit", sorted(UnitOfVolume))
+def test_volume_units_match_home_assistant(unit):
+    assert VOLUME_TO_M3[unit] == pytest.approx(VolumeConverter.convert(1, unit, UnitOfVolume.CUBIC_METERS))
+
+
+@pytest.mark.parametrize(
+    ("value", "unit", "reference", "expected"),
+    [
+        (2.0, "MWh", "kWh", 2000.0),  # heat: any energy unit, in kWh
+        (5.0, "m³", "kWh", None),  # heat cannot be a volume
+        (1000.0, "L", "m³", 1.0),  # energy input set up in m³, now in L: converted, the factor still fits
+        (100.0, "ft³", "m³", 100 * 0.3048**3),
+        (10.0, "kWh", "m³", None),  # set up in m³, now in kWh: the factor no longer fits
+        (10.0, "m³", "kWh", None),
+        (3.0, "h", "h", 3.0),  # burner run time
+        (3.0, "min", "h", None),
+        (4.0, "MJ", None, 4 / 3.6),  # stored before units were: as before
+        (4.0, "m³", None, 4.0),
+    ],
+)
+def test_convert(value, unit, reference, expected):
+    result = convert(value, unit, reference)
+    assert result == (pytest.approx(expected) if expected is not None else None)
+
+
+def test_reference_units():
+    subentries = [
+        Subentry("heat", SUBENTRY_SOURCE, "Heat meter", {CONF_ENTITY: "sensor.heat", CONF_QUANTITY: QUANTITY_HEAT}),
+        Subentry(
+            "gas",
+            SUBENTRY_SOURCE,
+            "Gas",
+            {CONF_ENTITY: "sensor.gas", CONF_QUANTITY: QUANTITY_INPUT, CONF_UNIT: "m³", CONF_FACTOR: 9.6},
+        ),
+        Subentry("old", SUBENTRY_SOURCE, "Old", {CONF_ENTITY: "sensor.old", CONF_QUANTITY: QUANTITY_INPUT}),
+        Subentry("hm", SUBENTRY_CONSUMER, "Workshop", {CONF_KIND: KIND_RADIATOR, CONF_METER_ENTITY: "sensor.hm"}),
+    ]
+    assert reference_units(subentries) == {
+        "sensor.heat": "kWh",
+        "sensor.gas": "m³",
+        "sensor.old": None,
+        "sensor.hm": "kWh",
+    }

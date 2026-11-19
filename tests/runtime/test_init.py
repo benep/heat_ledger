@@ -209,3 +209,39 @@ async def test_entry_without_subentries(hass: HomeAssistant, freezer) -> None:
     await setup(hass, entry)
     await next_interval(hass, freezer)
     assert value(hass, f"{entry.entry_id}_account") == 0.0
+
+
+async def test_unit_change_of_energy_input_books_nothing_and_warns(hass: HomeAssistant, freezer, caplog) -> None:
+    """Set up as m³ with a factor of 10: litres are converted, kWh no longer fit the factor."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Flat",
+        subentries_data=[
+            {
+                "subentry_id": "gas",
+                "subentry_type": "source",
+                "title": "Gas",
+                "unique_id": None,
+                "data": {"entity_id": "sensor.gas", "quantity": "input", "unit": "m³", "factor": 10.0},
+            },
+            {
+                "subentry_id": "room",
+                "subentry_type": "consumer",
+                "title": "Room",
+                "unique_id": None,
+                "data": {"kind": "radiator", "demand_type": "always", "size_type": "default"},
+            },
+        ],
+    )
+    entry.add_to_hass(hass)
+    hass.states.async_set("sensor.gas", "100.0", {"unit_of_measurement": "m³"})
+    await setup(hass, entry)
+
+    hass.states.async_set("sensor.gas", "101000", {"unit_of_measurement": "L"})  # 101 m³
+    await next_interval(hass, freezer)
+    assert value(hass, "gas_source_heat") == pytest.approx(10.0)
+
+    hass.states.async_set("sensor.gas", "1015.0", {"unit_of_measurement": "kWh"})
+    await next_interval(hass, freezer)
+    assert value(hass, "gas_source_heat") == pytest.approx(10.0)
+    assert "sensor.gas is now in kWh instead of m³" in caplog.text

@@ -31,6 +31,7 @@ from custom_components.heat_ledger.const import (
     CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
+    CONF_UNIT,
     DOMAIN,
     SUBENTRY_CIRCUIT,
     SUBENTRY_CONSUMER,
@@ -230,7 +231,7 @@ async def test_first_setup_complete(hass: HomeAssistant) -> None:
     grouped = subentries_by_type(result)
     (source,) = grouped[SUBENTRY_SOURCE]
     assert source.title == "Gas boiler"
-    assert dict(source.data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_FACTOR: 9.6}
+    assert dict(source.data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_UNIT: "m³", CONF_FACTOR: 9.6}
     (circuit,) = grouped[SUBENTRY_CIRCUIT]
     assert (circuit.title, dict(circuit.data)) == ("Heating circuit", {CONF_PUMP_ENTITY: PUMP})
     living, study, hot_water = grouped[SUBENTRY_CONSUMER]
@@ -375,7 +376,7 @@ async def test_source_energy_input_asks_for_the_factor(hass: HomeAssistant, entr
     assert result["type"] is FlowResultType.CREATE_ENTRY
     source = only_subentry(entry, SUBENTRY_SOURCE)
     assert source.title == "Gas meter"
-    assert dict(source.data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_FACTOR: 9.6}
+    assert dict(source.data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_UNIT: "m³", CONF_FACTOR: 9.6}
 
 
 @pytest.mark.usefixtures("entities")
@@ -393,6 +394,7 @@ async def test_source_factor_is_per_kwh_for_energy_readings(hass: HomeAssistant,
     [
         ({CONF_ENTITY: "sensor.missing", CONF_QUANTITY: "heat"}, {CONF_ENTITY: "entity_not_found"}),
         ({CONF_ENTITY: POWER, CONF_QUANTITY: "input"}, {CONF_ENTITY: "not_cumulative"}),
+        ({CONF_ENTITY: GAS, CONF_QUANTITY: "heat"}, {CONF_QUANTITY: "heat_needs_energy_unit"}),
     ],
 )
 async def test_source_errors(hass: HomeAssistant, entry: MockConfigEntry, user_input, errors) -> None:
@@ -430,14 +432,22 @@ async def test_source_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.subentries[sid].title == "Gas boiler"
-    assert dict(entry.subentries[sid].data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_FACTOR: 10.1}
+    assert dict(entry.subentries[sid].data) == {
+        CONF_ENTITY: GAS,
+        CONF_QUANTITY: "input",
+        CONF_UNIT: "m³",
+        CONF_FACTOR: 10.1,
+    }
 
-    # Switched to heat: the factor is dropped.
+    # A meter in m³ cannot count heat.
     result = await start(hass, entry, SUBENTRY_SOURCE, sid)
     result = await configure(hass, result, {CONF_ENTITY: GAS, CONF_QUANTITY: "heat"})
+    assert result["errors"] == {CONF_QUANTITY: "heat_needs_energy_unit"}
+    # Switched to a heat meter: the factor and the unit are dropped.
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"})
     assert result["type"] is FlowResultType.ABORT
     assert list(entry.subentries) == [sid]
-    assert dict(entry.subentries[sid].data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "heat"}
+    assert dict(entry.subentries[sid].data) == {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"}
 
 
 async def set_gas_sources(hass: HomeAssistant, *statistics: str) -> None:
@@ -595,6 +605,7 @@ async def test_radiator_everything(hass: HomeAssistant, entry: MockConfigEntry) 
         ({ACCURACY: {CONF_SIZE_TYPE: "area"}}, {ACCURACY: "size_value_required"}),
         ({ACCURACY: {CONF_SIZE_TYPE: "area", CONF_SIZE_VALUE: 0}}, {ACCURACY: "not_positive"}),
         ({ACCURACY: {CONF_METER_ENTITY: POWER}}, {ACCURACY: "not_cumulative"}),
+        ({ACCURACY: {CONF_METER_ENTITY: GAS}}, {ACCURACY: "not_energy"}),
     ],
 )
 async def test_radiator_errors(hass: HomeAssistant, entry: MockConfigEntry, user_input, errors) -> None:
@@ -740,6 +751,7 @@ async def test_hot_water_minimal(hass: HomeAssistant, entry: MockConfigEntry) ->
         ({CONF_DEMAND_ENTITY: "binary_sensor.missing"}, {CONF_DEMAND_ENTITY: "entity_not_found"}),
         ({ACCURACY: {"charging_power_kw": 0}}, {ACCURACY: "not_positive"}),
         ({ACCURACY: {CONF_METER_ENTITY: "sensor.missing"}}, {ACCURACY: "entity_not_found"}),
+        ({ACCURACY: {CONF_METER_ENTITY: GAS}}, {ACCURACY: "not_energy"}),
     ],
 )
 async def test_hot_water_errors(hass: HomeAssistant, entry: MockConfigEntry, user_input, errors) -> None:

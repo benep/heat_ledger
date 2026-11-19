@@ -16,7 +16,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, INTERVAL, STORAGE_SAVE_DELAY, STORAGE_VERSION
 from .engine import Ledger, PlantSpec, Reading
 from .engine.ledger import MAX_PLAUSIBLE_KW
-from .model import InputKind, input_kinds, parse_state
+from .model import InputKind, Subentry, input_kinds, parse_state, reference_units
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +35,10 @@ class HeatLedgerRuntime:
         self.entry = entry
         self.plant = plant
         self.kinds: dict[str, InputKind] = input_kinds(plant)
+        self.units = reference_units(
+            Subentry(s.subentry_id, s.subentry_type, s.title, s.data) for s in entry.subentries.values()
+        )
+        self._unit_warned: set[str] = set()
         self.ledger = Ledger(plant)
         self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, store_key(entry.entry_id))
         self._listeners: list[CALLBACK_TYPE] = []
@@ -89,7 +93,22 @@ class HeatLedgerRuntime:
     def _read(self, key: str, state: State | None) -> Reading:
         if state is None:
             return None
-        return parse_state(self.kinds[key], state.state, state.attributes)
+        kind = self.kinds[key]
+        reading = parse_state(kind, state.state, state.attributes, self.units.get(key))
+        if reading is None and kind is InputKind.ENERGY and key not in self._unit_warned:
+            unit = state.attributes.get("unit_of_measurement")
+            if (
+                parse_state(kind, state.state, state.attributes) is not None
+            ):  # a number, but in a unit that does not fit
+                self._unit_warned.add(key)
+                _LOGGER.warning(
+                    "%s is now in %s instead of %s: nothing is booked from it until its unit fits again or the "
+                    "source is set up again with the new unit",
+                    key,
+                    unit,
+                    self.units.get(key),
+                )
+        return reading
 
     def _data(self) -> dict[str, Any]:
         return {STORE_KEY_LEDGER: self.ledger.to_dict()}

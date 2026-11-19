@@ -63,7 +63,8 @@
       "not_positive": "Gib eine Zahl größer als 0 ein.",
       "entity_not_found": "Entität nicht gefunden.",
       "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
-      "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert."
+      "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
+      "heat_needs_energy_unit": "Wärme wird in einer Energieeinheit gezählt (kWh, MJ …). Ein Gaszähler in m³ oder Öl in Litern ist Energieeinsatz."
     }
   },
   "options": {
@@ -119,6 +120,7 @@
         "entity_not_found": "Entität nicht gefunden.",
         "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
         "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
+        "heat_needs_energy_unit": "Wärme wird in einer Energieeinheit gezählt (kWh, MJ …). Ein Gaszähler in m³ oder Öl in Litern ist Energieeinsatz.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
         "source_exists": "Diese Entität ist schon eine Wärmequelle."
       }
@@ -235,6 +237,7 @@
         "entity_not_found": "Entität nicht gefunden.",
         "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
         "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
+        "not_energy": "Wähle einen Wärmezähler, der in einer Energieeinheit zählt (kWh, MJ …).",
         "not_percent": "Ein Sensor braucht die Einheit %.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
         "size_value_required": "Gib für diese Größe die Fläche oder Nennleistung ein."

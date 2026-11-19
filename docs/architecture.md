@@ -86,6 +86,10 @@ Rules:
   with a higher reading and counts on from there. Booked, it would stay in every counter for good.
 - **Other meter:** a source or heat meter switched to another entity starts over from that entity's next reading;
   the difference between the two meters is not heat. `nan` and `inf` count as unavailable.
+- **Units:** heat (sources that count heat, heat meters) must be in an energy unit and is read in kWh. Energy input
+  keeps the unit it was set up with, because its factor refers to it: another unit of the same kind (L instead of
+  m³) is converted, another kind (kWh instead of m³) books nothing and is logged once, until the unit fits again
+  or the source is set up again.
 - **Unreadable stored state:** the split starts over; the counters keep their values through their restored states.
 - **Fixed loss rate** (optional): taken from the account first, every interval.
 - **Release:** the whole account every interval. The engine also supports a time constant that releases only

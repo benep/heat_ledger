@@ -54,6 +54,7 @@ from .const import (
     CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
+    CONF_UNIT,
     DOMAIN,
     KIND_HOT_WATER,
     KIND_RADIATOR,
@@ -87,6 +88,8 @@ ERROR_NOT_POSITIVE = "not_positive"
 ERROR_NAME_REQUIRED = "name_required"
 ERROR_SIZE_VALUE_REQUIRED = "size_value_required"
 ERROR_SOURCE_EXISTS = "source_exists"
+ERROR_NOT_ENERGY = "not_energy"
+ERROR_HEAT_NEEDS_ENERGY = "heat_needs_energy_unit"
 
 
 # --- Selectors ---------------------------------------------------------------------------------------------------
@@ -209,6 +212,14 @@ class _Checker:
             return info
         return None
 
+    def meter(self, value: str | None, field: str) -> _EntityInfo | None:
+        """A heat meter: a cumulative sensor in an energy unit (a water meter in L would count as kWh)."""
+        info = self.entity(value, ("sensor",), field, cumulative=True)
+        if info is not None and info.unit not in ENERGY_TO_KWH:
+            self.errors[field] = ERROR_NOT_ENERGY
+            return None
+        return info
+
     def positive(self, value: float | None, field: str) -> float | None:
         if value is None:
             return None
@@ -271,8 +282,16 @@ def _check_source(
     if info.entity_id in taken:
         check.errors[CONF_ENTITY] = ERROR_SOURCE_EXISTS
         return None
+    quantity = user_input.get(CONF_QUANTITY, QUANTITY_HEAT)
+    data: dict[str, Any] = {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity}
+    if quantity == QUANTITY_HEAT and info.unit not in ENERGY_TO_KWH:
+        # Gas in m³ or oil in L cannot be heat; read as kWh, every counter would be off by the calorific value.
+        check.errors[CONF_QUANTITY] = ERROR_HEAT_NEEDS_ENERGY
+        return None
+    if quantity == QUANTITY_INPUT and info.unit:
+        data[CONF_UNIT] = info.unit  # the factor refers to it
     title = (user_input.get(CONF_NAME) or "").strip() or info.name
-    return title, {CONF_ENTITY: info.entity_id, CONF_QUANTITY: user_input.get(CONF_QUANTITY, QUANTITY_HEAT)}, info
+    return title, data, info
 
 
 def _factor_unit(info: _EntityInfo) -> str:
@@ -683,7 +702,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
                     check.errors[SECTION_ACCURACY] = ERROR_SIZE_VALUE_REQUIRED
                 elif (size := check.positive(more[CONF_SIZE_VALUE], SECTION_ACCURACY)) is not None:
                     data[CONF_SIZE_VALUE] = size
-            if meter := check.entity(more.get(CONF_METER_ENTITY), ("sensor",), SECTION_ACCURACY, cumulative=True):
+            if meter := check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY):
                 data[CONF_METER_ENTITY] = meter.entity_id
             if not check.errors:
                 if demand is not None and demand.domain == "climate":
@@ -764,7 +783,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
             name = check.name(user_input.get(CONF_NAME))
             pump = check.entity(user_input.get(CONF_DEMAND_ENTITY), ("binary_sensor",), CONF_DEMAND_ENTITY)
             power_kw = check.positive(more.get(CONF_CHARGING_POWER_KW), SECTION_ACCURACY)
-            meter = check.entity(more.get(CONF_METER_ENTITY), ("sensor",), SECTION_ACCURACY, cumulative=True)
+            meter = check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY)
             if pump and not check.errors:
                 data: dict[str, Any] = {
                     CONF_KIND: KIND_HOT_WATER,

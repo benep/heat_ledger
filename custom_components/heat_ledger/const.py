@@ -29,6 +29,7 @@ QUANTITY_HEAT: Final = "heat"  # heat, already converted (heat meter, heat outpu
 QUANTITY_INPUT: Final = "input"  # energy input before conversion (gas, oil, electricity), needs a factor
 QUANTITIES: Final = (QUANTITY_HEAT, QUANTITY_INPUT)
 CONF_FACTOR: Final = "factor"  # input only: kWh heat per unit of the reading (per kWh for energy readings)
+CONF_UNIT: Final = "unit"  # input only: unit of the reading when it was set up, the one the factor refers to
 
 # Circuit subentry
 CONF_PUMP_ENTITY: Final = "pump_entity_id"  # binary sensor, optional: without it the circuit is always active

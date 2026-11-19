@@ -24,6 +24,7 @@ from .const import (
     CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
+    CONF_UNIT,
     KIND_HOT_WATER,
     QUANTITY_INPUT,
     SUBENTRY_CIRCUIT,
@@ -47,7 +48,6 @@ from .engine.spec import DEFAULT_HOT_WATER_POWER_W
 INVALID_STATES = {"unavailable", "unknown", "none", ""}
 HEATING_ACTIONS = {"heating", "preheating"}
 # kWh per unit, for every energy unit Home Assistant knows (a test checks this against its EnergyConverter).
-# Units not listed here are not energy (m³, L, ...) and pass unchanged: the source factor converts them.
 _KWH_PER_KCAL = 4.184 / 3600
 ENERGY_TO_KWH = {
     "J": 1 / 3.6e6,
@@ -66,6 +66,19 @@ ENERGY_TO_KWH = {
     "Gcal": _KWH_PER_KCAL * 1e6,
     "thm": 1.054804e8 / 3.6e6,  # US therm
 }
+# m³ per unit, for every volume unit Home Assistant knows (checked against its VolumeConverter).
+_M3_PER_FT3 = 0.3048**3
+VOLUME_TO_M3 = {
+    "m³": 1.0,
+    "L": 0.001,
+    "mL": 1e-6,
+    "gal": 0.003785411784,  # US gallon
+    "fl. oz.": 0.003785411784 / 128,
+    "ft³": _M3_PER_FT3,
+    "CCF": 100 * _M3_PER_FT3,
+    "MCF": 1000 * _M3_PER_FT3,
+}
+HEAT_UNIT = "kWh"
 
 
 class InputKind(StrEnum):
@@ -118,8 +131,45 @@ def input_kinds(plant: PlantSpec) -> dict[str, InputKind]:
     return kinds
 
 
-def parse_state(kind: InputKind, state: str | None, attributes: Mapping[str, Any] | None = None) -> Reading:
-    """The reading for an entity state; None if it is unavailable or makes no sense."""
+def reference_units(subentries: Iterable[Subentry]) -> dict[str, str | None]:
+    """The unit each meter reading is taken in, by entity.
+
+    Heat (sources that count heat, heat meters) is read in kWh, from any energy unit. Energy input is read in the
+    unit it was set up with, because its factor refers to that unit: another unit of the same kind (L instead of m³)
+    is converted, one of another kind (kWh instead of m³) makes the reading unusable. None: set up before the unit was
+    stored, read as it comes.
+    """
+    units: dict[str, str | None] = {}
+    for subentry in subentries:
+        data = subentry.data
+        if subentry.subentry_type == SUBENTRY_SOURCE:
+            units[data[CONF_ENTITY]] = data.get(CONF_UNIT) if data.get(CONF_QUANTITY) == QUANTITY_INPUT else HEAT_UNIT
+        elif subentry.subentry_type == SUBENTRY_CONSUMER and data.get(CONF_METER_ENTITY):
+            units[data[CONF_METER_ENTITY]] = HEAT_UNIT
+    return units
+
+
+def convert(value: float, unit: str | None, reference: str | None) -> float | None:
+    """A meter reading in its reference unit (energy in kWh); None if the units do not fit."""
+    if reference is None:  # stored before units were: energy in kWh, anything else as it comes
+        return value * ENERGY_TO_KWH.get(unit, 1.0) if unit is not None else value
+    if reference in ENERGY_TO_KWH:
+        return value * ENERGY_TO_KWH[unit] if unit in ENERGY_TO_KWH else None
+    if reference in VOLUME_TO_M3:
+        return value * VOLUME_TO_M3[unit] / VOLUME_TO_M3[reference] if unit in VOLUME_TO_M3 else None
+    return value if unit == reference else None
+
+
+def parse_state(
+    kind: InputKind,
+    state: str | None,
+    attributes: Mapping[str, Any] | None = None,
+    reference: str | None = None,
+) -> Reading:
+    """The reading for an entity state; None if it is unavailable or makes no sense.
+
+    `reference`: for energy readings, the unit to read them in (see reference_units).
+    """
     attributes = attributes or {}
     if state is None or state.lower() in INVALID_STATES:
         return None
@@ -140,7 +190,7 @@ def parse_state(kind: InputKind, state: str | None, attributes: Mapping[str, Any
         return None
     if kind is InputKind.PERCENT:
         return value / 100
-    return value * ENERGY_TO_KWH.get(attributes.get("unit_of_measurement"), 1.0)
+    return convert(value, attributes.get("unit_of_measurement"), reference)
 
 
 def _source(subentry: Subentry) -> SourceSpec:
