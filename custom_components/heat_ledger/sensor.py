@@ -87,10 +87,17 @@ async def async_setup_entry(
             entity = ConsumerHeatSensor(runtime, subentry, titles, _device(subentry, area, model, language))
         elif subentry.subentry_type == SUBENTRY_CIRCUIT:
             entity = CircuitHeatSensor(runtime, subentry, titles, _device(subentry, area, DEVICE_CIRCUIT, language))
-        elif subentry.subentry_type == SUBENTRY_SOURCE and subentry.data.get(CONF_QUANTITY) == QUANTITY_INPUT:
-            # A source that counts heat needs no sensor of its own: its input entity already is the heat.
-            device = _device(subentry, area or plant_area, DEVICE_SOURCE, language)
-            entity = SourceHeatSensor(runtime, subentry, device)
+        elif subentry.subentry_type == SUBENTRY_SOURCE:
+            if subentry.data.get(CONF_QUANTITY) == QUANTITY_INPUT:
+                device = _device(subentry, area or plant_area, DEVICE_SOURCE, language)
+                entity = SourceHeatSensor(runtime, subentry, device)
+            else:
+                # A source that counts heat needs no sensor of its own: its input entity already is the heat. One
+                # left from before it was switched to heat would stay as an unavailable leftover.
+                registry = er.async_get(hass)
+                unique_id = f"{subentry.subentry_id}_{TRANSLATION_SOURCE_HEAT}"
+                if leftover := registry.async_get_entity_id("sensor", DOMAIN, unique_id):
+                    registry.async_remove(leftover)
         if entity is not None:
             async_add_entities([entity], config_subentry_id=subentry.subentry_id)
 

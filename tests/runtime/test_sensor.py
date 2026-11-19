@@ -255,3 +255,12 @@ async def test_devices_say_what_they_are(
     keys = ["living_heat", "hot_water_heat", "ground_floor_heat", "heat_pump_source_heat", f"{entry.entry_id}_account"]
     assert [device(key).model for key in keys] == models
     assert {device(key).manufacturer for key in keys} == {"Heat Ledger"}
+
+
+async def test_source_switched_to_heat_leaves_no_leftover(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    await setup(hass, entry)
+    assert entity_id(hass, "heat_pump_source_heat") is not None
+    subentry = entry.subentries["heat_pump"]
+    hass.config_entries.async_update_subentry(entry, subentry, data={"entity_id": HEAT_PUMP, "quantity": "heat"})
+    await hass.async_block_till_done()
+    assert entity_id(hass, "heat_pump_source_heat") is None
