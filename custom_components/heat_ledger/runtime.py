@@ -138,7 +138,10 @@ class HeatLedgerRuntime:
     @callback
     def _on_state(self, event: Event[EventStateChangedData]) -> None:
         key = event.data["entity_id"]
-        self.ledger.observe(self._now(), {key: self._read(key, event.data["new_state"])})
+        reading = self._read(key, event.data["new_state"])
+        if self.ledger.has_reading(key, reading):
+            return  # only an attribute changed (a thermostat's room temperature): nothing new for the ledger
+        self.ledger.observe(self._now(), {key: reading})
         self._log_rejected()
 
     def _log_rejected(self) -> None:

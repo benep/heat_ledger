@@ -223,6 +223,10 @@ class Ledger:
                         self._book(consumer.id, source_id, amount)
         self._rates, self._blocked = self._compute_rates()
 
+    def has_reading(self, key: str, reading: Reading) -> bool:
+        """Whether this reading is already the current one of the input: observing it again changes nothing."""
+        return key in self._readings and self._readings[key] == reading and type(self._readings[key]) is type(reading)
+
     def rename_input(self, old: str, new: str) -> None:
         """An input entity got a new ID: its meter counts on under it, as the same meter (not another one)."""
         for counter in (*self._sources.values(), *self._meters.values()):
