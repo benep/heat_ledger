@@ -133,8 +133,8 @@ HOUR, DAY = 3600, 86400
     ("values", "step", "booked"),
     [
         ([100, 0, 105], HOUR, 5),  # glitch: back above the old value, only the part above counts
-        ([100, 0, 3], HOUR, 0),  # below the old value for an hour: held, not yet a reset
-        ([100, 0, 3], DAY, 3),  # below for a day: a real reset, counted from its lowest value
+        ([100, 0, 3], HOUR, 3),  # a reset: counted from the new value at once
+        ([100, 0, 3, 110], HOUR, 10),  # back above the old value within hours: taken as a glitch
         ([100, 0, 3, 110], DAY, 110),  # reset, then grows past the old value: all of it counts
         ([100, None, 107], HOUR, 7),  # unavailable: increase booked when back
         ([100, 99.5, 101], HOUR, 1),  # small drop and back: glitch
@@ -149,8 +149,8 @@ def test_source_counter(values, step, booked):
     assert sum(ledger.source_heat.values()) == pytest.approx(booked)
 
 
-def test_held_drop_survives_a_restart():
-    """Held after a drop, then restarted: still held, and the glitch rule applies when the reading comes back."""
+def test_drop_survives_a_restart():
+    """A drop, then a restart: the glitch rule still applies when the reading comes back."""
     ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
     ledger.observe(0, {"sensor.boiler": 100.0})
     ledger.observe(300, {"sensor.boiler": 60.0})
@@ -160,7 +160,7 @@ def test_held_drop_survives_a_restart():
     assert restored.source_heat["boiler"] == pytest.approx(1.0)
 
 
-def test_held_drop_from_an_older_state_is_still_held():
+def test_drop_from_an_older_state():
     """An older state stored the drop as [last, before_drop] without its time."""
     ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
     ledger.observe(0, {"sensor.boiler": 60.0})
@@ -349,3 +349,48 @@ def test_unknown_state_version_starts_fresh():
 def test_invalid_plants_are_rejected(plant_args):
     with pytest.raises(ValueError):
         PlantSpec(**plant_args)
+
+
+def test_meter_reset_every_night():
+    """Energy today: back to 0 at midnight. Every day counts fully, also a day using more than the day before."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    days = [9.6, 12.0, 8.0, 15.0]
+    t = 0
+    ledger.observe(t, {"sensor.boiler": 0.0})
+    for total in days:
+        for hour in range(1, 24):
+            t += HOUR
+            ledger.observe(t, {"sensor.boiler": round(total * hour / 23, 4)})
+        t += HOUR
+        ledger.observe(t, {"sensor.boiler": 0.0})  # midnight
+    assert sum(ledger.source_heat.values()) == pytest.approx(sum(days))
+
+
+def test_unit_glitch_after_a_long_pause_is_rejected():
+    """A heat meter stood still all summer; its first change is Wh reported as kWh."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 3000.0})
+    ledger.observe(150 * DAY, {"sensor.boiler": 3000000.0})
+    ledger.observe(150 * DAY + 300, {"sensor.boiler": 3001.0})
+    assert sum(ledger.source_heat.values()) == pytest.approx(1.0)
+    assert len(ledger.rejected) == 1
+
+
+def test_unit_glitch_over_several_readings():
+    """Wh reported as kWh for two readings: nothing of it is booked, and it counts on when the unit is right again."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    for i, value in enumerate([1000.0, 1000000.0, 1000040.0, 1000.1, 1000.2]):
+        ledger.observe(i * 300, {"sensor.boiler": value})
+    assert sum(ledger.source_heat.values()) == pytest.approx(0.2)
+
+
+def test_meter_set_up_again_with_another_unit_starts_over():
+    """Gas in m³ with a factor, then set up again in kWh: the old reading in m³ is no baseline for kWh."""
+    gas_m3 = SourceSpec("gas", "sensor.gas", factor=10.0, unit="m³")
+    ledger = Ledger(PlantSpec((gas_m3,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.gas": 800.0})
+    gas_kwh = SourceSpec("gas", "sensor.gas", factor=0.9, unit="kWh")
+    restored = Ledger.from_dict(PlantSpec((gas_kwh,), consumers=(radiator("a"),)), ledger.to_dict())
+    restored.observe(10 * HOUR, {"sensor.gas": 8100.0})
+    restored.observe(11 * HOUR, {"sensor.gas": 8110.0})
+    assert restored.source_heat["gas"] == pytest.approx(9.0)

@@ -75,17 +75,18 @@ Rules:
 - **Unavailable input:** if any input needed for a weight is unavailable, that stretch of time counts for no one.
   Heat arriving then stays in the account and goes to the next interval with valid weights.
 - **No weights at all** (all pumps off, tank charging at night): the heat stays in the account.
-- **Source decreases:** held; nothing is booked until the reading is back at its old value (a glitch, such as a
-  template adding two meters while one of them is briefly missing: only the part above the old value counts) or
-  has stayed below for 24 hours (a real reset or a new meter: counted from its lowest value). Booking the steps
-  of a recovery would count the recovered part twice. The same applies to heat meters of consumers.
+- **Source decreases:** counted on from the new value at once, as a reset (a meter of the day, back to 0 every
+  night). If the reading is back above the value before the drop within 6 hours, or without having risen at all
+  meanwhile, it was a glitch, such as a template adding two meters while one of them is briefly missing: only the
+  part above the old value counts, less what was booked during the drop. The same applies to heat meters.
 - **Source unavailable:** its increase is booked when it is back, measured from the last valid value.
-- **Implausible jump:** an increase of a source or heat meter above 1 MW on average since its last change (over at
-  least 5 minutes) is a glitch, such as Wh reported as kWh for a moment. It is not booked and is logged as a
-  warning; if the reading comes back, it counts on from where it was before, if it stays, the jump was a meter
-  with a higher reading and counts on from there. Booked, it would stay in every counter for good.
-- **Other meter:** a source or heat meter switched to another entity starts over from that entity's next reading;
-  the difference between the two meters is not heat. `nan` and `inf` count as unavailable.
+- **Implausible jump:** a reading 100 times the one before (a unit mixed up, Wh reported as kWh), or an increase
+  above 1 MW on average since the last change (taken over 5 minutes to 24 hours), is not booked and is logged as a
+  warning. While the reading stays on the scale of the glitch nothing is booked; when it comes back, it counts on
+  from where it was before; if it stays at a plausible distance above, the jump was a meter with a higher reading
+  and it counts on from there. Booked, it would stay in every counter for good.
+- **Other meter:** a source or heat meter switched to another entity, or read in another unit, starts over from
+  its next reading; the difference between the two meters is not heat. `nan` and `inf` count as unavailable.
 - **Units:** heat (sources that count heat, heat meters) must be in an energy unit and is read in kWh. Energy input
   keeps the unit it was set up with, because its factor refers to it: another unit of the same kind (L instead of
   m³) is converted, another kind (kWh instead of m³) books nothing and is logged once, until the unit fits again

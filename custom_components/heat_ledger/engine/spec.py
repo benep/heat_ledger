@@ -69,6 +69,7 @@ class SourceSpec:
     id: str
     key: str
     factor: float = 1.0  # kWh heat per unit; 1.0 when the reading already is heat
+    unit: str | None = None  # unit the reading is taken in; with the key, what identifies the meter
 
 
 @dataclass(frozen=True)

@@ -139,7 +139,8 @@ class HeatLedgerRuntime:
     def _log_rejected(self) -> None:
         for entity_id, increase in self.ledger.rejected:
             _LOGGER.warning(
-                "Ignored a jump of %s by %.1f (more than %.0f kW on average): taken as a glitch or a replaced meter",
+                "Ignored a jump of %s by %.1f (a unit mixed up, or more than %.0f kW on average): taken as a glitch "
+                "or a replaced meter, not as heat",
                 entity_id,
                 increase,
                 MAX_PLAUSIBLE_KW,

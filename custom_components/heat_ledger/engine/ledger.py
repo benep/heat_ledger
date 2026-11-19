@@ -16,50 +16,61 @@ Readings = Mapping[str, Reading]
 
 STATE_VERSION = 1
 
-# No heating plant this integration is meant for delivers more on average. A larger increase is a glitch (an
-# integration briefly reporting Wh as kWh, a meter swapped for one with a higher reading): booked, it would stay in
-# every counter for good.
+
+# No heating plant this integration is meant for delivers more on average. A larger increase is a glitch or a meter
+# swapped for one with a higher reading: booked, it would stay in every counter for good.
 MAX_PLAUSIBLE_KW = 1000.0
-# The average is taken over at least this long, so two readings close together cannot trip the limit.
+# The average is taken over at least MIN_SPAN_S, so two readings close together cannot trip the limit, and over at
+# most MAX_SPAN_S, so a meter that stood still for months is not allowed to jump by millions.
 MIN_SPAN_S = 300.0
-# After a drop, nothing is booked until the reading is back at its old value (a glitch: only what lies above counts)
-# or it stayed below for this long (a meter that was really reset or replaced: counted from its lowest value). A
-# template that adds up two meters and briefly misses one of them recovers in steps; booking those steps would
-# count the recovered part twice.
-RESET_AFTER_S = 24 * 3600.0
+MAX_SPAN_S = 24 * 3600.0
+# A reading this many times the one before is a unit mixed up (Wh reported as kWh), however long the pause was.
+# Only for readings of at least UNIT_GLITCH_MIN, so a new meter going from 0.05 to 6 is not mistaken for one.
+UNIT_GLITCH_RATIO = 100.0
+UNIT_GLITCH_MIN = 10.0
+# A drop followed by a recovery above the old value within this time was a glitch, not a reset: a template adding up
+# two meters that briefly misses one of them. Increases booked meanwhile are taken off, so the recovered part is not
+# counted twice. Long enough for an outage of a few hours, short enough that a meter reset every night (energy
+# today) does not reach the day before's total within it.
+GLITCH_WINDOW_S = 6 * 3600.0
 
 
 class _Counter:
     """Follows a cumulative reading and returns its increases.
 
-    - Drop: held, see RESET_AFTER_S. The heat of the held time is booked when the hold ends, not lost.
-    - Jump: an increase above `limit_per_hour` (in units of the reading) since the last change is a glitch, such as
-      Wh reported as kWh. It is reported in `rejected` instead of being returned. If the reading comes back to where
-      it was before the jump, it continues from there; if not, the jump was a meter swapped for one with a higher
-      reading, and the new value is the baseline.
+    - Drop: counted on from the new value at once, as a reset. If the reading is back above the value before the drop
+      within GLITCH_WINDOW_S, or without having risen at all meanwhile, it was a glitch: only the part above the old
+      value counts, less what was booked during the drop.
+    - Jump: an increase above `limit_per_hour` (in units of the reading) or a reading UNIT_GLITCH_RATIO times the one
+      before is not booked and is reported in `rejected`. While the reading stays on the scale of the glitch nothing is
+      booked; when it comes back, it counts on from where it was before. If it stays at a plausible distance above the
+      old value, the jump was a meter with a higher reading, and it counts on from there.
+    - A meter is identified by its entity and the unit it is read in; restored with another one, it starts over.
     """
 
     __slots__ = (
         "before_drop",
         "before_jump",
+        "booked_since_drop",
         "changed_t",
         "drop_t",
         "key",
         "last",
         "limit_per_hour",
-        "low",
         "rejected",
+        "unit",
     )
 
-    def __init__(self, key: str, limit_per_hour: float) -> None:
+    def __init__(self, key: str, limit_per_hour: float, unit: str | None = None) -> None:
         self.key = key
+        self.unit = unit
         self.limit_per_hour = limit_per_hour
         self.last: float | None = None
-        self.changed_t: float | None = None  # time of the last booked change, for the limit
-        self.before_drop: float | None = None  # holding: the value before the drop
+        self.changed_t: float | None = None  # time of the last change, for the limit
+        self.before_drop: float | None = None  # after a drop: the value before it
         self.drop_t: float | None = None
-        self.low: float | None = None  # lowest value while holding
-        self.before_jump: float | None = None  # the value before a rejected jump
+        self.booked_since_drop = 0.0
+        self.before_jump: float | None = None  # after a rejected jump: the value before it
         self.rejected: float | None = None
 
     def update(self, value: Reading, t: float) -> float:
@@ -69,76 +80,97 @@ class _Counter:
         if self.last is None:
             self.last, self.changed_t = value, t
             return 0.0
-        if self.before_drop is not None:
-            return self._holding(value, t)
+        if self.before_jump is not None:
+            return self._after_jump(value, t)
         if value == self.last:
             return 0.0
         if value < self.last:
-            if self.before_jump is not None and value >= self.before_jump:
-                # Back from a rejected jump: go on from where it was before.
-                base, self.before_jump = self.before_jump, None
-                return self._book(value, base, t)
-            self.before_drop = self.before_jump if self.before_jump is not None else self.last
-            self.before_jump = None
-            self.low, self.drop_t, self.last = value, t, value
+            self._drop(value, t)
             return 0.0
-        return self._book(value, self.last, t)
+        if self.before_drop is not None and value >= self.before_drop:
+            return self._recovered(value, t)
+        increase = self._book(value, self.last, t)
+        if self.before_drop is not None:
+            self.booked_since_drop += increase
+        return increase
 
-    def _holding(self, value: float, t: float) -> float:
+    def _drop(self, value: float, t: float) -> None:
+        # A second drop within the window keeps the first value: the glitch may come in several steps.
+        if self.before_drop is None or self.drop_t is None or t - self.drop_t > GLITCH_WINDOW_S:
+            self.before_drop, self.drop_t, self.booked_since_drop = self.last, t, 0.0
+        self.last, self.changed_t = value, t
+
+    def _recovered(self, value: float, t: float) -> float:
         assert self.before_drop is not None
-        if self.low is None or self.drop_t is None:  # restored from a state without them
-            self.low, self.drop_t = self.last if self.last is not None else value, t
-        if value >= self.before_drop:
-            base = self.before_drop  # a glitch: only the part above the old value counts
-        elif t - self.drop_t >= RESET_AFTER_S:
-            base = min(self.low, value)  # a real reset: count from its lowest value
-        else:
-            self.low, self.last = min(self.low, value), value
-            return 0.0
-        self.before_drop = self.low = self.drop_t = None
-        return self._book(value, base, t)
+        before, booked = self.before_drop, self.booked_since_drop
+        in_window = self.drop_t is not None and t - self.drop_t <= GLITCH_WINDOW_S
+        self.before_drop, self.drop_t, self.booked_since_drop = None, None, 0.0
+        if booked == 0.0 or in_window:  # a glitch: the part above the old value, less what was booked meanwhile
+            return self._book(value, before, t, already=booked)
+        return self._book(value, self.last, t)  # a real reset that has grown past the old value since
 
-    def _book(self, value: float, base: float, t: float) -> float:
-        span = max(t - self.changed_t, MIN_SPAN_S) if self.changed_t is not None else MIN_SPAN_S
-        increase = max(value - base, 0.0)
-        if increase > self.limit_per_hour * span / 3600:
+    def _after_jump(self, value: float, t: float) -> float:
+        before, previous = self.before_jump, self.last
+        assert before is not None and previous is not None
+        if before >= UNIT_GLITCH_MIN and value >= before * UNIT_GLITCH_RATIO:
+            self.last = value  # still on the scale of the glitch
+            return 0.0
+        self.before_jump = None
+        if value < before:  # below where it was before the jump: a drop from there
+            self.last = before
+            self._drop(value, t)
+            return 0.0
+        increase = self._book(value, before, t)  # back: count on from where it was before
+        if self.before_jump is not None:  # still too far above: a meter with a higher reading, count on from it
+            self.before_jump, self.rejected, self.last = None, None, previous
+            increase = self._book(value, min(previous, value), t)
+        return increase
+
+    def _book(self, value: float, base: float, t: float, already: float = 0.0) -> float:
+        span = MIN_SPAN_S if self.changed_t is None else min(max(t - self.changed_t, MIN_SPAN_S), MAX_SPAN_S)
+        increase = max(value - base - already, 0.0)
+        unit_glitch = base >= UNIT_GLITCH_MIN and value >= base * UNIT_GLITCH_RATIO
+        if unit_glitch or increase > self.limit_per_hour * span / 3600:
             self.rejected = increase
-            self.before_jump = base if self.before_jump is None else self.before_jump
+            self.before_jump = base
             self.last = value
             return 0.0
-        # A normal increase after a rejected jump: the jump was a meter with a higher reading, not a glitch.
-        self.last, self.changed_t, self.before_jump = value, t, None
+        self.last, self.changed_t = value, t
         return increase
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "key": self.key,
+            "unit": self.unit,
             "last": self.last,
             "changed_t": self.changed_t,
             "before_drop": self.before_drop,
             "drop_t": self.drop_t,
-            "low": self.low,
+            "booked_since_drop": self.booked_since_drop,
             "before_jump": self.before_jump,
         }
 
-    def restore(self, stored: Any, last_t: float | None) -> None:
-        """From to_dict, or from the older list [last, before_drop(, key)] that held the drop without a time."""
+    def same_meter(self, stored: Any) -> bool:
+        """Whether a stored counter is this meter: same entity, read in the same unit (older states lack them)."""
         if isinstance(stored, Mapping):
-            for name in ("last", "changed_t", "before_drop", "drop_t", "low", "before_jump"):
+            key, unit = stored.get("key"), stored.get("unit", self.unit)
+        else:
+            key, unit = (stored[2] if len(stored) > 2 else None), self.unit
+        return (key is None or key == self.key) and unit == self.unit
+
+    def restore(self, stored: Any, last_t: float | None) -> None:
+        """From to_dict, or from the older list [last, before_drop(, key)]."""
+        if isinstance(stored, Mapping):
+            for name in ("last", "changed_t", "before_drop", "drop_t", "before_jump"):
                 value = stored.get(name)
                 setattr(self, name, float(value) if value is not None else None)
+            self.booked_since_drop = float(stored.get("booked_since_drop") or 0.0)
             return
         last, before_drop = stored[0], stored[1]
         self.last = float(last) if last is not None else None
         self.changed_t = last_t
         if before_drop is not None and self.last is not None:
-            self.before_drop, self.low, self.drop_t = float(before_drop), self.last, last_t
-
-    @staticmethod
-    def stored_key(stored: Any) -> str | None:
-        if isinstance(stored, Mapping):
-            return stored.get("key")
-        return stored[2] if len(stored) > 2 else None
+            self.before_drop, self.drop_t = float(before_drop), last_t
 
 
 class Ledger:
@@ -156,7 +188,8 @@ class Ledger:
         }
         self._circuit_of = {c.id: c.circuit_id for c in plant.consumers if c.circuit_id in self.circuit_consumed}
         self._sources = {
-            s.id: _Counter(s.key, MAX_PLAUSIBLE_KW / s.factor if s.factor > 0 else math.inf) for s in plant.sources
+            s.id: _Counter(s.key, MAX_PLAUSIBLE_KW / s.factor if s.factor > 0 else math.inf, s.unit)
+            for s in plant.sources
         }
         self._meters = {
             c.id: _Counter(c.meter_key, MAX_PLAUSIBLE_KW) for c in plant.consumers if c.meter_key is not None
@@ -305,10 +338,8 @@ class Ledger:
         for name, counters in (("sources", ledger._sources), ("meters", ledger._meters)):
             for counter_id, stored in data.get(name, {}).items():
                 counter = counters.get(counter_id)
-                # Stored without the entity (an older state): assume it is the same entity.
-                stored_key = _Counter.stored_key(stored)
-                if counter is None or (stored_key is not None and stored_key != counter.key):
-                    continue
+                if counter is None or not counter.same_meter(stored):
+                    continue  # another entity or unit: it starts over from its next reading
                 counter.restore(stored, last_t)
         ledger._integral.update({k: float(v) for k, v in data.get("integral", {}).items() if k in ledger._integral})
         ledger._last_t = last_t

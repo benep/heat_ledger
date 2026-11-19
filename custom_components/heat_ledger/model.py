@@ -200,6 +200,7 @@ def _source(subentry: Subentry) -> SourceSpec:
         id=subentry.subentry_id,
         key=data[CONF_ENTITY],
         factor=float(data.get(CONF_FACTOR) or 1.0) if is_input else 1.0,
+        unit=data.get(CONF_UNIT) if is_input else HEAT_UNIT,
     )
 
 
