@@ -55,6 +55,8 @@ def consumer_basis(plant: PlantSpec, consumer: ConsumerSpec) -> Basis:
             continue
         if factor == "size" and consumer.hot_water:
             order = [SizeMethod.DEFAULT, SizeMethod.NOMINAL_POWER]  # the charging power, nothing in between
+        if current not in order:  # a method this order does not know (hot water sized by area): nothing to suggest
+            continue
         index = order.index(current)
         if index < len(order) - 1:
             improvement = hint.format(order[index + 1])

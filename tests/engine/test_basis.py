@@ -57,6 +57,12 @@ PLANT = PlantSpec(
         ),
         (ConsumerSpec("act", "plain", Size(), Demand(DemandMethod.ON_OFF, "p")), Level.ESTIMATED, "size_area"),
         (ConsumerSpec("m", meter_key="meter"), Level.MEASURED, None),
+        # Hot water sized by area (not offered, but possible in stored data): no crash, nothing to suggest.
+        (
+            ConsumerSpec("dhw", None, Size(SizeMethod.AREA, 2), Demand(DemandMethod.ON_OFF, "p"), hot_water=True),
+            Level.ESTIMATED,
+            None,
+        ),
     ],
 )
 def test_basis(consumer, level, hint):
