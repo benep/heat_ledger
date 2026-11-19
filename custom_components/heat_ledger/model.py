@@ -5,6 +5,7 @@ The config flow writes the formats in const.py, the runtime calls build_plant() 
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -132,6 +133,8 @@ def parse_state(kind: InputKind, state: str | None, attributes: Mapping[str, Any
     try:
         value = float(state)
     except ValueError:
+        return None
+    if not math.isfinite(value):  # "nan" and "inf" parse as floats
         return None
     if kind is InputKind.PERCENT:
         return value / 100

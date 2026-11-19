@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, INTERVAL, STORAGE_SAVE_DELAY, STORAGE_VERSION
 from .engine import Ledger, PlantSpec, Reading
+from .engine.ledger import MAX_PLAUSIBLE_KW
 from .model import InputKind, input_kinds, parse_state
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,8 +46,13 @@ class HeatLedgerRuntime:
         """Restore the stored state, take the current readings and start listening."""
         stored = await self._store.async_load()
         if stored and isinstance(stored.get(STORE_KEY_LEDGER), dict):
-            self.ledger = Ledger.from_dict(self.plant, stored[STORE_KEY_LEDGER])
+            try:
+                self.ledger = Ledger.from_dict(self.plant, stored[STORE_KEY_LEDGER])
+            except (KeyError, TypeError, ValueError, AttributeError, IndexError):
+                # The counters keep their values through their restored states; only the split starts over.
+                _LOGGER.warning("Stored state of %s is unreadable, starting over", self.entry.title, exc_info=True)
         self.ledger.observe(self._now(), {key: self._read(key, self.hass.states.get(key)) for key in self.kinds})
+        self._log_rejected()
 
         if self.kinds:
             self._unsubscribe.append(async_track_state_change_event(self.hass, list(self.kinds), self._on_state))
@@ -92,6 +98,17 @@ class HeatLedgerRuntime:
     def _on_state(self, event: Event[EventStateChangedData]) -> None:
         key = event.data["entity_id"]
         self.ledger.observe(self._now(), {key: self._read(key, event.data["new_state"])})
+        self._log_rejected()
+
+    def _log_rejected(self) -> None:
+        for entity_id, increase in self.ledger.rejected:
+            _LOGGER.warning(
+                "Ignored a jump of %s by %.1f (more than %.0f kW on average): taken as a glitch or a replaced meter",
+                entity_id,
+                increase,
+                MAX_PLAUSIBLE_KW,
+            )
+        self.ledger.rejected.clear()
 
     @callback
     def _on_interval(self, _now: Any) -> None:

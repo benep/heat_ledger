@@ -135,6 +135,8 @@ def test_demand_type_without_entity_is_always():
         (InputKind.ENERGY, "10", {"unit_of_measurement": "thm"}, 10 * 105480400 / 3.6e6),
         (InputKind.ENERGY, "12", {"unit_of_measurement": "m³"}, 12.0),
         (InputKind.ENERGY, "abc", None, None),
+        (InputKind.ENERGY, "nan", None, None),
+        (InputKind.PERCENT, "inf", None, None),
         (InputKind.ENERGY, None, None, None),
     ],
 )

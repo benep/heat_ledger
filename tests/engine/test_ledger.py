@@ -107,9 +107,63 @@ def test_input_never_seen_blocks_like_unavailable():
 )
 def test_source_counter(values, booked):
     ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
-    for t, value in enumerate(values):
-        ledger.observe(t, {"sensor.boiler": value})
+    for hour, value in enumerate(values):
+        ledger.observe(hour * 3600, {"sensor.boiler": value})
     assert sum(ledger.source_heat.values()) == pytest.approx(booked)
+
+
+def test_implausible_jump_is_not_booked():
+    """Wh reported as kWh for a moment: the jump is skipped, the counter goes on from the next real reading."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 1000.0})
+    ledger.observe(600, {"sensor.boiler": 1000500.0})  # 999500 kWh in 10 minutes
+    assert ledger.rejected == [("sensor.boiler", pytest.approx(999500.0))]
+    ledger.observe(900, {"sensor.boiler": 1001.0})  # back to kWh: a drop, the glitch rule applies
+    ledger.observe(1800, {"sensor.boiler": 1003.0})
+    assert sum(ledger.source_heat.values()) == pytest.approx(2.0)
+
+
+def test_limit_is_an_average_since_the_last_change():
+    """After a long pause, a large increase is plausible: the limit scales with the time since the last change."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 0.0})
+    ledger.observe(10, {"sensor.boiler": 50.0})  # 50 kWh: within the limit for the minimum span of 5 minutes
+    ledger.observe(3 * 86400, {"sensor.boiler": 1500.0})  # three days later: 20 kW on average
+    assert ledger.rejected == []
+    assert sum(ledger.source_heat.values()) == pytest.approx(1500.0)
+
+
+def test_limit_applies_to_heat_after_the_factor():
+    """A gas meter in m³ with a factor of 10: 120 m³ in 5 minutes are 1200 kWh, too much."""
+    gas = SourceSpec("gas", "sensor.gas", factor=10.0)
+    ledger = Ledger(PlantSpec((gas,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.gas": 0.0})
+    ledger.observe(300, {"sensor.gas": 120.0})
+    assert ledger.source_heat["gas"] == 0.0
+    ledger.observe(600, {"sensor.gas": 121.0})
+    assert ledger.source_heat["gas"] == pytest.approx(10.0)
+
+
+def test_other_entity_after_restore_starts_over():
+    """A source switched to another meter: the difference between the two meters is not heat."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 100.0})
+    switched = PlantSpec((SourceSpec("boiler", "sensor.new_meter"),), consumers=(radiator("a"),))
+    restored = Ledger.from_dict(switched, ledger.to_dict())
+    restored.observe(3600, {"sensor.new_meter": 5000.0})
+    restored.observe(7200, {"sensor.new_meter": 5004.0})
+    assert restored.source_heat["boiler"] == pytest.approx(4.0)
+
+
+def test_state_without_entity_is_restored():
+    """Stored before the entity was saved with the counter: taken as the same entity."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 100.0})
+    data = ledger.to_dict()
+    data["sources"] = {"boiler": [100.0, None]}
+    restored = Ledger.from_dict(ledger.plant, data)
+    restored.observe(3600, {"sensor.boiler": 104.0})
+    assert restored.source_heat["boiler"] == pytest.approx(4.0)
 
 
 def test_conversion_factor():

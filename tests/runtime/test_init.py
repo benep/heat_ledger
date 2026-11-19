@@ -102,6 +102,27 @@ async def test_restart_continues_from_the_store(hass: HomeAssistant, entry: Mock
     assert value(hass, "living_heat") == pytest.approx(10 * LIVING_SHARE)
 
 
+async def test_unreadable_store_starts_over(hass: HomeAssistant, entry: MockConfigEntry, hass_storage, caplog) -> None:
+    hass_storage[f"{DOMAIN}.{entry.entry_id}"] = {
+        "version": STORAGE_VERSION,
+        "minor_version": 1,
+        "key": f"{DOMAIN}.{entry.entry_id}",
+        "data": {"ledger": {"version": 1, "account": {"boiler": "broken"}, "sources": {"boiler": 5}}},
+    }
+    await setup(hass, entry)
+    assert entry.state is ConfigEntryState.LOADED
+    assert "unreadable, starting over" in caplog.text
+    assert value(hass, f"{entry.entry_id}_account") == pytest.approx(0.0)
+
+
+async def test_implausible_jump_is_logged_and_skipped(hass: HomeAssistant, entry: MockConfigEntry, freezer, caplog):
+    await setup(hass, entry)
+    hass.states.async_set(BOILER, "100500.0", {"unit_of_measurement": "kWh"})  # 100400 kWh at once
+    await next_interval(hass, freezer)
+    assert f"Ignored a jump of {BOILER}" in caplog.text
+    assert value(hass, "ground_floor_heat") == pytest.approx(0.0)
+
+
 async def test_reload_keeps_the_counters(hass: HomeAssistant, entry: MockConfigEntry, freezer) -> None:
     await setup(hass, entry)
     await boiler(hass, 101.0)
