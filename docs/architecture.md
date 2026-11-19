@@ -75,6 +75,12 @@ Rules:
 - **No weights at all** (all pumps off, tank charging at night): the heat stays in the account.
 - **Source decreases:** treated as a meter reset; the new value becomes the baseline, nothing is booked.
 - **Source unavailable:** its increase is booked when it is back, measured from the last valid value.
+- **Implausible jump:** an increase of a source or heat meter above 1 MW on average since its last change (over at
+  least 5 minutes) is a glitch, such as Wh reported as kWh for a moment. It becomes the new baseline, is not booked
+  and is logged as a warning. Booked, it would stay in every counter for good.
+- **Other meter:** a source or heat meter switched to another entity starts over from that entity's next reading;
+  the difference between the two meters is not heat. `nan` and `inf` count as unavailable.
+- **Unreadable stored state:** the split starts over; the counters keep their values through their restored states.
 - **Fixed loss rate** (optional): taken from the account first, every interval.
 - **Release:** the whole account every interval. The engine also supports a time constant that releases only
   `account × (1 − e^(−Δt/τ))` per interval, but it is not offered in the UI: it shifts heat from
