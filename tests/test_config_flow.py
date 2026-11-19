@@ -175,25 +175,133 @@ def suggested(result, key: str, section: str | None = None) -> Any:
 # --- Main entry and options --------------------------------------------------------------------------------------
 
 
-async def test_user_minimal(hass: HomeAssistant) -> None:
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
-    assert result["type"] is FlowResultType.FORM
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": " House "})
+async def first_setup(hass: HomeAssistant, *steps: dict[str, Any]):
+    """Start the first setup and submit the given steps; returns the last result."""
+    result = serializable(await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER}))
+    for step in steps:
+        result = serializable(await hass.config_entries.flow.async_configure(result["flow_id"], step))
+    return result
+
+
+def subentries_by_type(result) -> dict[str, list[ConfigSubentry]]:
+    grouped: dict[str, list[ConfigSubentry]] = {}
+    for subentry in result["result"].subentries.values():
+        grouped.setdefault(subentry.subentry_type, []).append(subentry)
+    return grouped
+
+
+@pytest.mark.usefixtures("entities")
+async def test_first_setup_minimal(hass: HomeAssistant) -> None:
+    result = await first_setup(hass)
+    assert result["step_id"] == "user"
+    assert suggested(result, "name") == "Heating"
+    result = await first_setup(hass, {"name": " House "})
+    assert result["step_id"] == "source"
+    result = await first_setup(hass, {"name": "House"}, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"})
+    assert result["step_id"] == "consumers"
+    result = await first_setup(hass, {"name": "House"}, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"}, {})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "House"
-    assert result["data"] == {}
     assert result["result"].options == {}
+    (source,) = result["result"].subentries.values()
+    assert (source.subentry_type, source.title) == (SUBENTRY_SOURCE, "Boiler energy")
+    assert dict(source.data) == {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"}
 
 
-async def test_user_with_losses(hass: HomeAssistant) -> None:
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "House", CONF_LOSS_KW: 0})
-    assert result["errors"] == {CONF_LOSS_KW: "not_positive"}
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": " ", CONF_LOSS_KW: 0.4})
-    assert result["errors"] == {"name": "name_required"}
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"name": "House", CONF_LOSS_KW: 0.4})
+@pytest.mark.usefixtures("thermostat")
+async def test_first_setup_complete(hass: HomeAssistant) -> None:
+    """Gas in m³ with a factor, a thermostat with a demand in %, a study thermostat without, both pumps."""
+    hass.states.async_set("climate.study", "heat", {"hvac_action": "idle", "friendly_name": "Study"})
+    result = await first_setup(
+        hass,
+        {"name": "House"},
+        {CONF_ENTITY: GAS, CONF_QUANTITY: "input"},
+        {CONF_FACTOR: 9.6},
+        {
+            "thermostats": [CLIMATE, "climate.study", CLIMATE],
+            "circuit_pump": PUMP,
+            "hot_water_pump": HOT_WATER_PUMP,
+        },
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["result"].options == {CONF_LOSS_KW: 0.4}
+    grouped = subentries_by_type(result)
+    (source,) = grouped[SUBENTRY_SOURCE]
+    assert dict(source.data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_FACTOR: 9.6}
+    (circuit,) = grouped[SUBENTRY_CIRCUIT]
+    assert (circuit.title, dict(circuit.data)) == ("Heating circuit", {CONF_PUMP_ENTITY: PUMP})
+    living, study, hot_water = grouped[SUBENTRY_CONSUMER]
+    assert living.title == "Living room"
+    assert dict(living.data) == {
+        CONF_KIND: "radiator",
+        CONF_SIZE_TYPE: "default",
+        CONF_CIRCUIT: circuit.subentry_id,
+        CONF_DEMAND_ENTITY: DEMAND,
+        CONF_DEMAND_TYPE: "percent",
+    }
+    assert study.title == "Study"
+    assert study.data[CONF_DEMAND_ENTITY] == "climate.study"
+    assert study.data[CONF_DEMAND_TYPE] == "hvac_action"
+    assert hot_water.title == "Hot water"
+    assert dict(hot_water.data) == {
+        CONF_KIND: "hot_water",
+        CONF_DEMAND_ENTITY: HOT_WATER_PUMP,
+        CONF_DEMAND_TYPE: "on_off",
+        CONF_SIZE_TYPE: "default",
+    }
+
+    plant = build_plant(
+        {}, [Subentry(s.subentry_id, s.subentry_type, s.title, s.data) for s in result["result"].subentries.values()]
+    )
+    assert plant.sources[0].factor == 9.6
+    assert {c.circuit_id for c in plant.consumers if not c.hot_water} == {circuit.subentry_id}
+
+
+@pytest.mark.usefixtures("entities")
+async def test_first_setup_without_circuit_pump_has_no_circuit(hass: HomeAssistant) -> None:
+    result = await first_setup(
+        hass, {"name": "House"}, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"}, {"thermostats": [CLIMATE]}
+    )
+    grouped = subentries_by_type(result)
+    assert SUBENTRY_CIRCUIT not in grouped
+    (radiator,) = grouped[SUBENTRY_CONSUMER]
+    assert CONF_CIRCUIT not in radiator.data
+
+
+@pytest.mark.usefixtures("entities")
+async def test_first_setup_in_german(hass: HomeAssistant) -> None:
+    hass.config.language = "de"
+    result = await first_setup(hass)
+    assert suggested(result, "name") == "Heizung"
+    result = await first_setup(
+        hass,
+        {"name": "Haus"},
+        {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"},
+        {"thermostats": [CLIMATE], "circuit_pump": PUMP, "hot_water_pump": HOT_WATER_PUMP},
+    )
+    titles = sorted(s.title for s in result["result"].subentries.values())
+    assert titles == ["Boiler energy", "Heizkreis", "Living room", "Warmwasser"]
+
+
+@pytest.mark.usefixtures("entities")
+async def test_first_setup_suggests_the_energy_dashboard_source(hass: HomeAssistant) -> None:
+    await set_gas_sources(hass, GAS)
+    result = await first_setup(hass, {"name": "House"})
+    assert suggested(result, CONF_ENTITY) == GAS
+    assert suggested(result, CONF_QUANTITY) == "input"
+
+
+@pytest.mark.usefixtures("entities")
+async def test_first_setup_errors(hass: HomeAssistant) -> None:
+    result = await first_setup(hass, {"name": " "})
+    assert result["errors"] == {"name": "name_required"}
+    result = await first_setup(hass, {"name": "House"}, {CONF_ENTITY: POWER, CONF_QUANTITY: "heat"})
+    assert result["errors"] == {CONF_ENTITY: "not_cumulative"}
+    result = await first_setup(hass, {"name": "House"}, {CONF_ENTITY: GAS, CONF_QUANTITY: "input"}, {CONF_FACTOR: -1})
+    assert result["errors"] == {CONF_FACTOR: "not_positive"}
+    result = await first_setup(
+        hass, {"name": "House"}, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"}, {"thermostats": ["climate.missing"]}
+    )
+    assert result["errors"] == {"thermostats": "entity_not_found"}
 
 
 async def test_options_flow(hass: HomeAssistant, entry: MockConfigEntry) -> None:

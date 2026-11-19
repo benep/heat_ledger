@@ -96,7 +96,7 @@ Rules:
 | `model.py` | Turns entry and subentry data into the engine's specs (pure, tested without Home Assistant). |
 | `runtime.py` | Listens to all input entities, converts states to readings, calls the ledger, runs the 5-minute timer, persists the state, notifies the sensors. |
 | `sensor.py` | Energy counter per consumer and per circuit (`energy`, kWh, `total_increasing`), heat per converted source, account (diagnostic). Restored on start, never lower than before. |
-| `config_flow.py` | Main entry (plant: losses, storage) and subentries for sources, circuits and consumers. Required fields first, everything else in a collapsible "more accurate" section. |
+| `config_flow.py` | Guided first setup (name, source, thermostats, pumps: creates the entry with its subentries), options (fixed losses) and subentry flows for sources, circuits and consumers to add or refine later. Required fields first, everything else in a collapsible "more accurate" section. |
 
 Converting states to readings: `climate` → `hvac_action` is `heating` or `preheating` (anything else off);
 binary sensors → `on`; percent sensors → value / 100, clamped to 0..1; energy sensors → kWh using the unit of the

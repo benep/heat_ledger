@@ -2,21 +2,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Heizungsanlage",
-        "description": "Wärmequellen, Heizkreise und Verbraucher fügst du danach auf der Seite der Integration hinzu.",
+        "title": "Heat Ledger",
+        "description": "Teilt die Wärme deiner Heizung auf Heizkörper und Warmwasser auf. Es folgen drei kurze Schritte: die Wärmequelle, die Thermostate und, falls vorhanden, die Pumpen. Alles lässt sich später auf der Seite der Integration ergänzen und verfeinern.",
         "data": {
-          "name": "Name",
-          "loss_kw": "Feste Verluste"
+          "name": "Name"
         },
         "data_description": {
-          "name": "Zum Beispiel das Gebäude.",
-          "loss_kw": "Wärme, die Speicher und Leitungen ständig verlieren, in kW. Wird vor der Aufteilung abgezogen. Leer lassen, wenn unbekannt."
+          "name": "Name der Heizungsanlage."
+        }
+      },
+      "source": {
+        "title": "Wärmequelle",
+        "description": "Der Zähler deiner Heizung: Gaszähler, Wärmemengenzähler, die Wärme oder der Strom einer Wärmepumpe. Eine Gas-Quelle aus dem Energie-Dashboard ist vorausgewählt.",
+        "data": {
+          "entity_id": "Zählerstand",
+          "quantity": "Der Zählerstand zählt"
+        },
+        "data_description": {
+          "entity_id": "Ein Zählerstand, der nur steigt, z. B. in kWh, m³ oder L.",
+          "quantity": "Wärme: schon umgerechnet, z. B. ein Wärmemengenzähler oder die Wärme, die eine Wärmepumpe meldet. Energieeinsatz: Gas, Öl oder Strom, bevor Kessel oder Wärmepumpe daraus Wärme machen; der Faktor folgt im nächsten Schritt."
+        }
+      },
+      "factor": {
+        "title": "Umrechnung in Wärme",
+        "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- Gas in m³: Brennwert × Zustandszahl × Wirkungsgrad des Kessels, etwa 9 bis 10. Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- Heizöl in L: etwa 9 (10 kWh/L × Wirkungsgrad des Kessels).\n- Gas, Öl oder Pellets in kWh: der Wirkungsgrad des Kessels, etwa 0,85 bis 0,95.\n- Brennerlaufzeit in h: die Wärmeleistung des Brenners in kW, bei einem Brenner ohne Modulation.\n- Strom eines Heizstabs: 1.\n- Strom einer Wärmepumpe: ihre Jahresarbeitszahl, etwa 3 bis 4. Genauer: die Wärme, die die Wärmepumpe selbst meldet, als Quelle, die Wärme zählt.",
+        "data": {
+          "factor": "Faktor"
+        },
+        "data_description": {
+          "factor": "kWh Wärme je Einheit des Zählerstands."
+        }
+      },
+      "consumers": {
+        "title": "Heizkörper und Warmwasser",
+        "description": "Jedes Thermostat wird ein Heizkörper. Die Pumpen sagen, wann überhaupt Wärme fließt: Ohne sie zählt ein Heizkörper immer, wenn sein Thermostat heizen will, auch während der Kessel nur Warmwasser macht. Alle Felder sind optional.",
+        "data": {
+          "thermostats": "Thermostate",
+          "circuit_pump": "Heizkreispumpe",
+          "hot_water_pump": "Warmwasser"
+        },
+        "data_description": {
+          "thermostats": "Ein Heizkörper je Thermostat. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.",
+          "circuit_pump": "Ein Binärsensor, der an ist, solange die Pumpe der Heizkörper läuft.",
+          "hot_water_pump": "Ein Binärsensor, der an ist, solange Warmwasser bereitet wird, z. B. die Ladepumpe oder der Warmwasser-Status des Kessels."
         }
       }
     },
     "error": {
       "name_required": "Gib einen Namen ein.",
-      "not_positive": "Gib eine Zahl größer als 0 ein."
+      "not_positive": "Gib eine Zahl größer als 0 ein.",
+      "entity_not_found": "Entität nicht gefunden.",
+      "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
+      "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert."
     }
   },
   "options": {

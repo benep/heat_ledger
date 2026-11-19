@@ -38,6 +38,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
     TextSelector,
 )
+from homeassistant.util.ulid import ulid_now
 
 from .const import (
     CONF_CIRCUIT,
@@ -237,7 +238,72 @@ def _strip_empty(data: Mapping[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in data.items() if v not in (None, "")}
 
 
+def _localized(hass: HomeAssistant, names: Mapping[str, str]) -> str:
+    """A default name in the language of Home Assistant; names["en"] for languages without one."""
+    return names.get(hass.config.language.split("-")[0], names["en"])
+
+
+# --- Heat source, shared by the first setup and the source subentry ----------------------------------------------
+
+
+def _source_schema() -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_ENTITY): _entity("sensor"),
+            vol.Required(CONF_QUANTITY, default=QUANTITY_HEAT): _select(QUANTITIES, "quantity"),
+        }
+    )
+
+
+def _check_source(check: _Checker, user_input: Mapping[str, Any], taken: set[str]) -> _EntityInfo | None:
+    """The source entity, if it is a cumulative sensor that is not already a source of this plant."""
+    info = check.entity(user_input.get(CONF_ENTITY), ("sensor",), CONF_ENTITY, cumulative=True)
+    if info and info.entity_id in taken:
+        check.errors[CONF_ENTITY] = ERROR_SOURCE_EXISTS
+        return None
+    return info
+
+
+def _factor_unit(info: _EntityInfo) -> str:
+    """The unit the factor refers to. Energy readings are converted to kWh first, whatever their unit."""
+    return "kWh" if info.unit in ENERGY_TO_KWH else (info.unit or "")
+
+
+def _factor_schema() -> vol.Schema:
+    return vol.Schema({vol.Required(CONF_FACTOR): _number()})
+
+
+async def _energy_dashboard_suggestion(hass: HomeAssistant, taken: set[str]) -> dict[str, Any]:
+    """Form values for the first gas source of the Energy dashboard that is a sensor and not yet a source here.
+
+    A volume (m³, L) cannot be heat, so it is suggested as energy input. An energy reading can be either.
+    """
+    # Imported here: the energy integration is optional, and loading it costs time only when it is needed.
+    from homeassistant.components.energy.data import async_get_manager
+
+    prefs = (await async_get_manager(hass)).data or {}
+    for source in prefs.get("energy_sources", []):
+        statistic = source.get("stat_energy_from")
+        if source.get("type") != "gas" or not statistic or statistic in taken:
+            continue
+        # External statistics (a utility's import, "opower:…") are no entity and cannot be a source.
+        info = _entity_info(hass, statistic)
+        if info is not None and info.domain == "sensor" and info.state_class != "measurement":
+            quantity = QUANTITY_HEAT if info.unit in ENERGY_TO_KWH else QUANTITY_INPUT
+            return {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity}
+    return {}
+
+
 # --- Main entry --------------------------------------------------------------------------------------------------
+
+DEFAULT_PLANT_NAME = {"en": "Heating", "de": "Heizung"}
+DEFAULT_CIRCUIT_NAME = {"en": "Heating circuit", "de": "Heizkreis"}
+DEFAULT_HOT_WATER_NAME = {"en": "Hot water", "de": "Warmwasser"}
+
+# Form-only keys of the first setup.
+CONF_THERMOSTATS = "thermostats"
+CONF_CIRCUIT_PUMP = "circuit_pump"
+CONF_HOT_WATER_PUMP = "hot_water_pump"
 
 
 def _loss_schema() -> dict[vol.Marker, Any]:
@@ -245,10 +311,17 @@ def _loss_schema() -> dict[vol.Marker, Any]:
 
 
 class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Creates the plant. Sources, circuits and consumers are added as subentries."""
+    """The first setup, guided: name, heat source, thermostats, pumps. Creates the plant with its subentries.
+
+    Everything else (more sources, circuits, sizes, heat meters) is added or refined later through the subentries.
+    """
 
     VERSION = 1
     MINOR_VERSION = 1
+
+    _name: str
+    _source: tuple[str, dict[str, Any]]
+    _unit: str
 
     @staticmethod
     @callback
@@ -267,17 +340,118 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         check = _Checker(self.hass)
         if user_input is not None:
-            name = check.name(user_input.get(CONF_NAME))
-            loss = check.positive(user_input.get(CONF_LOSS_KW), CONF_LOSS_KW)
+            self._name = check.name(user_input.get(CONF_NAME))
             if not check.errors:
-                options = {CONF_LOSS_KW: loss} if loss is not None else {}
-                return self.async_create_entry(title=name, data={}, options=options)
-        schema = vol.Schema({vol.Required(CONF_NAME): TextSelector(), **_loss_schema()})
+                return await self.async_step_source()
+        schema = vol.Schema({vol.Required(CONF_NAME): TextSelector()})
+        suggested = user_input if user_input is not None else {CONF_NAME: _localized(self.hass, DEFAULT_PLANT_NAME)}
         return self.async_show_form(
             step_id="user",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            errors=check.errors,
+        )
+
+    async def async_step_source(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        check = _Checker(self.hass)
+        if user_input is not None and (info := _check_source(check, user_input, set())):
+            quantity = user_input.get(CONF_QUANTITY, QUANTITY_HEAT)
+            self._source = (info.name, {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity})
+            if quantity == QUANTITY_HEAT:
+                return await self.async_step_consumers()
+            self._unit = _factor_unit(info)
+            return await self.async_step_factor()
+        suggested = user_input if user_input is not None else await _energy_dashboard_suggestion(self.hass, set())
+        return self.async_show_form(
+            step_id="source",
+            data_schema=self.add_suggested_values_to_schema(_source_schema(), suggested),
+            errors=check.errors,
+        )
+
+    async def async_step_factor(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        check = _Checker(self.hass)
+        if user_input is not None:
+            factor = check.positive(user_input.get(CONF_FACTOR), CONF_FACTOR)
+            if factor is not None and not check.errors:
+                self._source[1][CONF_FACTOR] = factor
+                return await self.async_step_consumers()
+        return self.async_show_form(
+            step_id="factor",
+            data_schema=self.add_suggested_values_to_schema(_factor_schema(), user_input),
+            errors=check.errors,
+            description_placeholders={"name": self._source[0], "unit": self._unit},
+        )
+
+    async def async_step_consumers(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        check = _Checker(self.hass)
+        if user_input is not None:
+            thermostats = [
+                info
+                for entity_id in dict.fromkeys(user_input.get(CONF_THERMOSTATS) or [])
+                if (info := check.entity(entity_id, ("climate",), CONF_THERMOSTATS))
+            ]
+            circuit_pump = check.entity(user_input.get(CONF_CIRCUIT_PUMP), ("binary_sensor",), CONF_CIRCUIT_PUMP)
+            hot_water_pump = check.entity(user_input.get(CONF_HOT_WATER_PUMP), ("binary_sensor",), CONF_HOT_WATER_PUMP)
+            if not check.errors:
+                return self.async_create_entry(
+                    title=self._name,
+                    data={},
+                    options={},
+                    subentries=self._subentries(thermostats, circuit_pump, hot_water_pump),
+                )
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_THERMOSTATS): EntitySelector(EntitySelectorConfig(domain="climate", multiple=True)),
+                vol.Optional(CONF_CIRCUIT_PUMP): _entity("binary_sensor"),
+                vol.Optional(CONF_HOT_WATER_PUMP): _entity("binary_sensor"),
+            }
+        )
+        return self.async_show_form(
+            step_id="consumers",
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
             errors=check.errors,
         )
+
+    def _subentries(
+        self,
+        thermostats: list[_EntityInfo],
+        circuit_pump: _EntityInfo | None,
+        hot_water_pump: _EntityInfo | None,
+    ) -> list[dict[str, Any]]:
+        """The subentries of the first setup. A circuit only with a pump: without one it changes nothing."""
+        title, data = self._source
+        subentries: list[dict[str, Any]] = [_subentry(SUBENTRY_SOURCE, title, data)]
+        circuit_id = None
+        if circuit_pump is not None:
+            # Home Assistant takes a given subentry ID as it is, so the radiators can refer to their circuit.
+            circuit_id = ulid_now()
+            circuit = _subentry(
+                SUBENTRY_CIRCUIT,
+                _localized(self.hass, DEFAULT_CIRCUIT_NAME),
+                {CONF_PUMP_ENTITY: circuit_pump.entity_id},
+            )
+            subentries.append(circuit | {"subentry_id": circuit_id})
+        for climate in thermostats:
+            radiator: dict[str, Any] = {CONF_KIND: KIND_RADIATOR, CONF_SIZE_TYPE: str(SizeMethod.DEFAULT)}
+            if circuit_id is not None:
+                radiator[CONF_CIRCUIT] = circuit_id
+            if (percent := _percent_suggestion(self.hass, climate)) is not None:
+                radiator |= {CONF_DEMAND_ENTITY: percent.entity_id, CONF_DEMAND_TYPE: str(DemandMethod.PERCENT)}
+            else:
+                radiator |= {CONF_DEMAND_ENTITY: climate.entity_id, CONF_DEMAND_TYPE: str(DemandMethod.HVAC_ACTION)}
+            subentries.append(_subentry(SUBENTRY_CONSUMER, climate.name, radiator))
+        if hot_water_pump is not None:
+            hot_water = {
+                CONF_KIND: KIND_HOT_WATER,
+                CONF_DEMAND_ENTITY: hot_water_pump.entity_id,
+                CONF_DEMAND_TYPE: str(DemandMethod.ON_OFF),
+                CONF_SIZE_TYPE: str(SizeMethod.DEFAULT),
+            }
+            subentries.append(_subentry(SUBENTRY_CONSUMER, _localized(self.hass, DEFAULT_HOT_WATER_NAME), hot_water))
+        return subentries
+
+
+def _subentry(subentry_type: str, title: str, data: Mapping[str, Any]) -> dict[str, Any]:
+    return {"subentry_type": subentry_type, "title": title, "data": dict(data), "unique_id": None}
 
 
 class HeatLedgerOptionsFlow(OptionsFlow):
@@ -346,39 +520,25 @@ class SourceSubentryFlow(_SubentryFlow):
 
     async def async_step_source(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         check = _Checker(self.hass)
-        if user_input is not None:
+        taken = {d.get(CONF_ENTITY) for _, _, d in self._subentries(SUBENTRY_SOURCE)}
+        if user_input is not None and (info := _check_source(check, user_input, taken)):
             quantity = user_input.get(CONF_QUANTITY, QUANTITY_HEAT)
-            info = check.entity(user_input.get(CONF_ENTITY), ("sensor",), CONF_ENTITY, cumulative=True)
-            if info and any(d.get(CONF_ENTITY) == info.entity_id for _, _, d in self._subentries(SUBENTRY_SOURCE)):
-                check.errors[CONF_ENTITY] = ERROR_SOURCE_EXISTS
-            if info and not check.errors:
-                self._title = info.name
-                self._data = {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity}
-                if quantity == QUANTITY_HEAT:
-                    return self._finish(self._title, self._data)
-                # Energy readings are converted to kWh first, so the factor is per kWh whatever their unit.
-                self._unit = "kWh" if info.unit in ENERGY_TO_KWH else (info.unit or "")
-                return await self.async_step_factor()
+            self._title = info.name
+            self._data = {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity}
+            if quantity == QUANTITY_HEAT:
+                return self._finish(self._title, self._data)
+            self._unit = _factor_unit(info)
+            return await self.async_step_factor()
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_ENTITY): _entity("sensor"),
-                vol.Required(CONF_QUANTITY, default=QUANTITY_HEAT): _select(QUANTITIES, "quantity"),
-            }
-        )
         if user_input is not None:
             suggested: Mapping[str, Any] = user_input
         elif stored := self._stored():
             suggested = {CONF_ENTITY: stored.get(CONF_ENTITY), CONF_QUANTITY: stored.get(CONF_QUANTITY, QUANTITY_HEAT)}
-        elif dashboard := await self._energy_dashboard_source():
-            # A volume (m³, L) cannot be heat, so it needs a factor. An energy reading can be either.
-            volume = dashboard.unit not in ENERGY_TO_KWH
-            suggested = {CONF_ENTITY: dashboard.entity_id, CONF_QUANTITY: QUANTITY_INPUT if volume else QUANTITY_HEAT}
         else:
-            suggested = {}
+            suggested = await _energy_dashboard_suggestion(self.hass, taken)
         return self.async_show_form(
             step_id="source",
-            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            data_schema=self.add_suggested_values_to_schema(_source_schema(), suggested),
             errors=check.errors,
         )
 
@@ -388,7 +548,7 @@ class SourceSubentryFlow(_SubentryFlow):
             factor = check.positive(user_input.get(CONF_FACTOR), CONF_FACTOR)
             if factor is not None and not check.errors:
                 return self._finish(self._title, {**self._data, CONF_FACTOR: factor})
-        schema = vol.Schema({vol.Required(CONF_FACTOR): _number()})
+        schema = _factor_schema()
         stored = self._stored()
         if user_input is not None:
             suggested: Mapping[str, Any] = user_input
@@ -402,23 +562,6 @@ class SourceSubentryFlow(_SubentryFlow):
             errors=check.errors,
             description_placeholders={"name": self._title, "unit": self._unit},
         )
-
-    async def _energy_dashboard_source(self) -> _EntityInfo | None:
-        """The first gas source of the Energy dashboard that is a sensor and not yet a heat source here."""
-        # Imported here: the energy integration is optional, and loading it costs time only when it is needed.
-        from homeassistant.components.energy.data import async_get_manager
-
-        prefs = (await async_get_manager(self.hass)).data or {}
-        taken = {d.get(CONF_ENTITY) for _, _, d in self._subentries(SUBENTRY_SOURCE)}
-        for source in prefs.get("energy_sources", []):
-            statistic = source.get("stat_energy_from")
-            if source.get("type") != "gas" or not statistic or statistic in taken:
-                continue
-            # External statistics (a utility's import, "opower:…") are no entity and cannot be a source.
-            info = _entity_info(self.hass, statistic)
-            if info is not None and info.domain == "sensor" and info.state_class != "measurement":
-                return info
-        return None
 
 
 class CircuitSubentryFlow(_SubentryFlow):
