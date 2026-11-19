@@ -112,13 +112,12 @@ def test_source_counter(values, booked):
     assert sum(ledger.source_heat.values()) == pytest.approx(booked)
 
 
-def test_conversion_factor_and_cop_entity():
-    heat_pump = SourceSpec("hp", "sensor.hp_electric", factor=3.0, factor_key="sensor.cop")
-    ledger = Ledger(PlantSpec((heat_pump,), consumers=(radiator("a"),)))
-    ledger.observe(0, {"sensor.hp_electric": 0.0, "sensor.cop": None})
-    ledger.observe(1, {"sensor.hp_electric": 1.0})  # fixed factor while the COP is unavailable
-    ledger.observe(2, {"sensor.hp_electric": 2.0, "sensor.cop": 4.0})
-    assert ledger.source_heat["hp"] == pytest.approx(7.0)
+def test_conversion_factor():
+    gas = SourceSpec("gas", "sensor.gas_m3", factor=9.5)
+    ledger = Ledger(PlantSpec((gas,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.gas_m3": 100.0})
+    ledger.observe(1, {"sensor.gas_m3": 102.0})
+    assert ledger.source_heat["gas"] == pytest.approx(19.0)
 
 
 def test_hot_water_is_a_consumer_without_circuit():

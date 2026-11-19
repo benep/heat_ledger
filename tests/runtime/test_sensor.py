@@ -91,14 +91,14 @@ async def test_missing_input_at_start(hass: HomeAssistant, entry: MockConfigEntr
     assert attributes(hass, f"{entry.entry_id}_account")["blocked_by"] == [PUMP]
 
 
-async def test_source_sensor_only_for_converted_sources(hass: HomeAssistant, entry: MockConfigEntry, freezer) -> None:
+async def test_source_sensor_only_for_energy_input(hass: HomeAssistant, entry: MockConfigEntry, freezer) -> None:
     await setup(hass, entry)
     assert entity_id(hass, "boiler_source_heat") is None
     assert entity_id(hass, "heat_pump_source_heat") is not None
 
     hass.states.async_set(HEAT_PUMP, "51.0", {"unit_of_measurement": "kWh"})
     await next_interval(hass, freezer)
-    assert value(hass, "heat_pump_source_heat") == pytest.approx(3.0)  # COP 3
+    assert value(hass, "heat_pump_source_heat") == pytest.approx(3.0)  # factor 3
     assert value(hass, "ground_floor_heat") == pytest.approx(3.0)
 
 

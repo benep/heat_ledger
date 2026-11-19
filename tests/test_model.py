@@ -8,22 +8,21 @@ from homeassistant.util.unit_conversion import EnergyConverter
 
 from custom_components.heat_ledger.const import (
     CONF_CIRCUIT,
-    CONF_CONVERSION,
     CONF_DEMAND_ENTITY,
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
     CONF_FACTOR,
-    CONF_FACTOR_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
     CONF_PUMP_ENTITY,
+    CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
-    CONVERSION_COP,
-    CONVERSION_DIRECT,
     KIND_HOT_WATER,
     KIND_RADIATOR,
+    QUANTITY_HEAT,
+    QUANTITY_INPUT,
     SUBENTRY_CIRCUIT,
     SUBENTRY_CONSUMER,
     SUBENTRY_SOURCE,
@@ -39,12 +38,12 @@ from custom_components.heat_ledger.model import (
 )
 
 SUBENTRIES = [
-    Subentry("src", SUBENTRY_SOURCE, "Boiler", {CONF_ENTITY: "sensor.gas", CONF_CONVERSION: CONVERSION_DIRECT}),
+    Subentry("src", SUBENTRY_SOURCE, "Boiler", {CONF_ENTITY: "sensor.gas", CONF_QUANTITY: QUANTITY_HEAT}),
     Subentry(
         "hp",
         SUBENTRY_SOURCE,
         "Heat pump",
-        {CONF_ENTITY: "sensor.hp", CONF_CONVERSION: CONVERSION_COP, CONF_FACTOR: 3.5, CONF_FACTOR_ENTITY: "sensor.cop"},
+        {CONF_ENTITY: "sensor.hp", CONF_QUANTITY: QUANTITY_INPUT, CONF_FACTOR: 3.5},
     ),
     Subentry("c1", SUBENTRY_CIRCUIT, "Radiators", {CONF_PUMP_ENTITY: "binary_sensor.pump"}),
     Subentry("c2", SUBENTRY_CIRCUIT, "Floor", {}),
@@ -85,9 +84,9 @@ SUBENTRIES = [
 def test_build_plant():
     plant = build_plant({CONF_LOSS_KW: 0.2}, SUBENTRIES)
     assert plant.loss_kw == 0.2
-    assert [(s.id, s.factor, s.factor_key) for s in plant.sources] == [
-        ("src", 1.0, None),
-        ("hp", 3.5, "sensor.cop"),
+    assert [(s.id, s.factor) for s in plant.sources] == [
+        ("src", 1.0),
+        ("hp", 3.5),
     ]
     assert [(c.id, c.active) for c in plant.circuits] == [("c1", ActiveMethod.PUMP), ("c2", ActiveMethod.ALWAYS)]
     living, bath, dhw, meter = plant.consumers
@@ -104,7 +103,6 @@ def test_input_kinds():
     assert input_kinds(build_plant({}, SUBENTRIES)) == {
         "sensor.gas": InputKind.ENERGY,
         "sensor.hp": InputKind.ENERGY,
-        "sensor.cop": InputKind.NUMBER,
         "binary_sensor.pump": InputKind.BOOL,
         "sensor.living_heating": InputKind.PERCENT,
         "climate.bath": InputKind.HVAC_ACTION,
@@ -136,8 +134,8 @@ def test_demand_type_without_entity_is_always():
         (InputKind.ENERGY, "2", {"unit_of_measurement": "Gcal"}, 2 * 4184 * 1000 / 3600),
         (InputKind.ENERGY, "10", {"unit_of_measurement": "thm"}, 10 * 105480400 / 3.6e6),
         (InputKind.ENERGY, "12", {"unit_of_measurement": "m³"}, 12.0),
-        (InputKind.NUMBER, "abc", None, None),
-        (InputKind.NUMBER, None, None, None),
+        (InputKind.ENERGY, "abc", None, None),
+        (InputKind.ENERGY, None, None, None),
     ],
 )
 def test_parse_state(kind, state, attributes, expected):

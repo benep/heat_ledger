@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import probatio
 import pytest
+from homeassistant.components.energy.data import async_get_manager
 from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -19,16 +20,15 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.heat_ledger.const import (
     CONF_CIRCUIT,
-    CONF_CONVERSION,
     CONF_DEMAND_ENTITY,
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
     CONF_FACTOR,
-    CONF_FACTOR_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
     CONF_PUMP_ENTITY,
+    CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
     DOMAIN,
@@ -44,7 +44,7 @@ ACCURACY = "accuracy"
 
 ENERGY = "sensor.boiler_energy"
 POWER = "sensor.boiler_power"
-COP = "sensor.heat_pump_cop"
+GAS = "sensor.gas_meter"
 METER = "sensor.radiator_heat_meter"
 PUMP = "binary_sensor.circuit_pump"
 HOT_WATER_PUMP = "binary_sensor.hot_water_pump"
@@ -73,7 +73,16 @@ def set_states(hass: HomeAssistant) -> None:
     hass.states.async_set(ENERGY, "1234.5", cumulative | {"friendly_name": "Boiler energy"})
     hass.states.async_set(METER, "12.3", cumulative)
     hass.states.async_set(POWER, "3.2", {"state_class": "measurement", "unit_of_measurement": "kW"})
-    hass.states.async_set(COP, "3.4", {"state_class": "measurement"})
+    hass.states.async_set(
+        GAS,
+        "5432.1",
+        {
+            "state_class": "total_increasing",
+            "unit_of_measurement": "m³",
+            "device_class": "gas",
+            "friendly_name": "Gas meter",
+        },
+    )
     hass.states.async_set(PUMP, "on")
     hass.states.async_set(HOT_WATER_PUMP, "off")
     hass.states.async_set(CLIMATE, "heat", {"hvac_action": "heating", "friendly_name": "Living room"})
@@ -206,69 +215,53 @@ async def test_options_flow(hass: HomeAssistant, entry: MockConfigEntry) -> None
 
 
 @pytest.mark.usefixtures("entities")
-async def test_source_minimal(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+async def test_source_heat(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     result = await start(hass, entry, SUBENTRY_SOURCE)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "source"
-    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {}})
+    assert suggested(result, CONF_ENTITY) is None
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     source = only_subentry(entry, SUBENTRY_SOURCE)
     assert source.title == "Boiler energy"
-    assert dict(source.data) == {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct"}
+    assert dict(source.data) == {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"}
 
 
 @pytest.mark.usefixtures("entities")
-@pytest.mark.parametrize(("conversion", "factor"), [("efficiency", 0.9), ("cop", 3.0)])
-async def test_source_default_factor(hass: HomeAssistant, entry: MockConfigEntry, conversion: str, factor) -> None:
+async def test_source_energy_input_asks_for_the_factor(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     result = await start(hass, entry, SUBENTRY_SOURCE)
-    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: conversion, ACCURACY: {}})
+    result = await configure(hass, result, {CONF_ENTITY: GAS, CONF_QUANTITY: "input"})
+    assert result["step_id"] == "factor"
+    assert result["description_placeholders"] == {"name": "Gas meter", "unit": "m³"}
+    result = await configure(hass, result, {CONF_FACTOR: 0})
+    assert result["errors"] == {CONF_FACTOR: "not_positive"}
+    result = await configure(hass, result, {CONF_FACTOR: 9.6})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert dict(only_subentry(entry, SUBENTRY_SOURCE).data) == {
-        CONF_ENTITY: ENERGY,
-        CONF_CONVERSION: conversion,
-        CONF_FACTOR: factor,
-    }
+    source = only_subentry(entry, SUBENTRY_SOURCE)
+    assert source.title == "Gas meter"
+    assert dict(source.data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_FACTOR: 9.6}
 
 
 @pytest.mark.usefixtures("entities")
-@pytest.mark.parametrize("conversion", ["cop", "efficiency"])
-async def test_source_factor_entity(hass: HomeAssistant, entry: MockConfigEntry, conversion: str) -> None:
-    """A factor sensor works with every conversion that has a factor: COP, or calorific value × efficiency."""
+async def test_source_factor_is_per_kwh_for_energy_readings(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Energy readings are converted to kWh before the factor, whatever their unit."""
+    hass.states.async_set(ENERGY, "4321", {"state_class": "total_increasing", "unit_of_measurement": "MWh"})
     result = await start(hass, entry, SUBENTRY_SOURCE)
-    result = await configure(
-        hass,
-        result,
-        {CONF_ENTITY: ENERGY, CONF_CONVERSION: conversion, ACCURACY: {CONF_FACTOR: 3.5, CONF_FACTOR_ENTITY: COP}},
-    )
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert dict(only_subentry(entry, SUBENTRY_SOURCE).data) == {
-        CONF_ENTITY: ENERGY,
-        CONF_CONVERSION: conversion,
-        CONF_FACTOR: 3.5,
-        CONF_FACTOR_ENTITY: COP,
-    }
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "input"})
+    assert result["description_placeholders"]["unit"] == "kWh"
 
 
 @pytest.mark.usefixtures("entities")
 @pytest.mark.parametrize(
     ("user_input", "errors"),
     [
-        ({CONF_ENTITY: "sensor.missing", CONF_CONVERSION: "direct"}, {CONF_ENTITY: "entity_not_found"}),
-        ({CONF_ENTITY: POWER, CONF_CONVERSION: "direct"}, {CONF_ENTITY: "not_cumulative"}),
-        ({CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", ACCURACY: {CONF_FACTOR: 0}}, {ACCURACY: "not_positive"}),
-        (
-            {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {CONF_FACTOR_ENTITY: COP}},
-            {ACCURACY: "factor_entity_not_direct"},
-        ),
-        (
-            {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", ACCURACY: {CONF_FACTOR_ENTITY: "sensor.missing"}},
-            {ACCURACY: "entity_not_found"},
-        ),
+        ({CONF_ENTITY: "sensor.missing", CONF_QUANTITY: "heat"}, {CONF_ENTITY: "entity_not_found"}),
+        ({CONF_ENTITY: POWER, CONF_QUANTITY: "input"}, {CONF_ENTITY: "not_cumulative"}),
     ],
 )
 async def test_source_errors(hass: HomeAssistant, entry: MockConfigEntry, user_input, errors) -> None:
     result = await start(hass, entry, SUBENTRY_SOURCE)
-    result = await configure(hass, result, {ACCURACY: {}} | user_input)
+    result = await configure(hass, result, user_input)
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == errors
     assert not entry.subentries
@@ -276,31 +269,78 @@ async def test_source_errors(hass: HomeAssistant, entry: MockConfigEntry, user_i
 
 @pytest.mark.usefixtures("entities")
 async def test_source_exists(hass: HomeAssistant, entry: MockConfigEntry) -> None:
-    sid = add_subentry(hass, entry, SUBENTRY_SOURCE, "Boiler", {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct"})
+    sid = add_subentry(hass, entry, SUBENTRY_SOURCE, "Boiler", {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"})
     result = await start(hass, entry, SUBENTRY_SOURCE)
-    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {}})
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"})
     assert result["errors"] == {CONF_ENTITY: "source_exists"}
     # Its own entity is no conflict when it is reconfigured.
     result = await start(hass, entry, SUBENTRY_SOURCE, sid)
-    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {}})
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"})
     assert result["type"] is FlowResultType.ABORT
 
 
 @pytest.mark.usefixtures("entities")
 async def test_source_reconfigure(hass: HomeAssistant, entry: MockConfigEntry) -> None:
-    data = {CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", CONF_FACTOR: 0.9}
-    sid = add_subentry(hass, entry, SUBENTRY_SOURCE, "Boiler", data)
+    data = {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_FACTOR: 9.6}
+    sid = add_subentry(hass, entry, SUBENTRY_SOURCE, "Gas", data)
     result = await start(hass, entry, SUBENTRY_SOURCE, sid)
     assert result["step_id"] == "source"
-    assert suggested(result, CONF_ENTITY) == ENERGY
-    assert suggested(result, CONF_FACTOR, ACCURACY) == 0.9
-
-    # Conversion changed, factor left as it was: the new conversion gets its own default.
-    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", ACCURACY: {CONF_FACTOR: 0.9}})
+    assert suggested(result, CONF_ENTITY) == GAS
+    assert suggested(result, CONF_QUANTITY) == "input"
+    result = await configure(hass, result, {CONF_ENTITY: GAS, CONF_QUANTITY: "input"})
+    assert suggested(result, CONF_FACTOR) == 9.6
+    result = await configure(hass, result, {CONF_FACTOR: 10.1})
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
+    assert dict(entry.subentries[sid].data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "input", CONF_FACTOR: 10.1}
+
+    # Switched to heat: the factor is dropped.
+    result = await start(hass, entry, SUBENTRY_SOURCE, sid)
+    result = await configure(hass, result, {CONF_ENTITY: GAS, CONF_QUANTITY: "heat"})
+    assert result["type"] is FlowResultType.ABORT
     assert list(entry.subentries) == [sid]
-    assert dict(entry.subentries[sid].data) == {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", CONF_FACTOR: 3.0}
+    assert dict(entry.subentries[sid].data) == {CONF_ENTITY: GAS, CONF_QUANTITY: "heat"}
+
+
+async def set_gas_sources(hass: HomeAssistant, *statistics: str) -> None:
+    manager = await async_get_manager(hass)
+    await manager.async_update(
+        {
+            "energy_sources": [
+                {
+                    "type": "gas",
+                    "stat_energy_from": statistic,
+                    "stat_cost": None,
+                    "entity_energy_price": None,
+                    "number_energy_price": None,
+                }
+                for statistic in statistics
+            ]
+        }
+    )
+
+
+@pytest.mark.usefixtures("entities")
+@pytest.mark.parametrize(("statistic", "quantity"), [(GAS, "input"), (ENERGY, "heat")])
+async def test_source_suggested_from_energy_dashboard(
+    hass: HomeAssistant, entry: MockConfigEntry, statistic: str, quantity: str
+) -> None:
+    """A gas source of the Energy dashboard is preselected; a volume can only be energy input."""
+    await set_gas_sources(hass, "opower:gas_usage", statistic)
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    assert suggested(result, CONF_ENTITY) == statistic
+    assert suggested(result, CONF_QUANTITY) == quantity
+
+
+@pytest.mark.usefixtures("entities")
+async def test_source_suggestion_skips_existing_sources(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    await set_gas_sources(hass, ENERGY, GAS)
+    add_subentry(hass, entry, SUBENTRY_SOURCE, "Boiler", {CONF_ENTITY: ENERGY, CONF_QUANTITY: "heat"})
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    assert suggested(result, CONF_ENTITY) == GAS
+    add_subentry(hass, entry, SUBENTRY_SOURCE, "Gas", {CONF_ENTITY: GAS, CONF_QUANTITY: "heat"})
+    result = await start(hass, entry, SUBENTRY_SOURCE)
+    assert suggested(result, CONF_ENTITY) is None
 
 
 # --- Circuits ----------------------------------------------------------------------------------------------------
@@ -608,7 +648,8 @@ async def test_hot_water_reconfigure(hass: HomeAssistant, entry: MockConfigEntry
 @pytest.mark.usefixtures("thermostat")
 async def test_flows_build_a_plant(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     result = await start(hass, entry, SUBENTRY_SOURCE)
-    await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", ACCURACY: {}})
+    result = await configure(hass, result, {CONF_ENTITY: ENERGY, CONF_QUANTITY: "input"})
+    await configure(hass, result, {CONF_FACTOR: 0.9})
     result = await start(hass, entry, SUBENTRY_CIRCUIT)
     await configure(hass, result, {"name": "Ground floor", CONF_PUMP_ENTITY: PUMP})
     circuit = only_subentry(entry, SUBENTRY_CIRCUIT).subentry_id

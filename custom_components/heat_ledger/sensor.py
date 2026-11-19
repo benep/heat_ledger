@@ -28,11 +28,11 @@ from .const import (
     ATTR_BY_SOURCE,
     ATTR_LEVEL,
     ATTR_NEXT_IMPROVEMENT,
-    CONF_CONVERSION,
     CONF_DEMAND_ENTITY,
     CONF_METER_ENTITY,
-    CONVERSION_DIRECT,
+    CONF_QUANTITY,
     DOMAIN,
+    QUANTITY_INPUT,
     SUBENTRY_CIRCUIT,
     SUBENTRY_CONSUMER,
     SUBENTRY_SOURCE,
@@ -62,11 +62,8 @@ async def async_setup_entry(
             entity = ConsumerHeatSensor(runtime, subentry, titles, _input_area(hass, subentry))
         elif subentry.subentry_type == SUBENTRY_CIRCUIT:
             entity = CircuitHeatSensor(runtime, subentry, titles)
-        elif subentry.subentry_type == SUBENTRY_SOURCE and subentry.data.get(CONF_CONVERSION) not in (
-            None,
-            CONVERSION_DIRECT,
-        ):
-            # A direct source's input entity already is its heat.
+        elif subentry.subentry_type == SUBENTRY_SOURCE and subentry.data.get(CONF_QUANTITY) == QUANTITY_INPUT:
+            # A source that counts heat needs no sensor of its own: its input entity already is the heat.
             entity = SourceHeatSensor(runtime, subentry)
         if entity is not None:
             async_add_entities([entity], config_subentry_id=subentry.subentry_id)
@@ -262,7 +259,7 @@ def _rank(order: list, method: str) -> int:
 
 
 class SourceHeatSensor(_CounterSensor):
-    """Heat of a source after conversion (efficiency or COP). Direct sources already are heat."""
+    """Heat of a source that counts energy input: its reading times the factor."""
 
     def __init__(self, runtime: HeatLedgerRuntime, subentry: ConfigSubentry) -> None:
         super().__init__(runtime, subentry, TRANSLATION_SOURCE_HEAT)

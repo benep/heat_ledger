@@ -12,20 +12,19 @@ from typing import Any
 
 from .const import (
     CONF_CIRCUIT,
-    CONF_CONVERSION,
     CONF_DEMAND_ENTITY,
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
     CONF_FACTOR,
-    CONF_FACTOR_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
     CONF_PUMP_ENTITY,
+    CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
-    CONVERSION_DIRECT,
     KIND_HOT_WATER,
+    QUANTITY_INPUT,
     SUBENTRY_CIRCUIT,
     SUBENTRY_CONSUMER,
     SUBENTRY_SOURCE,
@@ -70,7 +69,6 @@ ENERGY_TO_KWH = {
 
 class InputKind(StrEnum):
     ENERGY = "energy"  # cumulative, converted to kWh if the unit is an energy unit
-    NUMBER = "number"
     PERCENT = "percent"  # 0..100 -> 0..1
     BOOL = "bool"  # on/off
     HVAC_ACTION = "hvac_action"  # climate entity: heating or not
@@ -101,8 +99,6 @@ def input_kinds(plant: PlantSpec) -> dict[str, InputKind]:
     kinds: dict[str, InputKind] = {}
     for source in plant.sources:
         kinds[source.key] = InputKind.ENERGY
-        if source.factor_key:
-            kinds[source.factor_key] = InputKind.NUMBER
     for circuit in plant.circuits:
         if circuit.pump_key:
             kinds[circuit.pump_key] = InputKind.BOOL
@@ -139,19 +135,16 @@ def parse_state(kind: InputKind, state: str | None, attributes: Mapping[str, Any
         return None
     if kind is InputKind.PERCENT:
         return value / 100
-    if kind is InputKind.ENERGY:
-        return value * ENERGY_TO_KWH.get(attributes.get("unit_of_measurement"), 1.0)
-    return value
+    return value * ENERGY_TO_KWH.get(attributes.get("unit_of_measurement"), 1.0)
 
 
 def _source(subentry: Subentry) -> SourceSpec:
     data = subentry.data
-    direct = data.get(CONF_CONVERSION, CONVERSION_DIRECT) == CONVERSION_DIRECT
+    is_input = data.get(CONF_QUANTITY) == QUANTITY_INPUT
     return SourceSpec(
         id=subentry.subentry_id,
         key=data[CONF_ENTITY],
-        factor=1.0 if direct else float(data.get(CONF_FACTOR) or 1.0),
-        factor_key=None if direct else data.get(CONF_FACTOR_ENTITY),
+        factor=float(data.get(CONF_FACTOR) or 1.0) if is_input else 1.0,
     )
 
 

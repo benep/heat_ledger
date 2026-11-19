@@ -45,27 +45,24 @@
       "step": {
         "source": {
           "title": "Heat source",
-          "description": "An entity that counts energy or fuel. Its increase, converted to heat, is split between the consumers.",
+          "description": "An entity that counts heat, or the energy that becomes heat. Its increase is split between the consumers. A gas source of the Energy dashboard is preselected.",
           "data": {
             "entity_id": "Reading",
-            "conversion": "Conversion"
+            "quantity": "The reading counts"
           },
           "data_description": {
-            "entity_id": "A meter reading that only increases, e.g. heat or electricity in kWh, gas in m³ or oil in L.",
-            "conversion": "How the reading becomes heat."
+            "entity_id": "A meter reading that only increases, e.g. in kWh, m³ or L.",
+            "quantity": "Heat: already converted, e.g. a heat meter or the heat output a heat pump reports. Energy input: gas, oil or electricity before the boiler or heat pump turns it into heat; the factor follows in the next step."
+          }
+        },
+        "factor": {
+          "title": "Conversion to heat",
+          "description": "How many kWh of heat does 1 {unit} of {name} give?\n\n- Gas in m³: calorific value × z-number × boiler efficiency, about 9 to 10. Calorific value and z-number are on the gas bill.\n- Heating oil in L: about 9 (10 kWh/L × boiler efficiency).\n- Gas, oil or pellets in kWh: the boiler efficiency, about 0.85 to 0.95.\n- Burner run time in h: the heat output of the burner in kW, for a burner without modulation.\n- Electricity of an immersion heater: 1.\n- Electricity of a heat pump: its seasonal COP, about 3 to 4. More accurate: the heat the heat pump reports itself, as a source that counts heat.",
+          "data": {
+            "factor": "Factor"
           },
-          "sections": {
-            "accuracy": {
-              "name": "More accurate",
-              "data": {
-                "factor": "Factor",
-                "factor_entity_id": "Factor sensor"
-              },
-              "data_description": {
-                "factor": "kWh of heat per unit of the reading. Default: 0.9 for efficiency, 3.0 for COP. Not used for heat.",
-                "factor_entity_id": "Current factor from an entity, e.g. the COP of a heat pump or a template with calorific value × efficiency. While it is unavailable, the fixed factor applies."
-              }
-            }
+          "data_description": {
+            "factor": "kWh of heat per unit of the reading."
           }
         }
       },
@@ -74,7 +71,6 @@
         "wrong_domain": "This type of entity is not supported here.",
         "not_cumulative": "Choose a meter reading, not a momentary value.",
         "not_positive": "Enter a number greater than 0.",
-        "factor_entity_not_direct": "Heat needs no factor: choose a conversion or leave the factor sensor empty.",
         "source_exists": "This entity is already a heat source."
       }
     },
@@ -197,11 +193,10 @@
     }
   },
   "selector": {
-    "conversion": {
+    "quantity": {
       "options": {
-        "direct": "Heat (no conversion)",
-        "efficiency": "Fuel or electricity × efficiency",
-        "cop": "Electricity × COP (heat pump)"
+        "heat": "Heat (already converted)",
+        "input": "Energy input (gas, oil, electricity)"
       }
     },
     "demand_type": {

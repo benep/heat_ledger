@@ -68,8 +68,7 @@ class SourceSpec:
 
     id: str
     key: str
-    factor: float = 1.0  # efficiency or fixed COP
-    factor_key: str | None = None  # factor from an entity (e.g. COP), overrides factor while available
+    factor: float = 1.0  # kWh heat per unit; 1.0 when the reading already is heat
 
 
 @dataclass(frozen=True)

@@ -41,42 +41,36 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_CIRCUIT,
-    CONF_CONVERSION,
     CONF_DEMAND_ENTITY,
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
     CONF_FACTOR,
-    CONF_FACTOR_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
     CONF_PUMP_ENTITY,
+    CONF_QUANTITY,
     CONF_SIZE_TYPE,
     CONF_SIZE_VALUE,
-    CONVERSION_COP,
-    CONVERSION_DIRECT,
-    CONVERSION_EFFICIENCY,
-    CONVERSIONS,
     DOMAIN,
     KIND_HOT_WATER,
     KIND_RADIATOR,
     KINDS,
+    QUANTITIES,
+    QUANTITY_HEAT,
+    QUANTITY_INPUT,
     SUBENTRY_CIRCUIT,
     SUBENTRY_CONSUMER,
     SUBENTRY_SOURCE,
 )
 from .engine import DemandMethod, SizeMethod
+from .model import ENERGY_TO_KWH
 
 # Form-only keys: not stored.
 SECTION_ACCURACY = "accuracy"
 CONF_CHARGING_POWER_KW = "charging_power_kw"  # stored as size nominal_power in W
 CONF_USE_SUGGESTION = "use_suggestion"
 
-DEFAULT_FACTORS: Mapping[str, float] = {
-    CONVERSION_DIRECT: 1.0,
-    CONVERSION_EFFICIENCY: 0.9,
-    CONVERSION_COP: 3.0,
-}
 SIZE_TYPES = (SizeMethod.DEFAULT, SizeMethod.AREA, SizeMethod.NOMINAL_POWER)
 SENSOR_DEMAND_TYPES = (DemandMethod.PERCENT, DemandMethod.VALVE)
 DEMAND_DOMAINS = ("climate", "sensor", "binary_sensor")
@@ -90,7 +84,6 @@ ERROR_NOT_PERCENT = "not_percent"
 ERROR_NOT_POSITIVE = "not_positive"
 ERROR_NAME_REQUIRED = "name_required"
 ERROR_SIZE_VALUE_REQUIRED = "size_value_required"
-ERROR_FACTOR_ENTITY_NOT_DIRECT = "factor_entity_not_direct"
 ERROR_SOURCE_EXISTS = "source_exists"
 
 
@@ -339,7 +332,11 @@ class _SubentryFlow(ConfigSubentryFlow):
 
 
 class SourceSubentryFlow(_SubentryFlow):
-    """A heat source: a cumulative reading, converted to heat by a factor."""
+    """A heat source: a cumulative reading of heat, or of energy input with a factor to heat (second step)."""
+
+    _title: str
+    _data: dict[str, Any]
+    _unit: str
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self.async_step_source(user_input)
@@ -349,64 +346,79 @@ class SourceSubentryFlow(_SubentryFlow):
 
     async def async_step_source(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         check = _Checker(self.hass)
-        stored = self._stored()
         if user_input is not None:
-            more = user_input.get(SECTION_ACCURACY) or {}
-            conversion = user_input.get(CONF_CONVERSION, CONVERSION_DIRECT)
+            quantity = user_input.get(CONF_QUANTITY, QUANTITY_HEAT)
             info = check.entity(user_input.get(CONF_ENTITY), ("sensor",), CONF_ENTITY, cumulative=True)
             if info and any(d.get(CONF_ENTITY) == info.entity_id for _, _, d in self._subentries(SUBENTRY_SOURCE)):
                 check.errors[CONF_ENTITY] = ERROR_SOURCE_EXISTS
-            factor = check.positive(more.get(CONF_FACTOR), SECTION_ACCURACY)
-            if (
-                stored
-                and conversion != stored.get(CONF_CONVERSION)
-                and factor is not None
-                and factor == stored.get(CONF_FACTOR)
-            ):
-                # The conversion changed, the factor was left as it was: it belongs to the old conversion.
-                factor = None
-            factor_entity = None
-            if more.get(CONF_FACTOR_ENTITY):
-                if conversion == CONVERSION_DIRECT:
-                    check.errors[SECTION_ACCURACY] = ERROR_FACTOR_ENTITY_NOT_DIRECT
-                elif factor_info := check.entity(more[CONF_FACTOR_ENTITY], ("sensor",), SECTION_ACCURACY):
-                    factor_entity = factor_info.entity_id
             if info and not check.errors:
-                data: dict[str, Any] = {CONF_ENTITY: info.entity_id, CONF_CONVERSION: conversion}
-                if conversion != CONVERSION_DIRECT:
-                    data[CONF_FACTOR] = factor if factor is not None else DEFAULT_FACTORS[conversion]
-                if factor_entity:
-                    data[CONF_FACTOR_ENTITY] = factor_entity
-                return self._finish(info.name, data)
+                self._title = info.name
+                self._data = {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity}
+                if quantity == QUANTITY_HEAT:
+                    return self._finish(self._title, self._data)
+                # Energy readings are converted to kWh first, so the factor is per kWh whatever their unit.
+                self._unit = "kWh" if info.unit in ENERGY_TO_KWH else (info.unit or "")
+                return await self.async_step_factor()
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_ENTITY): _entity("sensor"),
-                vol.Required(CONF_CONVERSION, default=CONVERSION_DIRECT): _select(CONVERSIONS, "conversion"),
-                vol.Required(SECTION_ACCURACY): _accuracy(
-                    {
-                        vol.Optional(CONF_FACTOR): _number(),
-                        vol.Optional(CONF_FACTOR_ENTITY): _entity("sensor"),
-                    }
-                ),
+                vol.Required(CONF_QUANTITY, default=QUANTITY_HEAT): _select(QUANTITIES, "quantity"),
             }
         )
-        if user_input is None:
-            suggested: Mapping[str, Any] = {
-                CONF_ENTITY: stored.get(CONF_ENTITY),
-                CONF_CONVERSION: stored.get(CONF_CONVERSION, CONVERSION_DIRECT),
-                SECTION_ACCURACY: _strip_empty(
-                    {CONF_FACTOR: stored.get(CONF_FACTOR), CONF_FACTOR_ENTITY: stored.get(CONF_FACTOR_ENTITY)}
-                ),
-            }
-            suggested = _strip_empty(suggested)
+        if user_input is not None:
+            suggested: Mapping[str, Any] = user_input
+        elif stored := self._stored():
+            suggested = {CONF_ENTITY: stored.get(CONF_ENTITY), CONF_QUANTITY: stored.get(CONF_QUANTITY, QUANTITY_HEAT)}
+        elif dashboard := await self._energy_dashboard_source():
+            # A volume (m³, L) cannot be heat, so it needs a factor. An energy reading can be either.
+            volume = dashboard.unit not in ENERGY_TO_KWH
+            suggested = {CONF_ENTITY: dashboard.entity_id, CONF_QUANTITY: QUANTITY_INPUT if volume else QUANTITY_HEAT}
         else:
-            suggested = user_input
+            suggested = {}
         return self.async_show_form(
             step_id="source",
             data_schema=self.add_suggested_values_to_schema(schema, suggested),
             errors=check.errors,
         )
+
+    async def async_step_factor(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        check = _Checker(self.hass)
+        if user_input is not None:
+            factor = check.positive(user_input.get(CONF_FACTOR), CONF_FACTOR)
+            if factor is not None and not check.errors:
+                return self._finish(self._title, {**self._data, CONF_FACTOR: factor})
+        schema = vol.Schema({vol.Required(CONF_FACTOR): _number()})
+        stored = self._stored()
+        if user_input is not None:
+            suggested: Mapping[str, Any] = user_input
+        elif stored.get(CONF_QUANTITY) == QUANTITY_INPUT:
+            suggested = _strip_empty({CONF_FACTOR: stored.get(CONF_FACTOR)})
+        else:
+            suggested = {}
+        return self.async_show_form(
+            step_id="factor",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            errors=check.errors,
+            description_placeholders={"name": self._title, "unit": self._unit},
+        )
+
+    async def _energy_dashboard_source(self) -> _EntityInfo | None:
+        """The first gas source of the Energy dashboard that is a sensor and not yet a heat source here."""
+        # Imported here: the energy integration is optional, and loading it costs time only when it is needed.
+        from homeassistant.components.energy.data import async_get_manager
+
+        prefs = (await async_get_manager(self.hass)).data or {}
+        taken = {d.get(CONF_ENTITY) for _, _, d in self._subentries(SUBENTRY_SOURCE)}
+        for source in prefs.get("energy_sources", []):
+            statistic = source.get("stat_energy_from")
+            if source.get("type") != "gas" or not statistic or statistic in taken:
+                continue
+            # External statistics (a utility's import, "opower:…") are no entity and cannot be a source.
+            info = _entity_info(self.hass, statistic)
+            if info is not None and info.domain == "sensor" and info.state_class != "measurement":
+                return info
+        return None
 
 
 class CircuitSubentryFlow(_SubentryFlow):

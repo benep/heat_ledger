@@ -45,27 +45,24 @@
       "step": {
         "source": {
           "title": "Wärmequelle",
-          "description": "Eine Entität, die Energie oder Brennstoff zählt. Ihr Zuwachs wird in Wärme umgerechnet und auf die Verbraucher aufgeteilt.",
+          "description": "Eine Entität, die Wärme zählt oder die Energie, aus der Wärme wird. Ihr Zuwachs wird auf die Verbraucher aufgeteilt. Eine Gas-Quelle aus dem Energie-Dashboard ist vorausgewählt.",
           "data": {
             "entity_id": "Zählerstand",
-            "conversion": "Umrechnung"
+            "quantity": "Der Zählerstand zählt"
           },
           "data_description": {
-            "entity_id": "Ein Zählerstand, der nur steigt, z. B. Wärme oder Strom in kWh, Gas in m³ oder Öl in L.",
-            "conversion": "Wie aus dem Zählerstand Wärme wird."
+            "entity_id": "Ein Zählerstand, der nur steigt, z. B. in kWh, m³ oder L.",
+            "quantity": "Wärme: schon umgerechnet, z. B. ein Wärmemengenzähler oder die Wärme, die eine Wärmepumpe meldet. Energieeinsatz: Gas, Öl oder Strom, bevor Kessel oder Wärmepumpe daraus Wärme machen; der Faktor folgt im nächsten Schritt."
+          }
+        },
+        "factor": {
+          "title": "Umrechnung in Wärme",
+          "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- Gas in m³: Brennwert × Zustandszahl × Wirkungsgrad des Kessels, etwa 9 bis 10. Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- Heizöl in L: etwa 9 (10 kWh/L × Wirkungsgrad des Kessels).\n- Gas, Öl oder Pellets in kWh: der Wirkungsgrad des Kessels, etwa 0,85 bis 0,95.\n- Brennerlaufzeit in h: die Wärmeleistung des Brenners in kW, bei einem Brenner ohne Modulation.\n- Strom eines Heizstabs: 1.\n- Strom einer Wärmepumpe: ihre Jahresarbeitszahl, etwa 3 bis 4. Genauer: die Wärme, die die Wärmepumpe selbst meldet, als Quelle, die Wärme zählt.",
+          "data": {
+            "factor": "Faktor"
           },
-          "sections": {
-            "accuracy": {
-              "name": "Genauer machen",
-              "data": {
-                "factor": "Faktor",
-                "factor_entity_id": "Faktor-Sensor"
-              },
-              "data_description": {
-                "factor": "kWh Wärme pro Einheit des Zählerstands. Standard: 0,9 für Wirkungsgrad, 3,0 für COP. Bei Wärme ohne Wirkung.",
-                "factor_entity_id": "Aktueller Faktor aus einer Entität, z. B. der COP einer Wärmepumpe oder ein Template mit Brennwert × Wirkungsgrad. Solange sie nicht verfügbar ist, gilt der feste Faktor."
-              }
-            }
+          "data_description": {
+            "factor": "kWh Wärme je Einheit des Zählerstands."
           }
         }
       },
@@ -74,7 +71,6 @@
         "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
         "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
-        "factor_entity_not_direct": "Wärme braucht keinen Faktor: Wähle eine Umrechnung oder lass den Faktor-Sensor leer.",
         "source_exists": "Diese Entität ist schon eine Wärmequelle."
       }
     },
@@ -197,11 +193,10 @@
     }
   },
   "selector": {
-    "conversion": {
+    "quantity": {
       "options": {
-        "direct": "Wärme (keine Umrechnung)",
-        "efficiency": "Brennstoff oder Strom × Wirkungsgrad",
-        "cop": "Strom × COP (Wärmepumpe)"
+        "heat": "Wärme (schon umgerechnet)",
+        "input": "Energieeinsatz (Gas, Öl, Strom)"
       }
     },
     "demand_type": {

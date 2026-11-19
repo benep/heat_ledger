@@ -81,7 +81,7 @@ class Ledger:
         for source in self.plant.sources:
             increase = self._sources[source.id].update(self._readings.get(source.key))
             if increase > 0:
-                heat = increase * self._factor(source)
+                heat = increase * source.factor
                 self.account[source.id] += heat
                 self.source_heat[source.id] += heat
         for consumer in self.plant.consumers:
@@ -192,13 +192,6 @@ class Ledger:
             self._interval_start = t
         self._last_t = t
         return t
-
-    def _factor(self, source) -> float:
-        if source.factor_key is not None:
-            value = self._readings.get(source.factor_key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
-                return float(value)
-        return source.factor
 
     def _compute_rates(self) -> tuple[dict[str, float] | None, tuple[str, ...]]:
         rates: dict[str, float] = {}

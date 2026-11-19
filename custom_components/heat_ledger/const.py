@@ -24,13 +24,11 @@ SUBENTRY_CONSUMER: Final = "consumer"
 
 # Source subentry
 CONF_ENTITY: Final = "entity_id"  # cumulative reading; energy units are converted to kWh
-CONF_CONVERSION: Final = "conversion"
-CONVERSION_DIRECT: Final = "direct"  # the reading is heat
-CONVERSION_EFFICIENCY: Final = "efficiency"  # fuel or electricity × factor
-CONVERSION_COP: Final = "cop"  # electricity × COP (fixed factor, or an entity)
-CONVERSIONS: Final = (CONVERSION_DIRECT, CONVERSION_EFFICIENCY, CONVERSION_COP)
-CONF_FACTOR: Final = "factor"  # kWh heat per unit of the reading (per kWh for energy readings)
-CONF_FACTOR_ENTITY: Final = "factor_entity_id"  # factor from an entity (COP, calorific value × efficiency), the fixed factor applies while it is unavailable
+CONF_QUANTITY: Final = "quantity"  # what the reading counts; missing means heat
+QUANTITY_HEAT: Final = "heat"  # heat, already converted (heat meter, heat output of a heat pump)
+QUANTITY_INPUT: Final = "input"  # energy input before conversion (gas, oil, electricity), needs a factor
+QUANTITIES: Final = (QUANTITY_HEAT, QUANTITY_INPUT)
+CONF_FACTOR: Final = "factor"  # input only: kWh heat per unit of the reading (per kWh for energy readings)
 
 # Circuit subentry
 CONF_PUMP_ENTITY: Final = "pump_entity_id"  # binary sensor, optional: without it the circuit is always active
@@ -49,7 +47,7 @@ CONF_METER_ENTITY: Final = "meter_entity_id"  # heat meter: measured, replaces t
 
 # Entity translation keys (strings.json: entity.sensor.<key>)
 TRANSLATION_HEAT: Final = "heat"  # energy counter of a consumer or a circuit
-TRANSLATION_SOURCE_HEAT: Final = "source_heat"  # heat of a source after conversion
+TRANSLATION_SOURCE_HEAT: Final = "source_heat"  # heat of a source whose reading is energy input
 TRANSLATION_ACCOUNT: Final = "account"  # diagnostic: heat not yet assigned
 
 # State attributes of the counters
