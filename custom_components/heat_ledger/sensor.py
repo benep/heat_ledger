@@ -21,7 +21,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import HeatLedgerConfigEntry
+from . import HeatLedgerConfigEntry, texts
 from .const import (
     ATTR_BASIS,
     ATTR_BLOCKED_BY,
@@ -46,8 +46,8 @@ from .const import (
 )
 from .engine import Basis, Level, consumer_basis
 from .engine.basis import ACTIVE_ORDER, DEMAND_ORDER, SIZE_ORDER
-from .model import localized
 from .runtime import HeatLedgerRuntime
+from .texts import async_texts
 
 # Restored values below the ledger by less than this are rounding, not a lost state.
 RESTORE_TOLERANCE_KWH = 1e-6
@@ -78,18 +78,18 @@ async def async_setup_entry(
         ),
         None,
     )
-    language = hass.config.language
+    models = await async_texts(hass)
     for subentry in subentries:
         area = areas[subentry.subentry_id]
         entity: SensorEntity | None = None
         if subentry.subentry_type == SUBENTRY_CONSUMER:
-            model = DEVICE_HOT_WATER if subentry.data.get(CONF_KIND) == KIND_HOT_WATER else DEVICE_RADIATOR
-            entity = ConsumerHeatSensor(runtime, subentry, titles, _device(subentry, area, model, language))
+            model = models[texts.HOT_WATER if subentry.data.get(CONF_KIND) == KIND_HOT_WATER else texts.RADIATOR]
+            entity = ConsumerHeatSensor(runtime, subentry, titles, _device(subentry, area, model))
         elif subentry.subentry_type == SUBENTRY_CIRCUIT:
-            entity = CircuitHeatSensor(runtime, subentry, titles, _device(subentry, area, DEVICE_CIRCUIT, language))
+            entity = CircuitHeatSensor(runtime, subentry, titles, _device(subentry, area, models[texts.CIRCUIT]))
         elif subentry.subentry_type == SUBENTRY_SOURCE:
             if subentry.data.get(CONF_QUANTITY) == QUANTITY_INPUT:
-                device = _device(subentry, area or plant_area, DEVICE_SOURCE, language)
+                device = _device(subentry, area or plant_area, models[texts.SOURCE])
                 entity = SourceHeatSensor(runtime, subentry, device)
             else:
                 # A source that counts heat needs no sensor of its own: its input entity already is the heat. One
@@ -109,7 +109,7 @@ async def async_setup_entry(
         identifiers={(DOMAIN, entry.entry_id)},
         name=entry.title,
         suggested_area=plant_area,
-        model=localized(language, DEVICE_PLANT),
+        model=models[texts.PLANT],
         manufacturer=MANUFACTURER,
         entry_type=DeviceEntryType.SERVICE,
     )
@@ -133,22 +133,17 @@ class _LedgerSensor(SensorEntity):
 
 
 # What kind of device it is, shown next to the icon wherever Home Assistant lists devices (the model), with the
-# integration below it (the manufacturer). Device registry fields are not translated, so the language is chosen
-# when the device is set up; it follows a change of the language with the next start.
+# integration below it (the manufacturer). Device registry fields are not translated, so the text comes from the
+# translations when the device is set up (texts.py); it follows a change of the language with the next start.
 MANUFACTURER = "Heat Ledger"
-DEVICE_PLANT = {"en": "Heating system", "de": "Heizungsanlage"}
-DEVICE_SOURCE = {"en": "Heat source", "de": "Wärmequelle"}
-DEVICE_CIRCUIT = {"en": "Heating circuit", "de": "Heizkreis"}
-DEVICE_RADIATOR = {"en": "Room heating", "de": "Raumheizung"}  # radiators, underfloor heating
-DEVICE_HOT_WATER = {"en": "Hot water heating", "de": "Warmwasserbereitung"}
 
 
-def _device(subentry: ConfigSubentry, area: str | None, model: Mapping[str, str], language: str) -> DeviceInfo:
+def _device(subentry: ConfigSubentry, area: str | None, model: str) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, subentry.subentry_id)},
         name=subentry.title,
         suggested_area=area,
-        model=localized(language, model),
+        model=model,
         manufacturer=MANUFACTURER,
         entry_type=DeviceEntryType.SERVICE,
     )

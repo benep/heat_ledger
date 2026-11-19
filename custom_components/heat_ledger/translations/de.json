@@ -274,6 +274,15 @@
       }
     }
   },
+  "device": {
+    "plant": { "name": "Heizungsanlage" },
+    "source": { "name": "Wärmequelle" },
+    "circuit": { "name": "Heizkreis" },
+    "radiator": { "name": "Raumheizung" },
+    "hot_water": { "name": "Warmwasserbereitung" },
+    "default_plant_name": { "name": "Heizung" },
+    "default_hot_water_name": { "name": "Warmwasser" }
+  },
   "entity": {
     "sensor": {
       "heat": {
