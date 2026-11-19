@@ -1,12 +1,14 @@
 {
   "domain": "heat_ledger",
   "name": "Heat Ledger",
-  "codeowners": [],
+  "after_dependencies": ["energy"],
+  "codeowners": ["@benep"],
   "config_flow": true,
   "dependencies": [],
-  "after_dependencies": ["energy"],
+  "documentation": "https://benep.github.io/heat_ledger/",
   "integration_type": "service",
   "iot_class": "calculated",
+  "issue_tracker": "https://github.com/benep/heat_ledger/issues",
   "requirements": [],
   "version": "0.1.0"
 }
