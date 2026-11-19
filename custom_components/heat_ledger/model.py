@@ -47,6 +47,8 @@ from .engine.spec import DEFAULT_HOT_WATER_POWER_W
 
 INVALID_STATES = {"unavailable", "unknown", "none", ""}
 HEATING_ACTIONS = {"heating", "preheating"}
+# Modes in which a thermostat without hvac_action counts as heating (not cool, dry, fan_only, off).
+HEATING_MODES = {"heat", "heat_cool", "auto"}
 # kWh per unit, for every energy unit Home Assistant knows (a test checks this against its EnergyConverter).
 _KWH_PER_KCAL = 4.184 / 3600
 ENERGY_TO_KWH = {
@@ -179,8 +181,8 @@ def parse_state(
         action = attributes.get("hvac_action")
         if action is None:
             # The thermostat does not report whether it is heating (Home Assistant leaves the attribute out then):
-            # it counts as heating while it is switched on. Rough, but blocking the whole split would be worse.
-            return state != "off"
+            # it counts as heating while it is in a heating mode. Rough, but blocking the whole split would be worse.
+            return state in HEATING_MODES
         return action in HEATING_ACTIONS
     try:
         value = float(state)

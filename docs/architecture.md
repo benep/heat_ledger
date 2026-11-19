@@ -112,7 +112,7 @@ Rules:
 | `config_flow.py` | Guided first setup (name, source, thermostats, pumps: creates the entry with its subentries), options (fixed losses) and subentry flows for sources, circuits and consumers to add or refine later. Required fields first, everything else in a collapsible "more accurate" section. |
 
 Converting states to readings: `climate` → `hvac_action` is `heating` or `preheating` (anything else off; a
-thermostat that does not report `hvac_action` counts as heating while it is not `off`);
+thermostat that does not report `hvac_action` counts as heating in `heat`, `heat_cool` or `auto`);
 binary sensors → `on`; percent sensors → value / 100, clamped to 0..1; energy sensors → kWh using the unit of the
 entity. `unavailable` and `unknown` become `None`.
 
