@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import MappingProxyType
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState, ConfigSubentry
@@ -270,3 +271,12 @@ async def test_renamed_inputs_are_followed(hass: HomeAssistant, entry: MockConfi
     assert {"entity_id": "sensor.oil_burner", "quantity": "heat"} in [dict(d) for d in sources]
     assert entry.subentries["ground_floor"].data["pump_entity_id"] == "binary_sensor.radiator_pump"
     assert value(hass, "ground_floor_heat") == pytest.approx(5.0)  # hot water is off: all of it
+
+
+async def test_failed_setup_leaves_no_listeners(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """The runtime is started, then setting up the sensors fails: its listeners must not keep running."""
+    with patch.object(hass.config_entries, "async_forward_entry_setups", side_effect=RuntimeError("platform failed")):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert entry.runtime_data._unsubscribe == []

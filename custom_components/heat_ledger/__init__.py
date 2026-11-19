@@ -26,6 +26,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeatLedgerConfigEntry) -
     runtime = HeatLedgerRuntime(hass, entry, plant)
     await runtime.async_start()
     entry.runtime_data = runtime
+    entry.async_on_unload(runtime.cancel)
     # Subentries and options define the plant: any change rebuilds it. The state is saved on unload.
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -83,11 +83,16 @@ class HeatLedgerRuntime:
         )
         self._unsubscribe.append(self.hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, self._on_stop))
 
-    async def async_stop(self) -> None:
-        """Stop listening and save the state, up to now."""
+    @callback
+    def cancel(self) -> None:
+        """Stop listening. Also called when the setup fails after the start, so no listener is left behind."""
         for unsubscribe in self._unsubscribe:
             unsubscribe()
         self._unsubscribe.clear()
+
+    async def async_stop(self) -> None:
+        """Stop listening and save the state, up to now."""
+        self.cancel()
         await self.async_save()
 
     async def async_save(self) -> None:
