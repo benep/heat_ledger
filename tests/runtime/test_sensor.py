@@ -264,3 +264,4 @@ async def test_source_switched_to_heat_leaves_no_leftover(hass: HomeAssistant, e
     hass.config_entries.async_update_subentry(entry, subentry, data={"entity_id": HEAT_PUMP, "quantity": "heat"})
     await hass.async_block_till_done()
     assert entity_id(hass, "heat_pump_source_heat") is None
+    assert dr.async_get(hass).async_get_device_by_identifier(("heat_ledger", "heat_pump"), entry.entry_id) is None

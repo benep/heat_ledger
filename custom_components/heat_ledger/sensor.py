@@ -93,11 +93,15 @@ async def async_setup_entry(
                 entity = SourceHeatSensor(runtime, subentry, device)
             else:
                 # A source that counts heat needs no sensor of its own: its input entity already is the heat. One
-                # left from before it was switched to heat would stay as an unavailable leftover.
+                # left from before it was switched to heat would stay as an unavailable leftover, with its device.
                 registry = er.async_get(hass)
                 unique_id = f"{subentry.subentry_id}_{TRANSLATION_SOURCE_HEAT}"
                 if leftover := registry.async_get_entity_id("sensor", DOMAIN, unique_id):
                     registry.async_remove(leftover)
+                devices = dr.async_get(hass)
+                device = devices.async_get_device_by_identifier((DOMAIN, subentry.subentry_id), entry.entry_id)
+                if device is not None and not er.async_entries_for_device(registry, device.id):
+                    devices.async_remove_device(device.id)
         if entity is not None:
             async_add_entities([entity], config_subentry_id=subentry.subentry_id)
 
