@@ -844,3 +844,10 @@ def test_translations_match() -> None:
     german = json.loads((COMPONENT / "translations" / "de.json").read_text(encoding="utf-8"))
     assert strings == english
     assert _keys(german) == _keys(english)
+
+
+def test_every_subentry_has_a_text_for_its_end() -> None:
+    """Editing a subentry ends with reconfigure_successful; custom integrations get no text for it from Core."""
+    strings = json.loads((COMPONENT / "strings.json").read_text(encoding="utf-8"))
+    for subentry_type in (SUBENTRY_SOURCE, SUBENTRY_CIRCUIT, SUBENTRY_CONSUMER):
+        assert strings["config_subentries"][subentry_type]["abort"]["reconfigure_successful"]

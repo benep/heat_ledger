@@ -123,6 +123,9 @@
         "heat_needs_energy_unit": "Wärme wird in einer Energieeinheit gezählt (kWh, MJ …). Ein Gaszähler in m³ oder Öl in Litern ist Energieeinsatz.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
         "source_exists": "Diese Entität ist schon eine Wärmequelle."
+      },
+      "abort": {
+        "reconfigure_successful": "Gespeichert. Die Anlage wird mit der Änderung neu geladen."
       }
     },
     "circuit": {
@@ -149,6 +152,9 @@
         "name_required": "Gib einen Namen ein.",
         "entity_not_found": "Entität nicht gefunden.",
         "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt."
+      },
+      "abort": {
+        "reconfigure_successful": "Gespeichert. Die Anlage wird mit der Änderung neu geladen."
       }
     },
     "consumer": {
@@ -241,6 +247,9 @@
         "not_percent": "Ein Sensor braucht die Einheit %.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
         "size_value_required": "Gib für diese Größe die Fläche oder Nennleistung ein."
+      },
+      "abort": {
+        "reconfigure_successful": "Gespeichert. Die Anlage wird mit der Änderung neu geladen."
       }
     }
   },

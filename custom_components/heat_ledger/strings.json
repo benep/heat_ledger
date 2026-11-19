@@ -123,6 +123,9 @@
         "heat_needs_energy_unit": "Heat is counted in an energy unit (kWh, MJ …). A gas meter in m³ or oil in litres is energy input.",
         "not_positive": "Enter a number greater than 0.",
         "source_exists": "This entity is already a heat source."
+      },
+      "abort": {
+        "reconfigure_successful": "Saved. The plant is reloaded with the change."
       }
     },
     "circuit": {
@@ -149,6 +152,9 @@
         "name_required": "Enter a name.",
         "entity_not_found": "Entity not found.",
         "wrong_domain": "This type of entity is not supported here."
+      },
+      "abort": {
+        "reconfigure_successful": "Saved. The plant is reloaded with the change."
       }
     },
     "consumer": {
@@ -241,6 +247,9 @@
         "not_percent": "A sensor needs the unit %.",
         "not_positive": "Enter a number greater than 0.",
         "size_value_required": "Enter the area or nominal power for this size."
+      },
+      "abort": {
+        "reconfigure_successful": "Saved. The plant is reloaded with the change."
       }
     }
   },
