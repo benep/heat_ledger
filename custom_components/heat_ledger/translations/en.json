@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Heat Ledger",
-        "description": "Splits the heat of your heating between radiators and hot water. Three short steps follow: the heat source, the thermostats and the pumps, if you have them. Everything can be added or refined later on the integration page.",
+        "description": "Splits the heat of your heating between radiators and hot water. Three short steps follow, in the order the heat flows: heat source, pumps, radiators. Everything can be added or changed later on the integration page.\n\nThere is no back button in these steps: if something went wrong, close the dialog and start again.",
         "data": {
           "name": "Name"
         },
@@ -13,19 +13,21 @@
       },
       "source": {
         "title": "Heat source",
-        "description": "The meter of your heating: gas meter, heat meter, the heat or electricity of a heat pump. A gas source of the Energy dashboard is preselected.",
+        "description": "Where does the heat come from? A meter of your heating: gas meter, oil consumption, heat meter or the heat output of a heat pump. A gas source of the Energy dashboard is preselected. More sources (fireplace, immersion heater) can be added later.",
         "data": {
+          "name": "Name",
           "entity_id": "Reading",
           "quantity": "The reading counts"
         },
         "data_description": {
+          "name": "What you call the source, e.g. oil burner, gas boiler, heat pump. Empty: the name of the meter.",
           "entity_id": "A meter reading that only increases, e.g. in kWh, m³ or L.",
-          "quantity": "Heat: already converted, e.g. a heat meter or the heat output a heat pump reports. Energy input: gas, oil or electricity before the boiler or heat pump turns it into heat; the factor follows in the next step."
+          "quantity": "Heat: already converted, e.g. a heat meter or the heat output a heat pump reports. Energy input: gas, oil or electricity before the boiler or heater turns it into heat; the next step asks for the factor. For a heat pump, always choose its heat output, not its electricity."
         }
       },
       "factor": {
         "title": "Conversion to heat",
-        "description": "How many kWh of heat does 1 {unit} of {name} give?\n\n- Gas in m³: calorific value × z-number × boiler efficiency, about 9 to 10. Calorific value and z-number are on the gas bill.\n- Heating oil in L: about 9 (10 kWh/L × boiler efficiency).\n- Gas, oil or pellets in kWh: the boiler efficiency, about 0.85 to 0.95.\n- Burner run time in h: the heat output of the burner in kW, for a burner without modulation.\n- Electricity of an immersion heater: 1.\n- Electricity of a heat pump: its seasonal COP, about 3 to 4. More accurate: the heat the heat pump reports itself, as a source that counts heat.",
+        "description": "How many kWh of heat does 1 {unit} of {name} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
         "data": {
           "factor": "Factor"
         },
@@ -33,18 +35,26 @@
           "factor": "kWh of heat per unit of the reading."
         }
       },
-      "consumers": {
-        "title": "Radiators and hot water",
-        "description": "Each thermostat becomes a radiator. The pumps tell when heat flows at all: without them, a radiator counts whenever its thermostat asks for heat, even while the boiler only heats water. All fields are optional.",
+      "pumps": {
+        "title": "Pumps",
+        "description": "The pumps tell when heat flows to the radiators or into the hot water. Both fields are optional, but make the split much more accurate.\n\n**No binary sensor for a pump?** If it is plugged into a smart plug or switch that measures power (e.g. a Shelly), create a **Threshold** helper on that power (on above about 5 W): Settings → Devices & services → Helpers. If your boiler's integration reports the pump state, use that.",
         "data": {
-          "thermostats": "Thermostats",
           "circuit_pump": "Heating circuit pump",
-          "hot_water_pump": "Hot water"
+          "hot_water_pump": "Hot water charging"
         },
         "data_description": {
-          "thermostats": "One radiator per thermostat. If a thermostat reports its heating demand in %, that is used.",
-          "circuit_pump": "A binary sensor that is on while the pump of the radiators runs.",
-          "hot_water_pump": "A binary sensor that is on while hot water is heated, e.g. the charging pump or the hot water status of the boiler."
+          "circuit_pump": "On while the pump runs that moves the water through the radiators. Without it, a radiator counts whenever its thermostat asks for heat, even while the boiler only heats water.",
+          "hot_water_pump": "On while the hot water tank is being heated: its charging pump, or the hot water status of the boiler (also for a combi boiler). Not the circulation pump that keeps hot water moving to the taps. Without it, the heat for hot water is split between the radiators."
+        }
+      },
+      "thermostats": {
+        "title": "Radiators",
+        "description": "Choose the thermostats of your radiators: each one becomes a radiator with its own heat counter. Many thermostats (Tado, for example) carry the name of their room, so you may see room names here. If a thermostat reports its heating demand in %, that is used.\n\nSizes, circuits and more radiators can be added later on the integration page. Home Assistant then asks for the area of each new device; it is already filled in where the thermostat or pump has one.",
+        "data": {
+          "thermostats": "Thermostats"
+        },
+        "data_description": {
+          "thermostats": "Climate entities, one per radiator or room."
         }
       }
     },
@@ -82,19 +92,21 @@
       "step": {
         "source": {
           "title": "Heat source",
-          "description": "An entity that counts heat, or the energy that becomes heat. Its increase is split between the consumers. A gas source of the Energy dashboard is preselected.",
+          "description": "Where does the heat come from? A meter of your heating: gas meter, oil consumption, heat meter or the heat output of a heat pump, a fireplace or an immersion heater. A gas source of the Energy dashboard is preselected.",
           "data": {
+            "name": "Name",
             "entity_id": "Reading",
             "quantity": "The reading counts"
           },
           "data_description": {
+            "name": "What you call the source, e.g. oil burner, gas boiler, heat pump. Empty: the name of the meter.",
             "entity_id": "A meter reading that only increases, e.g. in kWh, m³ or L.",
-            "quantity": "Heat: already converted, e.g. a heat meter or the heat output a heat pump reports. Energy input: gas, oil or electricity before the boiler or heat pump turns it into heat; the factor follows in the next step."
+            "quantity": "Heat: already converted, e.g. a heat meter or the heat output a heat pump reports. Energy input: gas, oil or electricity before the boiler or heater turns it into heat; the next step asks for the factor. For a heat pump, always choose its heat output, not its electricity."
           }
         },
         "factor": {
           "title": "Conversion to heat",
-          "description": "How many kWh of heat does 1 {unit} of {name} give?\n\n- Gas in m³: calorific value × z-number × boiler efficiency, about 9 to 10. Calorific value and z-number are on the gas bill.\n- Heating oil in L: about 9 (10 kWh/L × boiler efficiency).\n- Gas, oil or pellets in kWh: the boiler efficiency, about 0.85 to 0.95.\n- Burner run time in h: the heat output of the burner in kW, for a burner without modulation.\n- Electricity of an immersion heater: 1.\n- Electricity of a heat pump: its seasonal COP, about 3 to 4. More accurate: the heat the heat pump reports itself, as a source that counts heat.",
+          "description": "How many kWh of heat does 1 {unit} of {name} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
           "data": {
             "factor": "Factor"
           },

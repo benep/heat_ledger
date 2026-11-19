@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Heat Ledger",
-        "description": "Teilt die Wärme deiner Heizung auf Heizkörper und Warmwasser auf. Es folgen drei kurze Schritte: die Wärmequelle, die Thermostate und, falls vorhanden, die Pumpen. Alles lässt sich später auf der Seite der Integration ergänzen und verfeinern.",
+        "description": "Teilt die Wärme deiner Heizung auf Heizkörper und Warmwasser auf. Es folgen drei kurze Schritte, in der Richtung, in der die Wärme fließt: Wärmequelle, Pumpen, Heizkörper. Alles lässt sich später auf der Seite der Integration ergänzen und ändern.\n\nEinen Zurück-Knopf gibt es in diesen Schritten nicht: Ist etwas schiefgegangen, den Dialog schließen und neu beginnen.",
         "data": {
           "name": "Name"
         },
@@ -13,19 +13,21 @@
       },
       "source": {
         "title": "Wärmequelle",
-        "description": "Der Zähler deiner Heizung: Gaszähler, Wärmemengenzähler, die Wärme oder der Strom einer Wärmepumpe. Eine Gas-Quelle aus dem Energie-Dashboard ist vorausgewählt.",
+        "description": "Woher kommt die Wärme? Ein Zähler deiner Heizung: Gaszähler, Ölverbrauch, Wärmemengenzähler oder die Wärmemenge einer Wärmepumpe. Eine Gas-Quelle aus dem Energie-Dashboard ist vorausgewählt. Weitere Quellen (Kamin, Heizstab) kommen später dazu.",
         "data": {
+          "name": "Name",
           "entity_id": "Zählerstand",
           "quantity": "Der Zählerstand zählt"
         },
         "data_description": {
+          "name": "Wie du die Quelle nennst, z. B. Ölbrenner, Gastherme, Wärmepumpe. Leer: der Name des Zählers.",
           "entity_id": "Ein Zählerstand, der nur steigt, z. B. in kWh, m³ oder L.",
-          "quantity": "Wärme: schon umgerechnet, z. B. ein Wärmemengenzähler oder die Wärme, die eine Wärmepumpe meldet. Energieeinsatz: Gas, Öl oder Strom, bevor Kessel oder Wärmepumpe daraus Wärme machen; der Faktor folgt im nächsten Schritt."
+          "quantity": "Wärme: schon umgerechnet, z. B. ein Wärmemengenzähler oder die Wärmemenge, die eine Wärmepumpe meldet. Energieeinsatz: Gas, Öl oder Strom, bevor Kessel oder Heizstab daraus Wärme machen; den Faktor fragt der nächste Schritt ab. Bei einer Wärmepumpe immer ihre Wärmemenge wählen, nicht ihren Strom."
         }
       },
       "factor": {
         "title": "Umrechnung in Wärme",
-        "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- Gas in m³: Brennwert × Zustandszahl × Wirkungsgrad des Kessels, etwa 9 bis 10. Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- Heizöl in L: etwa 9 (10 kWh/L × Wirkungsgrad des Kessels).\n- Gas, Öl oder Pellets in kWh: der Wirkungsgrad des Kessels, etwa 0,85 bis 0,95.\n- Brennerlaufzeit in h: die Wärmeleistung des Brenners in kW, bei einem Brenner ohne Modulation.\n- Strom eines Heizstabs: 1.\n- Strom einer Wärmepumpe: ihre Jahresarbeitszahl, etwa 3 bis 4. Genauer: die Wärme, die die Wärmepumpe selbst meldet, als Quelle, die Wärme zählt.",
+        "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
         "data": {
           "factor": "Faktor"
         },
@@ -33,18 +35,26 @@
           "factor": "kWh Wärme je Einheit des Zählerstands."
         }
       },
-      "consumers": {
-        "title": "Heizkörper und Warmwasser",
-        "description": "Jedes Thermostat wird ein Heizkörper. Die Pumpen sagen, wann überhaupt Wärme fließt: Ohne sie zählt ein Heizkörper immer, wenn sein Thermostat heizen will, auch während der Kessel nur Warmwasser macht. Alle Felder sind optional.",
+      "pumps": {
+        "title": "Pumpen",
+        "description": "Die Pumpen sagen, wann Wärme zu den Heizkörpern oder ins Warmwasser fließt. Beide Felder sind optional, machen die Aufteilung aber deutlich genauer.\n\n**Kein Binärsensor für eine Pumpe?** Hängt sie an einer Steckdose oder einem Schaltaktor mit Leistungsmessung (z. B. Shelly), lege auf deren Leistung einen Helfer **Schwellenwert** an (an ab etwa 5 W): Einstellungen → Geräte & Dienste → Helfer. Meldet die Integration deines Kessels den Pumpenzustand, nimm diesen.",
         "data": {
-          "thermostats": "Thermostate",
           "circuit_pump": "Heizkreispumpe",
-          "hot_water_pump": "Warmwasser"
+          "hot_water_pump": "Warmwasser-Ladung"
         },
         "data_description": {
-          "thermostats": "Ein Heizkörper je Thermostat. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.",
-          "circuit_pump": "Ein Binärsensor, der an ist, solange die Pumpe der Heizkörper läuft.",
-          "hot_water_pump": "Ein Binärsensor, der an ist, solange Warmwasser bereitet wird, z. B. die Ladepumpe oder der Warmwasser-Status des Kessels."
+          "circuit_pump": "An, solange die Pumpe läuft, die das Wasser durch die Heizkörper bewegt. Ohne sie zählt ein Heizkörper immer, wenn sein Thermostat heizen will, auch wenn der Kessel gerade nur Warmwasser macht.",
+          "hot_water_pump": "An, solange der Warmwasserspeicher geladen wird: seine Ladepumpe oder der Warmwasser-Status des Kessels (auch bei einer Kombitherme). Nicht die Zirkulationspumpe, die das warme Wasser zu den Zapfstellen umwälzt. Ohne sie wird die Wärme fürs Warmwasser auf die Heizkörper verteilt."
+        }
+      },
+      "thermostats": {
+        "title": "Heizkörper",
+        "description": "Wähle die Thermostate deiner Heizkörper: Jedes wird ein Heizkörper mit eigenem Wärmezähler. Viele Thermostate (z. B. Tado) tragen den Namen ihres Raums, deshalb siehst du hier eventuell Raumnamen. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.\n\nGröße, Heizkreise und weitere Heizkörper lassen sich danach auf der Seite der Integration ergänzen. Home Assistant fragt anschließend nach dem Bereich jedes neuen Geräts; wo Thermostat oder Pumpe einen haben, ist er schon eingetragen.",
+        "data": {
+          "thermostats": "Thermostate"
+        },
+        "data_description": {
+          "thermostats": "Klima-Entitäten, eine je Heizkörper oder Raum."
         }
       }
     },
@@ -82,19 +92,21 @@
       "step": {
         "source": {
           "title": "Wärmequelle",
-          "description": "Eine Entität, die Wärme zählt oder die Energie, aus der Wärme wird. Ihr Zuwachs wird auf die Verbraucher aufgeteilt. Eine Gas-Quelle aus dem Energie-Dashboard ist vorausgewählt.",
+          "description": "Woher kommt die Wärme? Ein Zähler deiner Heizung: Gaszähler, Ölverbrauch, Wärmemengenzähler oder die Wärmemenge einer Wärmepumpe, eines Kamins oder eines Heizstabs. Eine Gas-Quelle aus dem Energie-Dashboard ist vorausgewählt.",
           "data": {
+            "name": "Name",
             "entity_id": "Zählerstand",
             "quantity": "Der Zählerstand zählt"
           },
           "data_description": {
+            "name": "Wie du die Quelle nennst, z. B. Ölbrenner, Gastherme, Wärmepumpe. Leer: der Name des Zählers.",
             "entity_id": "Ein Zählerstand, der nur steigt, z. B. in kWh, m³ oder L.",
-            "quantity": "Wärme: schon umgerechnet, z. B. ein Wärmemengenzähler oder die Wärme, die eine Wärmepumpe meldet. Energieeinsatz: Gas, Öl oder Strom, bevor Kessel oder Wärmepumpe daraus Wärme machen; der Faktor folgt im nächsten Schritt."
+            "quantity": "Wärme: schon umgerechnet, z. B. ein Wärmemengenzähler oder die Wärmemenge, die eine Wärmepumpe meldet. Energieeinsatz: Gas, Öl oder Strom, bevor Kessel oder Heizstab daraus Wärme machen; den Faktor fragt der nächste Schritt ab. Bei einer Wärmepumpe immer ihre Wärmemenge wählen, nicht ihren Strom."
           }
         },
         "factor": {
           "title": "Umrechnung in Wärme",
-          "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- Gas in m³: Brennwert × Zustandszahl × Wirkungsgrad des Kessels, etwa 9 bis 10. Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- Heizöl in L: etwa 9 (10 kWh/L × Wirkungsgrad des Kessels).\n- Gas, Öl oder Pellets in kWh: der Wirkungsgrad des Kessels, etwa 0,85 bis 0,95.\n- Brennerlaufzeit in h: die Wärmeleistung des Brenners in kW, bei einem Brenner ohne Modulation.\n- Strom eines Heizstabs: 1.\n- Strom einer Wärmepumpe: ihre Jahresarbeitszahl, etwa 3 bis 4. Genauer: die Wärme, die die Wärmepumpe selbst meldet, als Quelle, die Wärme zählt.",
+          "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
           "data": {
             "factor": "Faktor"
           },

@@ -200,3 +200,36 @@ async def test_consumer_lands_in_the_area_of_its_thermostat(hass: HomeAssistant,
 
     assert device_area("living_heat") == area.id
     assert device_area("hot_water_heat") is None  # its pump is in no area
+
+
+@pytest.mark.parametrize(
+    "in_boiler_room",
+    [
+        pytest.param((PUMP, HEAT_PUMP, BOILER), id="meters in the boiler room"),
+        pytest.param((PUMP,), id="only the pump: source meters are templates without area"),
+    ],
+)
+async def test_circuit_source_and_plant_get_the_area_of_their_input(
+    hass: HomeAssistant, entry: MockConfigEntry, in_boiler_room: tuple[str, ...]
+) -> None:
+    """The dialog after the setup comes prefilled: the circuit by its pump, source and plant by the source meter,
+    or by the pump when the meter has no area."""
+    boiler_room = ar.async_get(hass).async_create("Boiler room")
+    registry = er.async_get(hass)
+    for entity in in_boiler_room:
+        state = hass.states.get(entity)
+        hass.states.async_remove(entity)  # else the registry picks another entity ID
+        domain, object_id = entity.split(".")
+        registered = registry.async_get_or_create(domain, "meters", object_id, suggested_object_id=object_id)
+        registry.async_update_entity(registered.entity_id, area_id=boiler_room.id)
+        hass.states.async_set(entity, state.state, state.attributes)
+
+    await setup(hass, entry)
+
+    def device_area(unique_id: str) -> str | None:
+        entity = registry.async_get(entity_id(hass, unique_id))
+        return dr.async_get(hass).async_get(entity.device_id).area_id
+
+    assert device_area("ground_floor_heat") == boiler_room.id
+    assert device_area("heat_pump_source_heat") == boiler_room.id
+    assert device_area(f"{entry.entry_id}_account") == boiler_room.id

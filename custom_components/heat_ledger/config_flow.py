@@ -24,6 +24,7 @@ from homeassistant.config_entries import (
 from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_UNIT_OF_MEASUREMENT, CONF_NAME, PERCENTAGE
 from homeassistant.core import HomeAssistant, callback, split_entity_id
 from homeassistant.data_entry_flow import section
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -155,7 +156,7 @@ def _entity_info(hass: HomeAssistant, entity_id_or_uuid: str) -> _EntityInfo | N
         unit = attributes.get(ATTR_UNIT_OF_MEASUREMENT, entry.unit_of_measurement)
         state_class = attributes.get("state_class", (entry.capabilities or {}).get("state_class"))
         device_class = attributes.get(ATTR_DEVICE_CLASS, entry.device_class or entry.original_device_class)
-        name = state.name if state else (entry.name or entry.original_name or entity_id)
+        name = state.name if state else (entry.name or entry.original_name or _device_name(hass, entry) or entity_id)
     else:
         assert state is not None
         unit = attributes.get(ATTR_UNIT_OF_MEASUREMENT)
@@ -171,6 +172,12 @@ def _entity_info(hass: HomeAssistant, entity_id_or_uuid: str) -> _EntityInfo | N
         device_class=device_class,
         device_id=entry.device_id if entry else None,
     )
+
+
+def _device_name(hass: HomeAssistant, entry: er.RegistryEntry) -> str | None:
+    """The name of the entity's device: an entity named after its device (a thermostat, often) has no own name."""
+    device = dr.async_get(hass).async_get(entry.device_id) if entry.device_id else None
+    return (device.name_by_user or device.name) if device else None
 
 
 class _Checker:
@@ -249,19 +256,28 @@ def _localized(hass: HomeAssistant, names: Mapping[str, str]) -> str:
 def _source_schema() -> vol.Schema:
     return vol.Schema(
         {
+            vol.Optional(CONF_NAME): TextSelector(),
             vol.Required(CONF_ENTITY): _entity("sensor"),
             vol.Required(CONF_QUANTITY, default=QUANTITY_HEAT): _select(QUANTITIES, "quantity"),
         }
     )
 
 
-def _check_source(check: _Checker, user_input: Mapping[str, Any], taken: set[str]) -> _EntityInfo | None:
-    """The source entity, if it is a cumulative sensor that is not already a source of this plant."""
+def _check_source(
+    check: _Checker, user_input: Mapping[str, Any], taken: set[str]
+) -> tuple[str, dict[str, Any], _EntityInfo] | None:
+    """Title, data and entity of the source, if it is a cumulative sensor that is not yet a source of this plant.
+
+    Without a name, the source is named after its entity.
+    """
     info = check.entity(user_input.get(CONF_ENTITY), ("sensor",), CONF_ENTITY, cumulative=True)
-    if info and info.entity_id in taken:
+    if info is None:
+        return None
+    if info.entity_id in taken:
         check.errors[CONF_ENTITY] = ERROR_SOURCE_EXISTS
         return None
-    return info
+    title = (user_input.get(CONF_NAME) or "").strip() or info.name
+    return title, {CONF_ENTITY: info.entity_id, CONF_QUANTITY: user_input.get(CONF_QUANTITY, QUANTITY_HEAT)}, info
 
 
 def _factor_unit(info: _EntityInfo) -> str:
@@ -311,7 +327,7 @@ def _loss_schema() -> dict[vol.Marker, Any]:
 
 
 class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
-    """The first setup, guided: name, heat source, thermostats, pumps. Creates the plant with its subentries.
+    """The first setup, guided: name, heat source, pumps, thermostats. Creates the plant with its subentries.
 
     Everything else (more sources, circuits, sizes, heat meters) is added or refined later through the subentries.
     """
@@ -322,6 +338,7 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
     _name: str
     _source: tuple[str, dict[str, Any]]
     _unit: str
+    _pumps: tuple[_EntityInfo | None, _EntityInfo | None]
 
     @staticmethod
     @callback
@@ -337,6 +354,8 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
             SUBENTRY_CONSUMER: ConsumerSubentryFlow,
         }
 
+    # The steps follow the heat: source, pumps, radiators. Every step but the last shows "Next".
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         check = _Checker(self.hass)
         if user_input is not None:
@@ -349,15 +368,16 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(schema, suggested),
             errors=check.errors,
+            last_step=False,
         )
 
     async def async_step_source(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         check = _Checker(self.hass)
-        if user_input is not None and (info := _check_source(check, user_input, set())):
-            quantity = user_input.get(CONF_QUANTITY, QUANTITY_HEAT)
-            self._source = (info.name, {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity})
-            if quantity == QUANTITY_HEAT:
-                return await self.async_step_consumers()
+        if user_input is not None and (source := _check_source(check, user_input, set())):
+            title, data, info = source
+            self._source = (title, data)
+            if data[CONF_QUANTITY] == QUANTITY_HEAT:
+                return await self.async_step_pumps()
             self._unit = _factor_unit(info)
             return await self.async_step_factor()
         suggested = user_input if user_input is not None else await _energy_dashboard_suggestion(self.hass, set())
@@ -365,6 +385,7 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="source",
             data_schema=self.add_suggested_values_to_schema(_source_schema(), suggested),
             errors=check.errors,
+            last_step=False,
         )
 
     async def async_step_factor(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -373,15 +394,37 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
             factor = check.positive(user_input.get(CONF_FACTOR), CONF_FACTOR)
             if factor is not None and not check.errors:
                 self._source[1][CONF_FACTOR] = factor
-                return await self.async_step_consumers()
+                return await self.async_step_pumps()
         return self.async_show_form(
             step_id="factor",
             data_schema=self.add_suggested_values_to_schema(_factor_schema(), user_input),
             errors=check.errors,
             description_placeholders={"name": self._source[0], "unit": self._unit},
+            last_step=False,
         )
 
-    async def async_step_consumers(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_pumps(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        check = _Checker(self.hass)
+        if user_input is not None:
+            circuit_pump = check.entity(user_input.get(CONF_CIRCUIT_PUMP), ("binary_sensor",), CONF_CIRCUIT_PUMP)
+            hot_water_pump = check.entity(user_input.get(CONF_HOT_WATER_PUMP), ("binary_sensor",), CONF_HOT_WATER_PUMP)
+            if not check.errors:
+                self._pumps = (circuit_pump, hot_water_pump)
+                return await self.async_step_thermostats()
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_CIRCUIT_PUMP): _entity("binary_sensor"),
+                vol.Optional(CONF_HOT_WATER_PUMP): _entity("binary_sensor"),
+            }
+        )
+        return self.async_show_form(
+            step_id="pumps",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input),
+            errors=check.errors,
+            last_step=False,
+        )
+
+    async def async_step_thermostats(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         check = _Checker(self.hass)
         if user_input is not None:
             thermostats = [
@@ -389,26 +432,21 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
                 for entity_id in dict.fromkeys(user_input.get(CONF_THERMOSTATS) or [])
                 if (info := check.entity(entity_id, ("climate",), CONF_THERMOSTATS))
             ]
-            circuit_pump = check.entity(user_input.get(CONF_CIRCUIT_PUMP), ("binary_sensor",), CONF_CIRCUIT_PUMP)
-            hot_water_pump = check.entity(user_input.get(CONF_HOT_WATER_PUMP), ("binary_sensor",), CONF_HOT_WATER_PUMP)
             if not check.errors:
                 return self.async_create_entry(
                     title=self._name,
                     data={},
                     options={},
-                    subentries=self._subentries(thermostats, circuit_pump, hot_water_pump),
+                    subentries=self._subentries(thermostats, *self._pumps),
                 )
         schema = vol.Schema(
-            {
-                vol.Optional(CONF_THERMOSTATS): EntitySelector(EntitySelectorConfig(domain="climate", multiple=True)),
-                vol.Optional(CONF_CIRCUIT_PUMP): _entity("binary_sensor"),
-                vol.Optional(CONF_HOT_WATER_PUMP): _entity("binary_sensor"),
-            }
+            {vol.Optional(CONF_THERMOSTATS): EntitySelector(EntitySelectorConfig(domain="climate", multiple=True))}
         )
         return self.async_show_form(
-            step_id="consumers",
+            step_id="thermostats",
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
             errors=check.errors,
+            last_step=True,
         )
 
     def _subentries(
@@ -521,11 +559,9 @@ class SourceSubentryFlow(_SubentryFlow):
     async def async_step_source(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         check = _Checker(self.hass)
         taken = {d.get(CONF_ENTITY) for _, _, d in self._subentries(SUBENTRY_SOURCE)}
-        if user_input is not None and (info := _check_source(check, user_input, taken)):
-            quantity = user_input.get(CONF_QUANTITY, QUANTITY_HEAT)
-            self._title = info.name
-            self._data = {CONF_ENTITY: info.entity_id, CONF_QUANTITY: quantity}
-            if quantity == QUANTITY_HEAT:
+        if user_input is not None and (source := _check_source(check, user_input, taken)):
+            self._title, self._data, info = source
+            if self._data[CONF_QUANTITY] == QUANTITY_HEAT:
                 return self._finish(self._title, self._data)
             self._unit = _factor_unit(info)
             return await self.async_step_factor()
@@ -533,13 +569,18 @@ class SourceSubentryFlow(_SubentryFlow):
         if user_input is not None:
             suggested: Mapping[str, Any] = user_input
         elif stored := self._stored():
-            suggested = {CONF_ENTITY: stored.get(CONF_ENTITY), CONF_QUANTITY: stored.get(CONF_QUANTITY, QUANTITY_HEAT)}
+            suggested = {
+                CONF_NAME: self._get_reconfigure_subentry().title,
+                CONF_ENTITY: stored.get(CONF_ENTITY),
+                CONF_QUANTITY: stored.get(CONF_QUANTITY, QUANTITY_HEAT),
+            }
         else:
             suggested = await _energy_dashboard_suggestion(self.hass, taken)
         return self.async_show_form(
             step_id="source",
             data_schema=self.add_suggested_values_to_schema(_source_schema(), suggested),
             errors=check.errors,
+            last_step=False,
         )
 
     async def async_step_factor(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
