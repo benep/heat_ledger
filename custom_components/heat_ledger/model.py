@@ -46,7 +46,26 @@ from .engine.spec import DEFAULT_HOT_WATER_POWER_W
 
 INVALID_STATES = {"unavailable", "unknown", "none", ""}
 HEATING_ACTIONS = {"heating", "preheating"}
-ENERGY_TO_KWH = {"Wh": 0.001, "kWh": 1.0, "MWh": 1000.0, "GWh": 1e6, "MJ": 1 / 3.6, "GJ": 1000 / 3.6}
+# kWh per unit, for every energy unit Home Assistant knows (a test checks this against its EnergyConverter).
+# Units not listed here are not energy (m³, L, ...) and pass unchanged: the source factor converts them.
+_KWH_PER_KCAL = 4.184 / 3600
+ENERGY_TO_KWH = {
+    "J": 1 / 3.6e6,
+    "kJ": 1 / 3600,
+    "MJ": 1 / 3.6,
+    "GJ": 1000 / 3.6,
+    "mWh": 1e-6,
+    "Wh": 0.001,
+    "kWh": 1.0,
+    "MWh": 1000.0,
+    "GWh": 1e6,
+    "TWh": 1e9,
+    "cal": _KWH_PER_KCAL / 1000,
+    "kcal": _KWH_PER_KCAL,
+    "Mcal": _KWH_PER_KCAL * 1000,
+    "Gcal": _KWH_PER_KCAL * 1e6,
+    "thm": 1.054804e8 / 3.6e6,  # US therm
+}
 
 
 class InputKind(StrEnum):

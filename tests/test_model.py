@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from homeassistant.const import UnitOfEnergy
+from homeassistant.util.unit_conversion import EnergyConverter
 
 from custom_components.heat_ledger.const import (
     CONF_CIRCUIT,
@@ -27,7 +29,14 @@ from custom_components.heat_ledger.const import (
     SUBENTRY_SOURCE,
 )
 from custom_components.heat_ledger.engine import ActiveMethod, DemandMethod, SizeMethod
-from custom_components.heat_ledger.model import InputKind, Subentry, build_plant, input_kinds, parse_state
+from custom_components.heat_ledger.model import (
+    ENERGY_TO_KWH,
+    InputKind,
+    Subentry,
+    build_plant,
+    input_kinds,
+    parse_state,
+)
 
 SUBENTRIES = [
     Subentry("src", SUBENTRY_SOURCE, "Boiler", {CONF_ENTITY: "sensor.gas", CONF_CONVERSION: CONVERSION_DIRECT}),
@@ -124,6 +133,8 @@ def test_demand_type_without_entity_is_always():
         (InputKind.PERCENT, "unknown", None, None),
         (InputKind.ENERGY, "1500", {"unit_of_measurement": "Wh"}, 1.5),
         (InputKind.ENERGY, "3.6", {"unit_of_measurement": "MJ"}, 1.0),
+        (InputKind.ENERGY, "2", {"unit_of_measurement": "Gcal"}, 2 * 4184 * 1000 / 3600),
+        (InputKind.ENERGY, "10", {"unit_of_measurement": "thm"}, 10 * 105480400 / 3.6e6),
         (InputKind.ENERGY, "12", {"unit_of_measurement": "m³"}, 12.0),
         (InputKind.NUMBER, "abc", None, None),
         (InputKind.NUMBER, None, None, None),
@@ -132,3 +143,10 @@ def test_demand_type_without_entity_is_always():
 def test_parse_state(kind, state, attributes, expected):
     result = parse_state(kind, state, attributes)
     assert result == (pytest.approx(expected) if isinstance(expected, float) else expected)
+
+
+@pytest.mark.parametrize("unit", sorted(UnitOfEnergy))
+def test_energy_units_match_home_assistant(unit):
+    """Every energy unit of Home Assistant is converted, with its own factor."""
+    assert unit in ENERGY_TO_KWH
+    assert ENERGY_TO_KWH[unit] == pytest.approx(EnergyConverter.convert(1, unit, UnitOfEnergy.KILO_WATT_HOUR))
