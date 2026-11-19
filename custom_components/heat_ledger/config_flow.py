@@ -326,6 +326,79 @@ async def _energy_dashboard_suggestion(hass: HomeAssistant, taken: set[str]) -> 
     return {}
 
 
+class _SourceSteps:
+    """The steps "source" and "factor", shared by the first setup and the source subentry flow.
+
+    The flow using it says which entities are sources already, which source is being edited, what comes after the
+    factor, and what happens with the finished source (`_source_done`).
+    """
+
+    hass: HomeAssistant
+    _source_title: str
+    _source_data: dict[str, Any]
+    _source_unit: str
+    _factor_is_last_step = True
+
+    def _taken_sources(self) -> set[str]:
+        return set()
+
+    def _edited_source(self) -> tuple[str, Mapping[str, Any]] | None:
+        """Title and data of the source being edited, if any."""
+        return None
+
+    async def _source_done(self, title: str, data: dict[str, Any]) -> Any:
+        raise NotImplementedError
+
+    async def async_step_source(self, user_input: dict[str, Any] | None = None) -> Any:
+        check = _Checker(self.hass)
+        taken = self._taken_sources()
+        if user_input is not None and (source := _check_source(check, user_input, taken)):
+            self._source_title, self._source_data, info = source
+            if self._source_data[CONF_QUANTITY] == QUANTITY_HEAT:
+                return await self._source_done(self._source_title, self._source_data)
+            self._source_unit = _factor_unit(info)
+            return await self.async_step_factor()
+
+        if user_input is not None:
+            suggested: Mapping[str, Any] = user_input
+        elif edited := self._edited_source():
+            title, stored = edited
+            suggested = {
+                CONF_NAME: title,
+                CONF_ENTITY: stored.get(CONF_ENTITY),
+                CONF_QUANTITY: stored.get(CONF_QUANTITY, QUANTITY_HEAT),
+            }
+        else:
+            suggested = await _energy_dashboard_suggestion(self.hass, taken)
+        return self.async_show_form(  # type: ignore[attr-defined]
+            step_id="source",
+            data_schema=self.add_suggested_values_to_schema(_source_schema(), suggested),  # type: ignore[attr-defined]
+            errors=check.errors,
+            last_step=False,
+        )
+
+    async def async_step_factor(self, user_input: dict[str, Any] | None = None) -> Any:
+        check = _Checker(self.hass)
+        if user_input is not None:
+            factor = check.positive(user_input.get(CONF_FACTOR), CONF_FACTOR)
+            if factor is not None and not check.errors:
+                return await self._source_done(self._source_title, {**self._source_data, CONF_FACTOR: factor})
+        edited = self._edited_source()
+        if user_input is not None:
+            suggested: Mapping[str, Any] = user_input
+        elif edited is not None and edited[1].get(CONF_QUANTITY) == QUANTITY_INPUT:
+            suggested = _strip_empty({CONF_FACTOR: edited[1].get(CONF_FACTOR)})
+        else:
+            suggested = {}
+        return self.async_show_form(  # type: ignore[attr-defined]
+            step_id="factor",
+            data_schema=self.add_suggested_values_to_schema(_factor_schema(), suggested),  # type: ignore[attr-defined]
+            errors=check.errors,
+            description_placeholders={"name": self._source_title, "unit": self._source_unit},
+            last_step=self._factor_is_last_step,
+        )
+
+
 # --- Main entry --------------------------------------------------------------------------------------------------
 
 
@@ -339,7 +412,7 @@ def _loss_schema() -> dict[vol.Marker, Any]:
     return {vol.Optional(CONF_LOSS_KW): _number("kW")}
 
 
-class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
+class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
     """The first setup, guided: name, heat source, pumps, thermostats. Creates the plant with its subentries.
 
     Everything else (more sources, circuits, sizes, heat meters) is added or refined later through the subentries.
@@ -350,8 +423,8 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     _name: str
     _source: tuple[str, dict[str, Any]]
-    _unit: str
     _pumps: tuple[_EntityInfo | None, _EntityInfo | None]
+    _factor_is_last_step = False  # the pumps follow
 
     @staticmethod
     @callback
@@ -388,37 +461,9 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
             last_step=False,
         )
 
-    async def async_step_source(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        check = _Checker(self.hass)
-        if user_input is not None and (source := _check_source(check, user_input, set())):
-            title, data, info = source
-            self._source = (title, data)
-            if data[CONF_QUANTITY] == QUANTITY_HEAT:
-                return await self.async_step_pumps()
-            self._unit = _factor_unit(info)
-            return await self.async_step_factor()
-        suggested = user_input if user_input is not None else await _energy_dashboard_suggestion(self.hass, set())
-        return self.async_show_form(
-            step_id="source",
-            data_schema=self.add_suggested_values_to_schema(_source_schema(), suggested),
-            errors=check.errors,
-            last_step=False,
-        )
-
-    async def async_step_factor(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        check = _Checker(self.hass)
-        if user_input is not None:
-            factor = check.positive(user_input.get(CONF_FACTOR), CONF_FACTOR)
-            if factor is not None and not check.errors:
-                self._source[1][CONF_FACTOR] = factor
-                return await self.async_step_pumps()
-        return self.async_show_form(
-            step_id="factor",
-            data_schema=self.add_suggested_values_to_schema(_factor_schema(), user_input),
-            errors=check.errors,
-            description_placeholders={"name": self._source[0], "unit": self._unit},
-            last_step=False,
-        )
+    async def _source_done(self, title: str, data: dict[str, Any]) -> ConfigFlowResult:
+        self._source = (title, data)
+        return await self.async_step_pumps()
 
     async def async_step_pumps(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         check = _Checker(self.hass)
@@ -598,12 +643,8 @@ class _SubentryFlow(ConfigSubentryFlow):
         ]
 
 
-class SourceSubentryFlow(_SubentryFlow):
+class SourceSubentryFlow(_SourceSteps, _SubentryFlow):
     """A heat source: a cumulative reading of heat, or of energy input with a factor to heat (second step)."""
-
-    _title: str
-    _data: dict[str, Any]
-    _unit: str
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self.async_step_source(user_input)
@@ -611,53 +652,14 @@ class SourceSubentryFlow(_SubentryFlow):
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self.async_step_source(user_input)
 
-    async def async_step_source(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        check = _Checker(self.hass)
-        taken = {d.get(CONF_ENTITY) for _, _, d in self._subentries(SUBENTRY_SOURCE)}
-        if user_input is not None and (source := _check_source(check, user_input, taken)):
-            self._title, self._data, info = source
-            if self._data[CONF_QUANTITY] == QUANTITY_HEAT:
-                return self._finish(self._title, self._data)
-            self._unit = _factor_unit(info)
-            return await self.async_step_factor()
+    def _taken_sources(self) -> set[str]:
+        return {d.get(CONF_ENTITY) for _, _, d in self._subentries(SUBENTRY_SOURCE)}
 
-        if user_input is not None:
-            suggested: Mapping[str, Any] = user_input
-        elif stored := self._stored():
-            suggested = {
-                CONF_NAME: self._get_reconfigure_subentry().title,
-                CONF_ENTITY: stored.get(CONF_ENTITY),
-                CONF_QUANTITY: stored.get(CONF_QUANTITY, QUANTITY_HEAT),
-            }
-        else:
-            suggested = await _energy_dashboard_suggestion(self.hass, taken)
-        return self.async_show_form(
-            step_id="source",
-            data_schema=self.add_suggested_values_to_schema(_source_schema(), suggested),
-            errors=check.errors,
-            last_step=False,
-        )
+    def _edited_source(self) -> tuple[str, Mapping[str, Any]] | None:
+        return (self._get_reconfigure_subentry().title, self._stored()) if self._reconfiguring else None
 
-    async def async_step_factor(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        check = _Checker(self.hass)
-        if user_input is not None:
-            factor = check.positive(user_input.get(CONF_FACTOR), CONF_FACTOR)
-            if factor is not None and not check.errors:
-                return self._finish(self._title, {**self._data, CONF_FACTOR: factor})
-        schema = _factor_schema()
-        stored = self._stored()
-        if user_input is not None:
-            suggested: Mapping[str, Any] = user_input
-        elif stored.get(CONF_QUANTITY) == QUANTITY_INPUT:
-            suggested = _strip_empty({CONF_FACTOR: stored.get(CONF_FACTOR)})
-        else:
-            suggested = {}
-        return self.async_show_form(
-            step_id="factor",
-            data_schema=self.add_suggested_values_to_schema(schema, suggested),
-            errors=check.errors,
-            description_placeholders={"name": self._title, "unit": self._unit},
-        )
+    async def _source_done(self, title: str, data: dict[str, Any]) -> SubentryFlowResult:
+        return self._finish(title, data)
 
 
 class CircuitSubentryFlow(_SubentryFlow):
