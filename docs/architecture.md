@@ -75,11 +75,15 @@ Rules:
 - **Unavailable input:** if any input needed for a weight is unavailable, that stretch of time counts for no one.
   Heat arriving then stays in the account and goes to the next interval with valid weights.
 - **No weights at all** (all pumps off, tank charging at night): the heat stays in the account.
-- **Source decreases:** treated as a meter reset; the new value becomes the baseline, nothing is booked.
+- **Source decreases:** held; nothing is booked until the reading is back at its old value (a glitch, such as a
+  template adding two meters while one of them is briefly missing: only the part above the old value counts) or
+  has stayed below for 24 hours (a real reset or a new meter: counted from its lowest value). Booking the steps
+  of a recovery would count the recovered part twice. The same applies to heat meters of consumers.
 - **Source unavailable:** its increase is booked when it is back, measured from the last valid value.
 - **Implausible jump:** an increase of a source or heat meter above 1 MW on average since its last change (over at
-  least 5 minutes) is a glitch, such as Wh reported as kWh for a moment. It becomes the new baseline, is not booked
-  and is logged as a warning. Booked, it would stay in every counter for good.
+  least 5 minutes) is a glitch, such as Wh reported as kWh for a moment. It is not booked and is logged as a
+  warning; if the reading comes back, it counts on from where it was before, if it stays, the jump was a meter
+  with a higher reading and counts on from there. Booked, it would stay in every counter for good.
 - **Other meter:** a source or heat meter switched to another entity starts over from that entity's next reading;
   the difference between the two meters is not heat. `nan` and `inf` count as unavailable.
 - **Unreadable stored state:** the split starts over; the counters keep their values through their restored states.

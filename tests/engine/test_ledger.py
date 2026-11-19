@@ -126,32 +126,70 @@ def test_input_never_seen_blocks_like_unavailable():
     assert ledger.blocked_by == ("sensor.a",)
 
 
+HOUR, DAY = 3600, 86400
+
+
 @pytest.mark.parametrize(
-    ("values", "booked"),
+    ("values", "step", "booked"),
     [
-        ([100, 0, 105], 5),  # glitch: back above the old value, only the part above counts
-        ([100, 0, 3], 3),  # real reset: counts from the new baseline
-        ([100, 0, 3, 110], 110),  # reset, then grows past the old value: all of it counts
-        ([100, None, 107], 7),  # unavailable: increase booked when back
-        ([100, 99.5, 101], 1),  # small drop and back: glitch
+        ([100, 0, 105], HOUR, 5),  # glitch: back above the old value, only the part above counts
+        ([100, 0, 3], HOUR, 0),  # below the old value for an hour: held, not yet a reset
+        ([100, 0, 3], DAY, 3),  # below for a day: a real reset, counted from its lowest value
+        ([100, 0, 3, 110], DAY, 110),  # reset, then grows past the old value: all of it counts
+        ([100, None, 107], HOUR, 7),  # unavailable: increase booked when back
+        ([100, 99.5, 101], HOUR, 1),  # small drop and back: glitch
+        ([100, 60, 61, 62, 102.5], 300, 2.5),  # a template sum missing one part for a while, recovering in steps
+        ([100, 99.9, 99.95, 100.2], 300, 0.2),  # jitter
     ],
 )
-def test_source_counter(values, booked):
+def test_source_counter(values, step, booked):
     ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
-    for hour, value in enumerate(values):
-        ledger.observe(hour * 3600, {"sensor.boiler": value})
+    for i, value in enumerate(values):
+        ledger.observe(i * step, {"sensor.boiler": value})
     assert sum(ledger.source_heat.values()) == pytest.approx(booked)
 
 
+def test_held_drop_survives_a_restart():
+    """Held after a drop, then restarted: still held, and the glitch rule applies when the reading comes back."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 100.0})
+    ledger.observe(300, {"sensor.boiler": 60.0})
+    ledger.observe(600, {"sensor.boiler": 61.0})
+    restored = Ledger.from_dict(ledger.plant, ledger.to_dict())
+    restored.observe(900, {"sensor.boiler": 101.0})
+    assert restored.source_heat["boiler"] == pytest.approx(1.0)
+
+
+def test_held_drop_from_an_older_state_is_still_held():
+    """An older state stored the drop as [last, before_drop] without its time."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 60.0})
+    data = ledger.to_dict()
+    data["sources"] = {"boiler": [60.0, 100.0]}
+    restored = Ledger.from_dict(ledger.plant, data)
+    restored.observe(300, {"sensor.boiler": 62.0})
+    restored.observe(600, {"sensor.boiler": 102.0})
+    assert restored.source_heat["boiler"] == pytest.approx(2.0)
+
+
 def test_implausible_jump_is_not_booked():
-    """Wh reported as kWh for a moment: the jump is skipped, the counter goes on from the next real reading."""
+    """Wh reported as kWh for a moment: the jump is skipped, the counter goes on from where it was before."""
     ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
     ledger.observe(0, {"sensor.boiler": 1000.0})
     ledger.observe(600, {"sensor.boiler": 1000500.0})  # 999500 kWh in 10 minutes
     assert ledger.rejected == [("sensor.boiler", pytest.approx(999500.0))]
-    ledger.observe(900, {"sensor.boiler": 1001.0})  # back to kWh: a drop, the glitch rule applies
+    ledger.observe(900, {"sensor.boiler": 1001.0})  # back to kWh
     ledger.observe(1800, {"sensor.boiler": 1003.0})
-    assert sum(ledger.source_heat.values()) == pytest.approx(2.0)
+    assert sum(ledger.source_heat.values()) == pytest.approx(3.0)
+
+
+def test_jump_that_stays_is_a_new_meter():
+    """A meter swapped for one with a higher reading: the jump is skipped, then it counts on from the new value."""
+    ledger = Ledger(PlantSpec((SOURCE,), consumers=(radiator("a"),)))
+    ledger.observe(0, {"sensor.boiler": 1000.0})
+    ledger.observe(300, {"sensor.boiler": 50000.0})
+    ledger.observe(3600, {"sensor.boiler": 50004.0})
+    assert sum(ledger.source_heat.values()) == pytest.approx(4.0)
 
 
 def test_limit_is_an_average_since_the_last_change():

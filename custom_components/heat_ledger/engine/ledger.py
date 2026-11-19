@@ -22,32 +22,44 @@ STATE_VERSION = 1
 MAX_PLAUSIBLE_KW = 1000.0
 # The average is taken over at least this long, so two readings close together cannot trip the limit.
 MIN_SPAN_S = 300.0
+# After a drop, nothing is booked until the reading is back at its old value (a glitch: only what lies above counts)
+# or it stayed below for this long (a meter that was really reset or replaced: counted from its lowest value). A
+# template that adds up two meters and briefly misses one of them recovers in steps; booking those steps would
+# count the recovered part twice.
+RESET_AFTER_S = 24 * 3600.0
 
 
 class _Counter:
     """Follows a cumulative reading and returns its increases.
 
-    A decrease is a reset of the meter, unless the next increase goes back to at least the value before it: then
-    the decrease was a glitch (a template briefly reporting 0, for example) and only the part above the old value
-    counts. An increase above `limit_per_hour` (in units of the reading) since the last change is a glitch too: it
-    becomes the new baseline and is reported in `rejected` instead of being returned.
+    - Drop: held, see RESET_AFTER_S. The heat of the held time is booked when the hold ends, not lost.
+    - Jump: an increase above `limit_per_hour` (in units of the reading) since the last change is a glitch, such as
+      Wh reported as kWh. It is reported in `rejected` instead of being returned. If the reading comes back to where
+      it was before the jump, it continues from there; if not, the jump was a meter swapped for one with a higher
+      reading, and the new value is the baseline.
     """
 
-    __slots__ = ("before_drop", "changed_t", "key", "last", "limit_per_hour", "rejected")
+    __slots__ = (
+        "before_drop",
+        "before_jump",
+        "changed_t",
+        "drop_t",
+        "key",
+        "last",
+        "limit_per_hour",
+        "low",
+        "rejected",
+    )
 
-    def __init__(
-        self,
-        key: str,
-        limit_per_hour: float,
-        last: float | None = None,
-        before_drop: float | None = None,
-        changed_t: float | None = None,
-    ) -> None:
+    def __init__(self, key: str, limit_per_hour: float) -> None:
         self.key = key
         self.limit_per_hour = limit_per_hour
-        self.last = last
-        self.before_drop = before_drop
-        self.changed_t = changed_t
+        self.last: float | None = None
+        self.changed_t: float | None = None  # time of the last booked change, for the limit
+        self.before_drop: float | None = None  # holding: the value before the drop
+        self.drop_t: float | None = None
+        self.low: float | None = None  # lowest value while holding
+        self.before_jump: float | None = None  # the value before a rejected jump
         self.rejected: float | None = None
 
     def update(self, value: Reading, t: float) -> float:
@@ -55,30 +67,78 @@ class _Counter:
             return 0.0
         value = float(value)
         if self.last is None:
-            self.last = value
-            self.changed_t = t
-            return 0.0
-        if value < self.last:
-            if self.before_drop is None:
-                self.before_drop = self.last
-            self.last = value
-            self.changed_t = t
-            return 0.0
-        if value == self.last:
+            self.last, self.changed_t = value, t
             return 0.0
         if self.before_drop is not None:
-            base = self.before_drop if value >= self.before_drop else self.last
-            self.before_drop = None
+            return self._holding(value, t)
+        if value == self.last:
+            return 0.0
+        if value < self.last:
+            if self.before_jump is not None and value >= self.before_jump:
+                # Back from a rejected jump: go on from where it was before.
+                base, self.before_jump = self.before_jump, None
+                return self._book(value, base, t)
+            self.before_drop = self.before_jump if self.before_jump is not None else self.last
+            self.before_jump = None
+            self.low, self.drop_t, self.last = value, t, value
+            return 0.0
+        return self._book(value, self.last, t)
+
+    def _holding(self, value: float, t: float) -> float:
+        assert self.before_drop is not None
+        if self.low is None or self.drop_t is None:  # restored from a state without them
+            self.low, self.drop_t = self.last if self.last is not None else value, t
+        if value >= self.before_drop:
+            base = self.before_drop  # a glitch: only the part above the old value counts
+        elif t - self.drop_t >= RESET_AFTER_S:
+            base = min(self.low, value)  # a real reset: count from its lowest value
         else:
-            base = self.last
+            self.low, self.last = min(self.low, value), value
+            return 0.0
+        self.before_drop = self.low = self.drop_t = None
+        return self._book(value, base, t)
+
+    def _book(self, value: float, base: float, t: float) -> float:
         span = max(t - self.changed_t, MIN_SPAN_S) if self.changed_t is not None else MIN_SPAN_S
-        self.last = value
-        self.changed_t = t
         increase = max(value - base, 0.0)
         if increase > self.limit_per_hour * span / 3600:
             self.rejected = increase
+            self.before_jump = base if self.before_jump is None else self.before_jump
+            self.last = value
             return 0.0
+        # A normal increase after a rejected jump: the jump was a meter with a higher reading, not a glitch.
+        self.last, self.changed_t, self.before_jump = value, t, None
         return increase
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "key": self.key,
+            "last": self.last,
+            "changed_t": self.changed_t,
+            "before_drop": self.before_drop,
+            "drop_t": self.drop_t,
+            "low": self.low,
+            "before_jump": self.before_jump,
+        }
+
+    def restore(self, stored: Any, last_t: float | None) -> None:
+        """From to_dict, or from the older list [last, before_drop(, key)] that held the drop without a time."""
+        if isinstance(stored, Mapping):
+            for name in ("last", "changed_t", "before_drop", "drop_t", "low", "before_jump"):
+                value = stored.get(name)
+                setattr(self, name, float(value) if value is not None else None)
+            return
+        last, before_drop = stored[0], stored[1]
+        self.last = float(last) if last is not None else None
+        self.changed_t = last_t
+        if before_drop is not None and self.last is not None:
+            self.before_drop, self.low, self.drop_t = float(before_drop), self.last, last_t
+
+    @staticmethod
+    def stored_key(stored: Any) -> str | None:
+        if isinstance(stored, Mapping):
+            return stored.get("key")
+        return stored[2] if len(stored) > 2 else None
 
 
 class Ledger:
@@ -196,8 +256,8 @@ class Ledger:
             "losses": dict(self.losses),
             "consumed": {k: dict(v) for k, v in self.consumed.items()},
             "circuit_consumed": {k: dict(v) for k, v in self.circuit_consumed.items()},
-            "sources": {k: [c.last, c.before_drop, c.key] for k, c in self._sources.items()},
-            "meters": {k: [c.last, c.before_drop, c.key] for k, c in self._meters.items()},
+            "sources": {k: c.to_dict() for k, c in self._sources.items()},
+            "meters": {k: c.to_dict() for k, c in self._meters.items()},
             "integral": dict(self._integral),
             "last_t": self._last_t,
             "interval_start": self._interval_start,
@@ -237,10 +297,11 @@ class Ledger:
         for name, counters in (("sources", ledger._sources), ("meters", ledger._meters)):
             for counter_id, stored in data.get(name, {}).items():
                 counter = counters.get(counter_id)
-                # Stored before the entity was recorded with it (two items): assume it is the same entity.
-                if counter is None or (len(stored) > 2 and stored[2] != counter.key):
+                # Stored without the entity (an older state): assume it is the same entity.
+                stored_key = _Counter.stored_key(stored)
+                if counter is None or (stored_key is not None and stored_key != counter.key):
                     continue
-                counter.last, counter.before_drop, counter.changed_t = stored[0], stored[1], last_t
+                counter.restore(stored, last_t)
         ledger._integral.update({k: float(v) for k, v in data.get("integral", {}).items() if k in ledger._integral})
         ledger._last_t = last_t
         ledger._interval_start = data.get("interval_start")
