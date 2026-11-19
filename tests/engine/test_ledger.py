@@ -73,6 +73,37 @@ def test_pump_off_keeps_heat_in_the_account():
     assert ledger.circuit_total("circuit") == pytest.approx(5.0)
 
 
+def test_moved_consumer_leaves_its_history_with_the_old_circuit():
+    """Moved from "up" to "down": "down" does not jump, "up" keeps what it received; from now on it is "down"."""
+    up, down = CircuitSpec("up"), CircuitSpec("down")
+    before = PlantSpec((SOURCE,), (up, down), (radiator("bath", circuit="up"), radiator("hall", circuit="down")))
+    ledger = Ledger(before)
+    ledger.observe(0, {"sensor.boiler": 0.0})
+    ledger.observe(100, {"sensor.boiler": 10.0})
+    ledger.close_interval(300)
+    assert (ledger.circuit_total("up"), ledger.circuit_total("down")) == pytest.approx((5.0, 5.0))
+
+    after = PlantSpec((SOURCE,), (up, down), (radiator("bath", circuit="down"), radiator("hall", circuit="down")))
+    moved = Ledger.from_dict(after, ledger.to_dict())
+    assert (moved.circuit_total("up"), moved.circuit_total("down")) == pytest.approx((5.0, 5.0))
+    moved.observe(400, {"sensor.boiler": 10.0})
+    moved.observe(500, {"sensor.boiler": 14.0})
+    moved.close_interval(600)
+    assert (moved.circuit_total("up"), moved.circuit_total("down")) == pytest.approx((5.0, 9.0))
+    assert moved.consumer_total("bath") == pytest.approx(7.0)  # the consumer keeps all of its own history
+
+
+def test_state_from_before_circuit_counters_starts_from_the_sum():
+    plant = PlantSpec((SOURCE,), (PUMP,), (radiator("a", circuit="circuit"), radiator("b", circuit="circuit")))
+    ledger = Ledger(plant)
+    ledger.observe(0, {"sensor.boiler": 0.0, "binary_sensor.pump": True})
+    ledger.observe(100, {"sensor.boiler": 6.0})
+    ledger.close_interval(300)
+    data = ledger.to_dict()
+    del data["circuit_consumed"]
+    assert Ledger.from_dict(plant, data).circuit_total("circuit") == pytest.approx(6.0)
+
+
 def test_unavailable_input_counts_for_no_one():
     plant = PlantSpec((SOURCE,), consumers=(radiator("a", demand="sensor.a"), radiator("b", demand="sensor.b")))
     ledger = Ledger(plant)

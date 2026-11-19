@@ -89,6 +89,12 @@ class Ledger:
         self.source_heat: dict[str, float] = dict.fromkeys(source_ids, 0.0)
         self.losses: dict[str, float] = dict.fromkeys(source_ids, 0.0)
         self.consumed: dict[str, dict[str, float]] = {c.id: dict.fromkeys(source_ids, 0.0) for c in plant.consumers}
+        # A circuit counts what its consumers received while they belonged to it: moving one to another circuit
+        # leaves its history with the old circuit, and the new one does not jump by it.
+        self.circuit_consumed: dict[str, dict[str, float]] = {
+            c.id: dict.fromkeys(source_ids, 0.0) for c in plant.circuits
+        }
+        self._circuit_of = {c.id: c.circuit_id for c in plant.consumers if c.circuit_id in self.circuit_consumed}
         self._sources = {
             s.id: _Counter(s.key, MAX_PLAUSIBLE_KW / s.factor if s.factor > 0 else math.inf) for s in plant.sources
         }
@@ -121,8 +127,13 @@ class Ledger:
                 heat = self._update(self._meters[consumer.id], t)
                 if heat > 0:
                     for source_id, amount in self._take(heat).items():
-                        self.consumed[consumer.id][source_id] += amount
+                        self._book(consumer.id, source_id, amount)
         self._rates, self._blocked = self._compute_rates()
+
+    def _book(self, consumer_id: str, source_id: str, heat: float) -> None:
+        self.consumed[consumer_id][source_id] += heat
+        if (circuit_id := self._circuit_of.get(consumer_id)) is not None:
+            self.circuit_consumed[circuit_id][source_id] += heat
 
     def _update(self, counter: _Counter, t: float) -> float:
         increase = counter.update(self._readings.get(counter.key), t)
@@ -153,7 +164,7 @@ class Ledger:
             for consumer_id, weight in self._integral.items():
                 share = weight / total_weight
                 for source_id, heat in taken.items():
-                    self.consumed[consumer_id][source_id] += heat * share
+                    self._book(consumer_id, source_id, heat * share)
                 released[consumer_id] = amount * share
         self._integral = dict.fromkeys(self._integral, 0.0)
         return released
@@ -173,7 +184,7 @@ class Ledger:
         return sum(self.consumed[consumer_id].values())
 
     def circuit_total(self, circuit_id: str) -> float:
-        return sum(self.consumer_total(c.id) for c in self.plant.consumers if c.circuit_id == circuit_id)
+        return sum(self.circuit_consumed[circuit_id].values())
 
     # --- State -------------------------------------------------------------------------------------------------
 
@@ -184,6 +195,7 @@ class Ledger:
             "source_heat": dict(self.source_heat),
             "losses": dict(self.losses),
             "consumed": {k: dict(v) for k, v in self.consumed.items()},
+            "circuit_consumed": {k: dict(v) for k, v in self.circuit_consumed.items()},
             "sources": {k: [c.last, c.before_drop, c.key] for k, c in self._sources.items()},
             "meters": {k: [c.last, c.before_drop, c.key] for k, c in self._meters.items()},
             "integral": dict(self._integral),
@@ -211,6 +223,16 @@ class Ledger:
             if consumer_id in ledger.consumed:
                 target = ledger.consumed[consumer_id]
                 target.update({k: float(v) for k, v in by_source.items() if k in target})
+        if "circuit_consumed" in data:
+            for circuit_id, by_source in data["circuit_consumed"].items():
+                if circuit_id in ledger.circuit_consumed:
+                    target = ledger.circuit_consumed[circuit_id]
+                    target.update({k: float(v) for k, v in by_source.items() if k in target})
+        else:
+            # Stored before circuits had their own counters: they were the sum of their consumers, start from that.
+            for consumer_id, circuit_id in ledger._circuit_of.items():
+                for source_id, heat in ledger.consumed[consumer_id].items():
+                    ledger.circuit_consumed[circuit_id][source_id] += heat
         last_t = data.get("last_t")
         for name, counters in (("sources", ledger._sources), ("meters", ledger._meters)):
             for counter_id, stored in data.get(name, {}).items():

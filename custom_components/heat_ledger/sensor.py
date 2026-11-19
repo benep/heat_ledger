@@ -252,7 +252,8 @@ class ConsumerHeatSensor(_SplitSensor):
 
 
 class CircuitHeatSensor(_SplitSensor):
-    """The sum of its radiators; the parent of their counters in the Energy dashboard."""
+    """What its room heating received while it belonged to the circuit; the parent of their counters in the Energy
+    dashboard. Room heating moved to another circuit leaves its history here."""
 
     def _total(self) -> float:
         return self.runtime.ledger.circuit_total(self._id)
@@ -262,12 +263,7 @@ class CircuitHeatSensor(_SplitSensor):
         return circuit_basis([consumer_basis(plant, c) for c in plant.consumers if c.circuit_id == self._id])
 
     def _by_source(self) -> dict[str, float]:
-        totals: dict[str, float] = {}
-        for consumer in self.runtime.plant.consumers:
-            if consumer.circuit_id == self._id:
-                for source_id, kwh in self.runtime.ledger.consumed[consumer.id].items():
-                    totals[source_id] = totals.get(source_id, 0.0) + kwh
-        return totals
+        return dict(self.runtime.ledger.circuit_consumed[self._id])
 
 
 def circuit_basis(radiators: list[Basis]) -> Basis:

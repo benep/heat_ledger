@@ -29,8 +29,10 @@ Sources ──► Account (per source, kWh) ──► Consumers
   Hot water is a consumer like a radiator: size = charging power (default 10 kW), demand = hot water pump
   running, no circuit. Its share depends mostly on when the pump runs, little on the charging power.
 - **Circuit:** a group of radiators behind one pump. Inactive (pump off) means no heat for any of them, whatever
-  their valves say. Its counter is the sum of its radiators, which the Energy dashboard uses as parent
-  (`included_in_stat`).
+  their valves say. Its counter is what its radiators received while they belonged to it, which the Energy
+  dashboard uses as parent (`included_in_stat`). A radiator moved to another circuit leaves its history with the
+  old one; the new one counts it from then on, without a jump. Rewriting the history instead (as if it had always
+  been in the new circuit) needs the statistics rewrite of the backfill and comes with it.
 - **Measured consumer:** a consumer with its own heat meter. Its readings are taken out of the account directly and
   it takes no part in the split; the others share what is left.
 
