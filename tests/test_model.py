@@ -126,7 +126,8 @@ def test_demand_type_without_entity_is_always():
         (InputKind.HVAC_ACTION, "heat", {"hvac_action": "preheating"}, True),
         (InputKind.HVAC_ACTION, "auto", {"hvac_action": "idle"}, False),
         (InputKind.HVAC_ACTION, "off", {}, False),
-        (InputKind.HVAC_ACTION, "heat", {}, None),
+        (InputKind.HVAC_ACTION, "heat", {}, True),  # no hvac_action: heating while on
+        (InputKind.HVAC_ACTION, "auto", {}, True),
         (InputKind.PERCENT, "74", None, 0.74),
         (InputKind.PERCENT, "unknown", None, None),
         (InputKind.ENERGY, "1500", {"unit_of_measurement": "Wh"}, 1.5),

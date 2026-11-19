@@ -128,7 +128,9 @@ def parse_state(kind: InputKind, state: str | None, attributes: Mapping[str, Any
     if kind is InputKind.HVAC_ACTION:
         action = attributes.get("hvac_action")
         if action is None:
-            return False if state == "off" else None
+            # The thermostat does not report whether it is heating (Home Assistant leaves the attribute out then):
+            # it counts as heating while it is switched on. Rough, but blocking the whole split would be worse.
+            return state != "off"
         return action in HEATING_ACTIONS
     try:
         value = float(state)
