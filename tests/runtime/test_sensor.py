@@ -238,8 +238,8 @@ async def test_circuit_source_and_plant_get_the_area_of_their_input(
 @pytest.mark.parametrize(
     ("language", "models"),
     [
-        ("en", ["Radiator", "Hot water heating", "Heating circuit", "Heat source", "Heating system"]),
-        ("de", ["Heizkörper", "Warmwasserbereitung", "Heizkreis", "Wärmequelle", "Heizungsanlage"]),
+        ("en", ["Room heating", "Hot water heating", "Heating circuit", "Heat source", "Heating system"]),
+        ("de", ["Raumheizung", "Warmwasserbereitung", "Heizkreis", "Wärmequelle", "Heizungsanlage"]),
     ],
 )
 async def test_devices_say_what_they_are(

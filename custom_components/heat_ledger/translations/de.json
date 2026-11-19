@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Heat Ledger",
-        "description": "Teilt die Wärme deiner Heizung auf Heizkörper und Warmwasser auf. Es folgen drei kurze Schritte, in der Richtung, in der die Wärme fließt: Wärmequelle, Pumpen, Heizkörper. Alles lässt sich später auf der Seite der Integration ergänzen und ändern.\n\nEinen Zurück-Knopf gibt es in diesen Schritten nicht: Ist etwas schiefgegangen, den Dialog schließen und neu beginnen.",
+        "description": "Teilt die Wärme deiner Heizung auf die Räume und das Warmwasser auf. Es folgen drei kurze Schritte, in der Richtung, in der die Wärme fließt: Wärmequelle, Pumpen, Raumheizung. Alles lässt sich später auf der Seite der Integration ergänzen und ändern.\n\nEinen Zurück-Knopf gibt es in diesen Schritten nicht: Ist etwas schiefgegangen, den Dialog schließen und neu beginnen.",
         "data": {
           "name": "Name"
         },
@@ -37,24 +37,24 @@
       },
       "pumps": {
         "title": "Pumpen",
-        "description": "Die Pumpen sagen, wann Wärme zu den Heizkörpern oder ins Warmwasser fließt. Beide Felder sind optional, machen die Aufteilung aber deutlich genauer.\n\n**Kein Binärsensor für eine Pumpe?** Hängt sie an einer Steckdose oder einem Schaltaktor mit Leistungsmessung (z. B. Shelly), lege auf deren Leistung einen Helfer **Schwellenwert** an (an ab etwa 5 W): Einstellungen → Geräte & Dienste → Helfer. Meldet die Integration deines Kessels den Pumpenzustand, nimm diesen.",
+        "description": "Die Pumpen sagen, wann Wärme in die Räume oder ins Warmwasser fließt. Beide Felder sind optional, machen die Aufteilung aber deutlich genauer.\n\n**Kein Binärsensor für eine Pumpe?** Hängt sie an einer Steckdose oder einem Schaltaktor mit Leistungsmessung (z. B. Shelly), lege auf deren Leistung einen Helfer **Schwellenwert** an (an ab etwa 5 W): Einstellungen → Geräte & Dienste → Helfer. Meldet die Integration deines Kessels den Pumpenzustand, nimm diesen.",
         "data": {
           "circuit_pump": "Heizkreispumpe",
           "hot_water_pump": "Warmwasser-Ladung"
         },
         "data_description": {
-          "circuit_pump": "An, solange die Pumpe läuft, die das Wasser durch die Heizkörper bewegt. Ohne sie zählt ein Heizkörper immer, wenn sein Thermostat heizen will, auch wenn der Kessel gerade nur Warmwasser macht.",
-          "hot_water_pump": "An, solange der Warmwasserspeicher geladen wird: seine Ladepumpe oder der Warmwasser-Status des Kessels (auch bei einer Kombitherme). Nicht die Zirkulationspumpe, die das warme Wasser zu den Zapfstellen umwälzt. Ohne sie wird die Wärme fürs Warmwasser auf die Heizkörper verteilt."
+          "circuit_pump": "An, solange die Pumpe läuft, die das Wasser durch Heizkörper oder Fußbodenheizung bewegt. Ohne sie zählt eine Raumheizung immer, wenn sein Thermostat heizen will, auch wenn der Kessel gerade nur Warmwasser macht.",
+          "hot_water_pump": "An, solange der Warmwasserspeicher geladen wird: seine Ladepumpe oder der Warmwasser-Status des Kessels (auch bei einer Kombitherme). Nicht die Zirkulationspumpe, die das warme Wasser zu den Zapfstellen umwälzt. Ohne sie wird die Wärme fürs Warmwasser auf die Räume verteilt."
         }
       },
       "thermostats": {
-        "title": "Heizkörper",
-        "description": "Wähle die Thermostate deiner Heizkörper: Jedes wird ein Heizkörper mit eigenem Wärmezähler. Viele Thermostate (z. B. Tado) tragen den Namen ihres Raums, deshalb siehst du hier eventuell Raumnamen. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.\n\nGröße, Heizkreise und weitere Heizkörper lassen sich danach auf der Seite der Integration ergänzen. Home Assistant fragt anschließend nach dem Bereich jedes neuen Geräts; wo Thermostat oder Pumpe einen haben, ist er schon eingetragen.",
+        "title": "Raumheizung",
+        "description": "Wähle die Thermostate deiner Heizkörper oder Fußbodenheizung, auch Raumregler mit Stellantrieben: Jedes wird eine Raumheizung mit eigenem Wärmezähler. Viele Thermostate (z. B. Tado) tragen den Namen ihres Raums, deshalb siehst du hier eventuell Raumnamen. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.\n\nGröße, Heizkreise und weitere Raumheizungen lassen sich danach auf der Seite der Integration ergänzen. Home Assistant fragt anschließend nach dem Bereich jedes neuen Geräts; wo Thermostat oder Pumpe einen haben, ist er schon eingetragen.",
         "data": {
           "thermostats": "Thermostate"
         },
         "data_description": {
-          "thermostats": "Klima-Entitäten, eine je Heizkörper oder Raum."
+          "thermostats": "Klima-Entitäten, eine je Raum oder Heizkörper."
         }
       }
     },
@@ -132,7 +132,7 @@
       "step": {
         "circuit": {
           "title": "Heizkreis",
-          "description": "Heizkörper hinter einer Pumpe. Läuft die Pumpe nicht, bekommt keiner von ihnen Wärme.",
+          "description": "Raumheizungen hinter einer Pumpe, z. B. die Heizkörper oder die Fußbodenheizung. Läuft die Pumpe nicht, bekommt keine von ihnen Wärme.",
           "data": {
             "name": "Name",
             "pump_entity_id": "Pumpe"
@@ -159,12 +159,12 @@
         "user": {
           "title": "Verbraucher",
           "menu_options": {
-            "radiator": "Heizkörper",
+            "radiator": "Raumheizung",
             "hot_water": "Warmwasser"
           }
         },
         "radiator": {
-          "title": "Heizkörper",
+          "title": "Raumheizung",
           "description": "Bekommt einen Anteil der Wärme nach Größe und Anforderung.",
           "data": {
             "name": "Name",
@@ -173,8 +173,8 @@
           },
           "data_description": {
             "name": "Zum Beispiel der Raum.",
-            "circuit": "Ohne Heizkreis wird der Heizkörper immer versorgt.",
-            "demand_entity_id": "Thermostat, Wärmeanforderung oder Ventilstellung in % oder ein Stellantrieb (an/aus). Ohne gilt der Heizkörper als immer heizend."
+            "circuit": "Ohne Heizkreis wird die Raumheizung immer versorgt.",
+            "demand_entity_id": "Thermostat, Wärmeanforderung oder Ventilstellung in % oder ein Stellantrieb (an/aus). Ohne gilt die Raumheizung als immer heizend."
           },
           "sections": {
             "accuracy": {
@@ -187,9 +187,9 @@
               },
               "data_description": {
                 "demand_type": "Nur für einen Anforderungssensor in %.",
-                "size_type": "Standardmäßig zählen alle Heizkörper gleich.",
+                "size_type": "Standardmäßig zählen alle Raumheizungen gleich.",
                 "size_value": "Raumfläche in m² oder Nennleistung in W, je nach Auswahl oben.",
-                "meter_entity_id": "Misst die Wärme dieses Heizkörpers. Ersetzt die Schätzung."
+                "meter_entity_id": "Misst die Wärme dieser Raumheizung. Ersetzt die Schätzung."
               }
             }
           }

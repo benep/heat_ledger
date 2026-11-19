@@ -128,7 +128,7 @@ MANUFACTURER = "Heat Ledger"
 DEVICE_PLANT = {"en": "Heating system", "de": "Heizungsanlage"}
 DEVICE_SOURCE = {"en": "Heat source", "de": "Wärmequelle"}
 DEVICE_CIRCUIT = {"en": "Heating circuit", "de": "Heizkreis"}
-DEVICE_RADIATOR = {"en": "Radiator", "de": "Heizkörper"}
+DEVICE_RADIATOR = {"en": "Room heating", "de": "Raumheizung"}  # radiators, underfloor heating
 DEVICE_HOT_WATER = {"en": "Hot water heating", "de": "Warmwasserbereitung"}
 
 

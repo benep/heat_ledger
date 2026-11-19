@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Heat Ledger",
-        "description": "Splits the heat of your heating between radiators and hot water. Three short steps follow, in the order the heat flows: heat source, pumps, radiators. Everything can be added or changed later on the integration page.\n\nThere is no back button in these steps: if something went wrong, close the dialog and start again.",
+        "description": "Splits the heat of your heating between rooms and hot water. Three short steps follow, in the order the heat flows: heat source, pumps, room heating. Everything can be added or changed later on the integration page.\n\nThere is no back button in these steps: if something went wrong, close the dialog and start again.",
         "data": {
           "name": "Name"
         },
@@ -37,24 +37,24 @@
       },
       "pumps": {
         "title": "Pumps",
-        "description": "The pumps tell when heat flows to the radiators or into the hot water. Both fields are optional, but make the split much more accurate.\n\n**No binary sensor for a pump?** If it is plugged into a smart plug or switch that measures power (e.g. a Shelly), create a **Threshold** helper on that power (on above about 5 W): Settings → Devices & services → Helpers. If your boiler's integration reports the pump state, use that.",
+        "description": "The pumps tell when heat flows to the rooms or into the hot water. Both fields are optional, but make the split much more accurate.\n\n**No binary sensor for a pump?** If it is plugged into a smart plug or switch that measures power (e.g. a Shelly), create a **Threshold** helper on that power (on above about 5 W): Settings → Devices & services → Helpers. If your boiler's integration reports the pump state, use that.",
         "data": {
           "circuit_pump": "Heating circuit pump",
           "hot_water_pump": "Hot water charging"
         },
         "data_description": {
-          "circuit_pump": "On while the pump runs that moves the water through the radiators. Without it, a radiator counts whenever its thermostat asks for heat, even while the boiler only heats water.",
-          "hot_water_pump": "On while the hot water tank is being heated: its charging pump, or the hot water status of the boiler (also for a combi boiler). Not the circulation pump that keeps hot water moving to the taps. Without it, the heat for hot water is split between the radiators."
+          "circuit_pump": "On while the pump runs that moves the water through radiators or underfloor heating. Without it, a room heating counts whenever its thermostat asks for heat, even while the boiler only heats water.",
+          "hot_water_pump": "On while the hot water tank is being heated: its charging pump, or the hot water status of the boiler (also for a combi boiler). Not the circulation pump that keeps hot water moving to the taps. Without it, the heat for hot water is split between the rooms."
         }
       },
       "thermostats": {
-        "title": "Radiators",
-        "description": "Choose the thermostats of your radiators: each one becomes a radiator with its own heat counter. Many thermostats (Tado, for example) carry the name of their room, so you may see room names here. If a thermostat reports its heating demand in %, that is used.\n\nSizes, circuits and more radiators can be added later on the integration page. Home Assistant then asks for the area of each new device; it is already filled in where the thermostat or pump has one.",
+        "title": "Room heating",
+        "description": "Choose the thermostats of your radiators or underfloor heating, also room controllers with actuators: each one becomes a room heating with its own heat counter. Many thermostats (Tado, for example) carry the name of their room, so you may see room names here. If a thermostat reports its heating demand in %, that is used.\n\nSizes, circuits and more room heating can be added later on the integration page. Home Assistant then asks for the area of each new device; it is already filled in where the thermostat or pump has one.",
         "data": {
           "thermostats": "Thermostats"
         },
         "data_description": {
-          "thermostats": "Climate entities, one per radiator or room."
+          "thermostats": "Climate entities, one per room or radiator."
         }
       }
     },
@@ -132,7 +132,7 @@
       "step": {
         "circuit": {
           "title": "Heating circuit",
-          "description": "Radiators behind one pump. Without a running pump, none of them gets heat.",
+          "description": "Room heating behind one pump, e.g. the radiators or the underfloor heating. Without a running pump, none of it gets heat.",
           "data": {
             "name": "Name",
             "pump_entity_id": "Pump"
@@ -159,12 +159,12 @@
         "user": {
           "title": "Consumer",
           "menu_options": {
-            "radiator": "Radiator",
+            "radiator": "Room heating",
             "hot_water": "Hot water"
           }
         },
         "radiator": {
-          "title": "Radiator",
+          "title": "Room heating",
           "description": "Gets a share of the heat by its size and demand.",
           "data": {
             "name": "Name",
@@ -173,8 +173,8 @@
           },
           "data_description": {
             "name": "For example the room.",
-            "circuit": "Without a circuit, the radiator is always supplied.",
-            "demand_entity_id": "Thermostat, heating demand or valve position in %, or an on/off actuator. Without one, the radiator counts as always heating."
+            "circuit": "Without a circuit, the room heating is always supplied.",
+            "demand_entity_id": "Thermostat, heating demand or valve position in %, or an on/off actuator. Without one, it counts as always heating."
           },
           "sections": {
             "accuracy": {
@@ -187,9 +187,9 @@
               },
               "data_description": {
                 "demand_type": "Only for a demand sensor in %.",
-                "size_type": "By default, all radiators count as equal.",
+                "size_type": "By default, all room heating counts as equal.",
                 "size_value": "Floor area in m² or nominal power in W, as chosen above.",
-                "meter_entity_id": "Measures the heat of this radiator. Replaces the estimate."
+                "meter_entity_id": "Measures the heat of this room heating. Replaces the estimate."
               }
             }
           }
