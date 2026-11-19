@@ -14,7 +14,8 @@ Sources ──► Account (per source, kWh) ──► Consumers
 ```
 
 - **Source:** an entity with a cumulative energy reading, times a conversion factor (1.0 for heat, efficiency
-  for fuel or electricity, COP fixed or from an entity). Its increase is heat that enters the account.
+  for fuel or electricity, COP for a heat pump; fixed, or from an entity such as the current COP). Its increase is
+  heat that enters the account.
 - **Account:** heat that has entered but is not yet assigned. It is kept per source, so every consumer later knows
   where its heat came from (costs per radiator are a planned extension, the bookkeeping is there from the start).
   Without a storage tank it is empty almost all the time.

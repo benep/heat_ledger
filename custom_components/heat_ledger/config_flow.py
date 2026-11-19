@@ -90,7 +90,7 @@ ERROR_NOT_PERCENT = "not_percent"
 ERROR_NOT_POSITIVE = "not_positive"
 ERROR_NAME_REQUIRED = "name_required"
 ERROR_SIZE_VALUE_REQUIRED = "size_value_required"
-ERROR_FACTOR_ENTITY_COP_ONLY = "factor_entity_cop_only"
+ERROR_FACTOR_ENTITY_NOT_DIRECT = "factor_entity_not_direct"
 ERROR_SOURCE_EXISTS = "source_exists"
 
 
@@ -367,8 +367,8 @@ class SourceSubentryFlow(_SubentryFlow):
                 factor = None
             factor_entity = None
             if more.get(CONF_FACTOR_ENTITY):
-                if conversion != CONVERSION_COP:
-                    check.errors[SECTION_ACCURACY] = ERROR_FACTOR_ENTITY_COP_ONLY
+                if conversion == CONVERSION_DIRECT:
+                    check.errors[SECTION_ACCURACY] = ERROR_FACTOR_ENTITY_NOT_DIRECT
                 elif factor_info := check.entity(more[CONF_FACTOR_ENTITY], ("sensor",), SECTION_ACCURACY):
                     factor_entity = factor_info.entity_id
             if info and not check.errors:

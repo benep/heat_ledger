@@ -59,11 +59,11 @@
               "name": "More accurate",
               "data": {
                 "factor": "Factor",
-                "factor_entity_id": "COP sensor"
+                "factor_entity_id": "Factor sensor"
               },
               "data_description": {
                 "factor": "kWh of heat per unit of the reading. Default: 0.9 for efficiency, 3.0 for COP. Not used for heat.",
-                "factor_entity_id": "Current COP of the heat pump. While it is unavailable, the factor applies."
+                "factor_entity_id": "Current factor from an entity, e.g. the COP of a heat pump or a template with calorific value × efficiency. While it is unavailable, the fixed factor applies."
               }
             }
           }
@@ -74,7 +74,7 @@
         "wrong_domain": "This type of entity is not supported here.",
         "not_cumulative": "Choose a meter reading, not a momentary value.",
         "not_positive": "Enter a number greater than 0.",
-        "factor_entity_cop_only": "A COP sensor only works with the conversion electricity × COP.",
+        "factor_entity_not_direct": "Heat needs no factor: choose a conversion or leave the factor sensor empty.",
         "source_exists": "This entity is already a heat source."
       }
     },

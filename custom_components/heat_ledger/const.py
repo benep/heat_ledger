@@ -30,7 +30,7 @@ CONVERSION_EFFICIENCY: Final = "efficiency"  # fuel or electricity × factor
 CONVERSION_COP: Final = "cop"  # electricity × COP (fixed factor, or an entity)
 CONVERSIONS: Final = (CONVERSION_DIRECT, CONVERSION_EFFICIENCY, CONVERSION_COP)
 CONF_FACTOR: Final = "factor"  # kWh heat per unit of the reading (per kWh for energy readings)
-CONF_FACTOR_ENTITY: Final = "factor_entity_id"  # COP from an entity, the factor applies while it is unavailable
+CONF_FACTOR_ENTITY: Final = "factor_entity_id"  # factor from an entity (COP, calorific value × efficiency), the fixed factor applies while it is unavailable
 
 # Circuit subentry
 CONF_PUMP_ENTITY: Final = "pump_entity_id"  # binary sensor, optional: without it the circuit is always active

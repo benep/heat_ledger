@@ -59,11 +59,11 @@
               "name": "Genauer machen",
               "data": {
                 "factor": "Faktor",
-                "factor_entity_id": "COP-Sensor"
+                "factor_entity_id": "Faktor-Sensor"
               },
               "data_description": {
                 "factor": "kWh Wärme pro Einheit des Zählerstands. Standard: 0,9 für Wirkungsgrad, 3,0 für COP. Bei Wärme ohne Wirkung.",
-                "factor_entity_id": "Aktueller COP der Wärmepumpe. Solange er nicht verfügbar ist, gilt der Faktor."
+                "factor_entity_id": "Aktueller Faktor aus einer Entität, z. B. der COP einer Wärmepumpe oder ein Template mit Brennwert × Wirkungsgrad. Solange sie nicht verfügbar ist, gilt der feste Faktor."
               }
             }
           }
@@ -74,7 +74,7 @@
         "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
         "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
-        "factor_entity_cop_only": "Ein COP-Sensor gilt nur mit der Umrechnung Strom × COP.",
+        "factor_entity_not_direct": "Wärme braucht keinen Faktor: Wähle eine Umrechnung oder lass den Faktor-Sensor leer.",
         "source_exists": "Diese Entität ist schon eine Wärmequelle."
       }
     },

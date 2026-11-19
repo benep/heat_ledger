@@ -231,17 +231,19 @@ async def test_source_default_factor(hass: HomeAssistant, entry: MockConfigEntry
 
 
 @pytest.mark.usefixtures("entities")
-async def test_source_cop_entity(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+@pytest.mark.parametrize("conversion", ["cop", "efficiency"])
+async def test_source_factor_entity(hass: HomeAssistant, entry: MockConfigEntry, conversion: str) -> None:
+    """A factor sensor works with every conversion that has a factor: COP, or calorific value × efficiency."""
     result = await start(hass, entry, SUBENTRY_SOURCE)
     result = await configure(
         hass,
         result,
-        {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", ACCURACY: {CONF_FACTOR: 3.5, CONF_FACTOR_ENTITY: COP}},
+        {CONF_ENTITY: ENERGY, CONF_CONVERSION: conversion, ACCURACY: {CONF_FACTOR: 3.5, CONF_FACTOR_ENTITY: COP}},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert dict(only_subentry(entry, SUBENTRY_SOURCE).data) == {
         CONF_ENTITY: ENERGY,
-        CONF_CONVERSION: "cop",
+        CONF_CONVERSION: conversion,
         CONF_FACTOR: 3.5,
         CONF_FACTOR_ENTITY: COP,
     }
@@ -255,8 +257,8 @@ async def test_source_cop_entity(hass: HomeAssistant, entry: MockConfigEntry) ->
         ({CONF_ENTITY: POWER, CONF_CONVERSION: "direct"}, {CONF_ENTITY: "not_cumulative"}),
         ({CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", ACCURACY: {CONF_FACTOR: 0}}, {ACCURACY: "not_positive"}),
         (
-            {CONF_ENTITY: ENERGY, CONF_CONVERSION: "efficiency", ACCURACY: {CONF_FACTOR_ENTITY: COP}},
-            {ACCURACY: "factor_entity_cop_only"},
+            {CONF_ENTITY: ENERGY, CONF_CONVERSION: "direct", ACCURACY: {CONF_FACTOR_ENTITY: COP}},
+            {ACCURACY: "factor_entity_not_direct"},
         ),
         (
             {CONF_ENTITY: ENERGY, CONF_CONVERSION: "cop", ACCURACY: {CONF_FACTOR_ENTITY: "sensor.missing"}},
