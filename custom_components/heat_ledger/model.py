@@ -179,3 +179,8 @@ def _consumer(subentry: Subentry, circuit_ids: set[str]) -> ConsumerSpec:
         meter_key=data.get(CONF_METER_ENTITY) or None,
         hot_water=hot_water,
     )
+
+
+def localized(language: str, names: Mapping[str, str]) -> str:
+    """The text for a language such as "de" or "en-GB"; the English one for languages without their own."""
+    return names.get(language.split("-")[0], names["en"])

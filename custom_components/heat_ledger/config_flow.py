@@ -66,7 +66,7 @@ from .const import (
     SUBENTRY_SOURCE,
 )
 from .engine import DemandMethod, SizeMethod
-from .model import ENERGY_TO_KWH
+from .model import ENERGY_TO_KWH, localized
 
 # Form-only keys: not stored.
 SECTION_ACCURACY = "accuracy"
@@ -245,11 +245,6 @@ def _strip_empty(data: Mapping[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in data.items() if v not in (None, "")}
 
 
-def _localized(hass: HomeAssistant, names: Mapping[str, str]) -> str:
-    """A default name in the language of Home Assistant; names["en"] for languages without one."""
-    return names.get(hass.config.language.split("-")[0], names["en"])
-
-
 # --- Heat source, shared by the first setup and the source subentry ----------------------------------------------
 
 
@@ -363,7 +358,11 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
             if not check.errors:
                 return await self.async_step_source()
         schema = vol.Schema({vol.Required(CONF_NAME): TextSelector()})
-        suggested = user_input if user_input is not None else {CONF_NAME: _localized(self.hass, DEFAULT_PLANT_NAME)}
+        suggested = (
+            user_input
+            if user_input is not None
+            else {CONF_NAME: localized(self.hass.config.language, DEFAULT_PLANT_NAME)}
+        )
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(schema, suggested),
@@ -464,7 +463,7 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
             circuit_id = ulid_now()
             circuit = _subentry(
                 SUBENTRY_CIRCUIT,
-                _localized(self.hass, DEFAULT_CIRCUIT_NAME),
+                localized(self.hass.config.language, DEFAULT_CIRCUIT_NAME),
                 {CONF_PUMP_ENTITY: circuit_pump.entity_id},
             )
             subentries.append(circuit | {"subentry_id": circuit_id})
@@ -484,7 +483,9 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_DEMAND_TYPE: str(DemandMethod.ON_OFF),
                 CONF_SIZE_TYPE: str(SizeMethod.DEFAULT),
             }
-            subentries.append(_subentry(SUBENTRY_CONSUMER, _localized(self.hass, DEFAULT_HOT_WATER_NAME), hot_water))
+            subentries.append(
+                _subentry(SUBENTRY_CONSUMER, localized(self.hass.config.language, DEFAULT_HOT_WATER_NAME), hot_water)
+            )
         return subentries
 
 

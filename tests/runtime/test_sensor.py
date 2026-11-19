@@ -233,3 +233,25 @@ async def test_circuit_source_and_plant_get_the_area_of_their_input(
     assert device_area("ground_floor_heat") == boiler_room.id
     assert device_area("heat_pump_source_heat") == boiler_room.id
     assert device_area(f"{entry.entry_id}_account") == boiler_room.id
+
+
+@pytest.mark.parametrize(
+    ("language", "models"),
+    [
+        ("en", ["Radiator", "Hot water heating", "Heating circuit", "Heat source", "Heating system"]),
+        ("de", ["Heizkörper", "Warmwasserbereitung", "Heizkreis", "Wärmequelle", "Heizungsanlage"]),
+    ],
+)
+async def test_devices_say_what_they_are(
+    hass: HomeAssistant, entry: MockConfigEntry, language: str, models: list[str]
+) -> None:
+    """Home Assistant shows the model next to the icon (after the setup, in device lists): the kind of device."""
+    hass.config.language = language
+    await setup(hass, entry)
+
+    def device(unique_id: str) -> dr.DeviceEntry:
+        return dr.async_get(hass).async_get(er.async_get(hass).async_get(entity_id(hass, unique_id)).device_id)
+
+    keys = ["living_heat", "hot_water_heat", "ground_floor_heat", "heat_pump_source_heat", f"{entry.entry_id}_account"]
+    assert [device(key).model for key in keys] == models
+    assert {device(key).manufacturer for key in keys} == {"Heat Ledger"}

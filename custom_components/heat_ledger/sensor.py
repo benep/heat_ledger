@@ -46,6 +46,7 @@ from .const import (
 )
 from .engine import Basis, Level, consumer_basis
 from .engine.basis import ACTIVE_ORDER, DEMAND_ORDER, SIZE_ORDER
+from .model import localized
 from .runtime import HeatLedgerRuntime
 
 # Restored values below the ledger by less than this are rounding, not a lost state.
@@ -77,20 +78,31 @@ async def async_setup_entry(
         ),
         None,
     )
+    language = hass.config.language
     for subentry in subentries:
         area = areas[subentry.subentry_id]
         entity: SensorEntity | None = None
         if subentry.subentry_type == SUBENTRY_CONSUMER:
-            entity = ConsumerHeatSensor(runtime, subentry, titles, area)
+            model = DEVICE_HOT_WATER if subentry.data.get(CONF_KIND) == KIND_HOT_WATER else DEVICE_RADIATOR
+            entity = ConsumerHeatSensor(runtime, subentry, titles, _device(subentry, area, model, language))
         elif subentry.subentry_type == SUBENTRY_CIRCUIT:
-            entity = CircuitHeatSensor(runtime, subentry, titles, area)
+            entity = CircuitHeatSensor(runtime, subentry, titles, _device(subentry, area, DEVICE_CIRCUIT, language))
         elif subentry.subentry_type == SUBENTRY_SOURCE and subentry.data.get(CONF_QUANTITY) == QUANTITY_INPUT:
             # A source that counts heat needs no sensor of its own: its input entity already is the heat.
-            entity = SourceHeatSensor(runtime, subentry, area or plant_area)
+            device = _device(subentry, area or plant_area, DEVICE_SOURCE, language)
+            entity = SourceHeatSensor(runtime, subentry, device)
         if entity is not None:
             async_add_entities([entity], config_subentry_id=subentry.subentry_id)
 
-    async_add_entities([AccountSensor(runtime, entry, plant_area)])
+    plant = DeviceInfo(
+        identifiers={(DOMAIN, entry.entry_id)},
+        name=entry.title,
+        suggested_area=plant_area,
+        model=localized(language, DEVICE_PLANT),
+        manufacturer=MANUFACTURER,
+        entry_type=DeviceEntryType.SERVICE,
+    )
+    async_add_entities([AccountSensor(runtime, entry, plant)])
 
 
 class _LedgerSensor(SensorEntity):
@@ -109,11 +121,24 @@ class _LedgerSensor(SensorEntity):
         self.async_on_remove(self.runtime.async_add_listener(self.async_write_ha_state))
 
 
-def _subentry_device(subentry: ConfigSubentry, area: str | None = None) -> DeviceInfo:
+# What kind of device it is, shown next to the icon wherever Home Assistant lists devices (the model), with the
+# integration below it (the manufacturer). Device registry fields are not translated, so the language is chosen
+# when the device is set up; it follows a change of the language with the next start.
+MANUFACTURER = "Heat Ledger"
+DEVICE_PLANT = {"en": "Heating system", "de": "Heizungsanlage"}
+DEVICE_SOURCE = {"en": "Heat source", "de": "Wärmequelle"}
+DEVICE_CIRCUIT = {"en": "Heating circuit", "de": "Heizkreis"}
+DEVICE_RADIATOR = {"en": "Radiator", "de": "Heizkörper"}
+DEVICE_HOT_WATER = {"en": "Hot water heating", "de": "Warmwasserbereitung"}
+
+
+def _device(subentry: ConfigSubentry, area: str | None, model: Mapping[str, str], language: str) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, subentry.subentry_id)},
         name=subentry.title,
         suggested_area=area,
+        model=localized(language, model),
+        manufacturer=MANUFACTURER,
         entry_type=DeviceEntryType.SERVICE,
     )
 
@@ -149,13 +174,13 @@ class _CounterSensor(_LedgerSensor, RestoreSensor):
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
-    def __init__(self, runtime: HeatLedgerRuntime, subentry: ConfigSubentry, key: str, area: str | None = None) -> None:
+    def __init__(self, runtime: HeatLedgerRuntime, subentry: ConfigSubentry, key: str, device: DeviceInfo) -> None:
         super().__init__(runtime)
         self._id = subentry.subentry_id
         self._offset = 0.0
         self._attr_unique_id = f"{subentry.subentry_id}_{key}"
         self._attr_translation_key = key
-        self._attr_device_info = _subentry_device(subentry, area)
+        self._attr_device_info = device
 
     def _total(self) -> float:
         raise NotImplementedError
@@ -185,9 +210,9 @@ class _SplitSensor(_CounterSensor):
         runtime: HeatLedgerRuntime,
         subentry: ConfigSubentry,
         titles: Mapping[str, str],
-        area: str | None = None,
+        device: DeviceInfo,
     ) -> None:
-        super().__init__(runtime, subentry, TRANSLATION_HEAT, area)
+        super().__init__(runtime, subentry, TRANSLATION_HEAT, device)
         self._titles = titles
 
     def _basis(self) -> Basis:
@@ -280,8 +305,8 @@ def _rank(order: list, method: str) -> int:
 class SourceHeatSensor(_CounterSensor):
     """Heat of a source that counts energy input: its reading times the factor."""
 
-    def __init__(self, runtime: HeatLedgerRuntime, subentry: ConfigSubentry, area: str | None = None) -> None:
-        super().__init__(runtime, subentry, TRANSLATION_SOURCE_HEAT, area)
+    def __init__(self, runtime: HeatLedgerRuntime, subentry: ConfigSubentry, device: DeviceInfo) -> None:
+        super().__init__(runtime, subentry, TRANSLATION_SOURCE_HEAT, device)
 
     def _total(self) -> float:
         return self.runtime.ledger.source_heat[self._id]
@@ -295,15 +320,10 @@ class AccountSensor(_LedgerSensor):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = TRANSLATION_ACCOUNT
 
-    def __init__(self, runtime: HeatLedgerRuntime, entry: HeatLedgerConfigEntry, area: str | None = None) -> None:
+    def __init__(self, runtime: HeatLedgerRuntime, entry: HeatLedgerConfigEntry, device: DeviceInfo) -> None:
         super().__init__(runtime)
         self._attr_unique_id = f"{entry.entry_id}_{TRANSLATION_ACCOUNT}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            suggested_area=area,
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        self._attr_device_info = device
 
     @property
     def native_value(self) -> float:
