@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Mapping
 from typing import Any
 
@@ -44,16 +43,12 @@ from .const import (
     TRANSLATION_HEAT,
     TRANSLATION_SOURCE_HEAT,
 )
-from .engine import Basis, Level, consumer_basis
-from .engine.basis import ACTIVE_ORDER, DEMAND_ORDER, SIZE_ORDER
+from .engine import Basis, circuit_basis, consumer_basis
 from .runtime import HeatLedgerRuntime
 from .texts import async_texts
 
 # Restored values below the ledger by less than this are rounding, not a lost state.
 RESTORE_TOLERANCE_KWH = 1e-6
-
-LEVEL_ORDER = [Level.ESTIMATED, Level.CALCULATED, Level.MEASURED]
-METHOD_ORDER = {"size": SIZE_ORDER, "demand": DEMAND_ORDER, "circuit": ACTIVE_ORDER}
 
 
 async def async_setup_entry(
@@ -270,38 +265,6 @@ class CircuitHeatSensor(_SplitSensor):
 
     def _by_source(self) -> dict[str, float]:
         return dict(self.runtime.ledger.circuit_consumed[self._id])
-
-
-def circuit_basis(radiators: list[Basis]) -> Basis:
-    """A sum is as good as its roughest part: the lowest level and the roughest method per factor.
-
-    The next improvement is the one most of its radiators would profit from.
-    """
-    if not radiators:
-        return Basis(Level.ESTIMATED, {}, None)
-    level = min((b.level for b in radiators), key=LEVEL_ORDER.index)
-    split = [b for b in radiators if b.level is not Level.MEASURED]
-    if not split:
-        methods = {"heat": "meter"}
-    else:
-        methods = {}
-        for factor, order in METHOD_ORDER.items():
-            used = [b.methods[factor] for b in split if factor in b.methods]
-            if used:
-                methods[factor] = min(used, key=lambda m, order=order: _rank(order, m))
-        if len(split) < len(radiators):
-            methods["heat"] = "split, meter"
-    hints = Counter(b.next_improvement for b in radiators if b.next_improvement)
-    improvement = hints.most_common(1)[0][0] if hints else None
-    return Basis(level, methods, improvement)
-
-
-def _rank(order: list, method: str) -> int:
-    """Position in the order; on/off ranks with hvac_action, as in engine.basis."""
-    values = [str(m) for m in order]
-    if method == "on_off":
-        method = "hvac_action"
-    return values.index(method) if method in values else 0
 
 
 class SourceHeatSensor(_CounterSensor):

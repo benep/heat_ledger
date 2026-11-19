@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -62,3 +63,40 @@ def consumer_basis(plant: PlantSpec, consumer: ConsumerSpec) -> Basis:
             improvement = hint.format(order[index + 1])
             break
     return Basis(Level.ESTIMATED, {k: str(v) for k, v in methods.items()}, improvement)
+
+
+LEVEL_ORDER = [Level.ESTIMATED, Level.CALCULATED, Level.MEASURED]
+METHOD_ORDER = {"size": SIZE_ORDER, "demand": DEMAND_ORDER, "circuit": ACTIVE_ORDER}
+# Methods without a place of their own in an order rank with another one.
+RANKS_LIKE = {str(DemandMethod.ON_OFF): str(DemandMethod.HVAC_ACTION)}
+
+
+def method_rank(order: list, method: str) -> int:
+    """Position of a method in its order, rough to precise; unknown methods count as the roughest."""
+    values = [str(m) for m in order]
+    method = RANKS_LIKE.get(method, method)
+    return values.index(method) if method in values else 0
+
+
+def circuit_basis(consumers: list[Basis]) -> Basis:
+    """A sum is as good as its roughest part: the lowest level and the roughest method per factor.
+
+    The next improvement is the one most of its consumers would profit from.
+    """
+    if not consumers:
+        return Basis(Level.ESTIMATED, {}, None)
+    level = min((b.level for b in consumers), key=LEVEL_ORDER.index)
+    split = [b for b in consumers if b.level is not Level.MEASURED]
+    if not split:
+        methods = {"heat": "meter"}
+    else:
+        methods = {}
+        for factor, order in METHOD_ORDER.items():
+            used = [b.methods[factor] for b in split if factor in b.methods]
+            if used:
+                methods[factor] = min(used, key=lambda m, order=order: method_rank(order, m))
+        if len(split) < len(consumers):
+            methods["heat"] = "split, meter"
+    hints = Counter(b.next_improvement for b in consumers if b.next_improvement)
+    improvement = hints.most_common(1)[0][0] if hints else None
+    return Basis(level, methods, improvement)

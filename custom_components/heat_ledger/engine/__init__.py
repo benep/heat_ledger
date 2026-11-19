@@ -1,6 +1,6 @@
 """Heating plant model and ledger, independent of Home Assistant."""
 
-from .basis import Basis, Level, consumer_basis
+from .basis import Basis, Level, circuit_basis, consumer_basis
 from .ledger import Ledger, Reading, Readings
 from .spec import (
     ActiveMethod,
@@ -29,5 +29,6 @@ __all__ = [
     "Size",
     "SizeMethod",
     "SourceSpec",
+    "circuit_basis",
     "consumer_basis",
 ]
