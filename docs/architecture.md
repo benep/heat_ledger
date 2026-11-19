@@ -90,6 +90,8 @@ Rules:
   keeps the unit it was set up with, because its factor refers to it: another unit of the same kind (L instead of
   m³) is converted, another kind (kWh instead of m³) books nothing and is logged once, until the unit fits again
   or the source is set up again.
+- **Renamed input:** a new entity ID of an input is followed: the subentries take it and its meter counts on as
+  the same meter, so no heat is lost meanwhile.
 - **Unreadable stored state:** the split starts over; the counters keep their values through their restored states.
 - **Fixed loss rate** (optional): taken from the account first, every interval.
 - **Release:** the whole account every interval. The engine also supports a time constant that releases only

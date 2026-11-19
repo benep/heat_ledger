@@ -9,6 +9,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState, ConfigSubentry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.heat_ledger.const import (
@@ -245,3 +246,27 @@ async def test_unit_change_of_energy_input_books_nothing_and_warns(hass: HomeAss
     await next_interval(hass, freezer)
     assert value(hass, "gas_source_heat") == pytest.approx(10.0)
     assert "sensor.gas is now in kWh instead of m³" in caplog.text
+
+
+async def test_renamed_inputs_are_followed(hass: HomeAssistant, entry: MockConfigEntry, freezer) -> None:
+    """The source and the pump get new entity IDs: the plant follows, and the source counts on as the same meter."""
+    registry = er.async_get(hass)
+    for entity in (BOILER, PUMP):
+        state = hass.states.get(entity)
+        hass.states.async_remove(entity)
+        domain, object_id = entity.split(".")
+        registry.async_get_or_create(domain, "meters", object_id, suggested_object_id=object_id)
+        hass.states.async_set(entity, state.state, state.attributes)
+    await setup(hass, entry)
+
+    registry.async_update_entity(BOILER, new_entity_id="sensor.oil_burner")
+    registry.async_update_entity(PUMP, new_entity_id="binary_sensor.radiator_pump")
+    await hass.async_block_till_done()
+    hass.states.async_set("sensor.oil_burner", "105.0", {"unit_of_measurement": "kWh"})
+    hass.states.async_set("binary_sensor.radiator_pump", "on")
+    await next_interval(hass, freezer)
+
+    sources = [s.data for s in entry.subentries.values() if s.subentry_type == "source"]
+    assert {"entity_id": "sensor.oil_burner", "quantity": "heat"} in [dict(d) for d in sources]
+    assert entry.subentries["ground_floor"].data["pump_entity_id"] == "binary_sensor.radiator_pump"
+    assert value(hass, "ground_floor_heat") == pytest.approx(5.0)  # hot water is off: all of it

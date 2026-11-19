@@ -190,6 +190,14 @@ class Ledger:
                         self._book(consumer.id, source_id, amount)
         self._rates, self._blocked = self._compute_rates()
 
+    def rename_input(self, old: str, new: str) -> None:
+        """An input entity got a new ID: its meter counts on under it, as the same meter (not another one)."""
+        for counter in (*self._sources.values(), *self._meters.values()):
+            if counter.key == old:
+                counter.key = new
+        if old in self._readings:
+            self._readings[new] = self._readings.pop(old)
+
     def _book(self, consumer_id: str, source_id: str, heat: float) -> None:
         self.consumed[consumer_id][source_id] += heat
         if (circuit_id := self._circuit_of.get(consumer_id)) is not None:
