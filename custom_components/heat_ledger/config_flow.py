@@ -41,6 +41,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util.ulid import ulid_now
 
+from . import texts
 from .const import (
     CONF_CIRCUIT,
     CONF_DEMAND_ENTITY,
@@ -67,7 +68,8 @@ from .const import (
     SUBENTRY_SOURCE,
 )
 from .engine import DemandMethod, SizeMethod
-from .model import ENERGY_TO_KWH, localized
+from .model import ENERGY_TO_KWH
+from .texts import async_texts
 
 # Form-only keys: not stored.
 SECTION_ACCURACY = "accuracy"
@@ -326,9 +328,6 @@ async def _energy_dashboard_suggestion(hass: HomeAssistant, taken: set[str]) -> 
 
 # --- Main entry --------------------------------------------------------------------------------------------------
 
-DEFAULT_PLANT_NAME = {"en": "Heating", "de": "Heizung"}
-DEFAULT_CIRCUIT_NAME = {"en": "Heating circuit", "de": "Heizkreis"}
-DEFAULT_HOT_WATER_NAME = {"en": "Hot water", "de": "Warmwasser"}
 
 # Form-only keys of the first setup.
 CONF_THERMOSTATS = "thermostats"
@@ -380,7 +379,7 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
         suggested = (
             user_input
             if user_input is not None
-            else {CONF_NAME: localized(self.hass.config.language, DEFAULT_PLANT_NAME)}
+            else {CONF_NAME: (await async_texts(self.hass))[texts.DEFAULT_PLANT_NAME]}
         )
         return self.async_show_form(
             step_id="user",
@@ -455,7 +454,7 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
                     title=self._name,
                     data={},
                     options={},
-                    subentries=self._subentries(thermostats, *self._pumps),
+                    subentries=self._subentries(await async_texts(self.hass), thermostats, *self._pumps),
                 )
         schema = vol.Schema(
             {vol.Optional(CONF_THERMOSTATS): EntitySelector(EntitySelectorConfig(domain="climate", multiple=True))}
@@ -469,6 +468,7 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def _subentries(
         self,
+        names: Mapping[str, str],
         thermostats: list[_EntityInfo],
         circuit_pump: _EntityInfo | None,
         hot_water_pump: _EntityInfo | None,
@@ -480,36 +480,71 @@ class HeatLedgerConfigFlow(ConfigFlow, domain=DOMAIN):
         if circuit_pump is not None:
             # Home Assistant takes a given subentry ID as it is, so the radiators can refer to their circuit.
             circuit_id = ulid_now()
-            circuit = _subentry(
-                SUBENTRY_CIRCUIT,
-                localized(self.hass.config.language, DEFAULT_CIRCUIT_NAME),
-                {CONF_PUMP_ENTITY: circuit_pump.entity_id},
-            )
+            circuit = _subentry(SUBENTRY_CIRCUIT, names[texts.CIRCUIT], {CONF_PUMP_ENTITY: circuit_pump.entity_id})
             subentries.append(circuit | {"subentry_id": circuit_id})
         for climate in thermostats:
-            radiator: dict[str, Any] = {CONF_KIND: KIND_RADIATOR, CONF_SIZE_TYPE: str(SizeMethod.DEFAULT)}
-            if circuit_id is not None:
-                radiator[CONF_CIRCUIT] = circuit_id
-            if (percent := _percent_suggestion(self.hass, climate)) is not None:
-                radiator |= {CONF_DEMAND_ENTITY: percent.entity_id, CONF_DEMAND_TYPE: str(DemandMethod.PERCENT)}
-            else:
-                radiator |= {CONF_DEMAND_ENTITY: climate.entity_id, CONF_DEMAND_TYPE: str(DemandMethod.HVAC_ACTION)}
+            # The heating demand in % if the thermostat has one, as the radiator flow suggests it.
+            demand = _percent_suggestion(self.hass, climate) or climate
+            radiator = _radiator_data(circuit_id, demand.entity_id, _demand_method(demand))
             subentries.append(_subentry(SUBENTRY_CONSUMER, climate.name, radiator))
         if hot_water_pump is not None:
-            hot_water = {
-                CONF_KIND: KIND_HOT_WATER,
-                CONF_DEMAND_ENTITY: hot_water_pump.entity_id,
-                CONF_DEMAND_TYPE: str(DemandMethod.ON_OFF),
-                CONF_SIZE_TYPE: str(SizeMethod.DEFAULT),
-            }
-            subentries.append(
-                _subentry(SUBENTRY_CONSUMER, localized(self.hass.config.language, DEFAULT_HOT_WATER_NAME), hot_water)
-            )
+            hot_water = _hot_water_data(hot_water_pump.entity_id)
+            subentries.append(_subentry(SUBENTRY_CONSUMER, names[texts.DEFAULT_HOT_WATER_NAME], hot_water))
         return subentries
 
 
 def _subentry(subentry_type: str, title: str, data: Mapping[str, Any]) -> dict[str, Any]:
     return {"subentry_type": subentry_type, "title": title, "data": dict(data), "unique_id": None}
+
+
+# --- Consumer data, shared by the first setup and the consumer subentry ----------------------------------------
+
+
+def _demand_method(demand: _EntityInfo) -> DemandMethod:
+    """How a demand entity is read: a thermostat by hvac_action, a binary sensor on/off, a sensor in %."""
+    if demand.domain == "climate":
+        return DemandMethod.HVAC_ACTION
+    if demand.domain == "binary_sensor":
+        return DemandMethod.ON_OFF
+    return DemandMethod.PERCENT
+
+
+def _radiator_data(
+    circuit_id: str | None,
+    demand_entity: str | None,
+    demand_method: DemandMethod,
+    size: SizeMethod = SizeMethod.DEFAULT,
+    size_value: float | None = None,
+    meter_entity: str | None = None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {CONF_KIND: KIND_RADIATOR}
+    if circuit_id is not None:
+        data[CONF_CIRCUIT] = circuit_id
+    if demand_entity is None:
+        data[CONF_DEMAND_TYPE] = str(DemandMethod.ALWAYS)
+    else:
+        data[CONF_DEMAND_ENTITY] = demand_entity
+        data[CONF_DEMAND_TYPE] = str(demand_method)
+    data[CONF_SIZE_TYPE] = str(size)
+    if size is not SizeMethod.DEFAULT and size_value is not None:
+        data[CONF_SIZE_VALUE] = size_value
+    if meter_entity is not None:
+        data[CONF_METER_ENTITY] = meter_entity
+    return data
+
+
+def _hot_water_data(pump_entity: str, power_kw: float | None = None, meter_entity: str | None = None) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        CONF_KIND: KIND_HOT_WATER,
+        CONF_DEMAND_ENTITY: pump_entity,
+        CONF_DEMAND_TYPE: str(DemandMethod.ON_OFF),
+        CONF_SIZE_TYPE: str(SizeMethod.DEFAULT if power_kw is None else SizeMethod.NOMINAL_POWER),
+    }
+    if power_kw is not None:
+        data[CONF_SIZE_VALUE] = power_kw * 1000
+    if meter_entity is not None:
+        data[CONF_METER_ENTITY] = meter_entity
+    return data
 
 
 class HeatLedgerOptionsFlow(OptionsFlow):
@@ -679,31 +714,29 @@ class ConsumerSubentryFlow(_SubentryFlow):
         if user_input is not None:
             more = user_input.get(SECTION_ACCURACY) or {}
             name = check.name(user_input.get(CONF_NAME))
-            data: dict[str, Any] = {CONF_KIND: KIND_RADIATOR}
-            if (circuit := user_input.get(CONF_CIRCUIT)) and circuit in {c[0] for c in circuits}:
-                data[CONF_CIRCUIT] = circuit
+            circuit = user_input.get(CONF_CIRCUIT)
             demand = check.entity(user_input.get(CONF_DEMAND_ENTITY), DEMAND_DOMAINS, CONF_DEMAND_ENTITY)
-            if demand is None:
-                data[CONF_DEMAND_TYPE] = str(DemandMethod.ALWAYS)
-            else:
-                data[CONF_DEMAND_ENTITY] = demand.entity_id
-                if demand.domain == "climate":
-                    data[CONF_DEMAND_TYPE] = str(DemandMethod.HVAC_ACTION)
-                elif demand.domain == "binary_sensor":
-                    data[CONF_DEMAND_TYPE] = str(DemandMethod.ON_OFF)
-                elif demand.unit != PERCENTAGE:
+            method = DemandMethod.ALWAYS if demand is None else _demand_method(demand)
+            if demand is not None and method is DemandMethod.PERCENT:
+                if demand.unit != PERCENTAGE:
                     check.errors[CONF_DEMAND_ENTITY] = ERROR_NOT_PERCENT
-                else:
-                    data[CONF_DEMAND_TYPE] = str(more.get(CONF_DEMAND_TYPE) or DemandMethod.PERCENT)
+                method = DemandMethod(more.get(CONF_DEMAND_TYPE) or DemandMethod.PERCENT)
             size_type = SizeMethod(more.get(CONF_SIZE_TYPE) or SizeMethod.DEFAULT)
-            data[CONF_SIZE_TYPE] = str(size_type)
+            size = None
             if size_type is not SizeMethod.DEFAULT:
                 if more.get(CONF_SIZE_VALUE) is None:
                     check.errors[SECTION_ACCURACY] = ERROR_SIZE_VALUE_REQUIRED
-                elif (size := check.positive(more[CONF_SIZE_VALUE], SECTION_ACCURACY)) is not None:
-                    data[CONF_SIZE_VALUE] = size
-            if meter := check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY):
-                data[CONF_METER_ENTITY] = meter.entity_id
+                else:
+                    size = check.positive(more[CONF_SIZE_VALUE], SECTION_ACCURACY)
+            meter = check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY)
+            data = _radiator_data(
+                circuit if circuit in {c[0] for c in circuits} else None,
+                demand.entity_id if demand is not None else None,
+                method,
+                size_type,
+                size,
+                meter.entity_id if meter is not None else None,
+            )
             if not check.errors:
                 if demand is not None and demand.domain == "climate":
                     suggestion = _percent_suggestion(self.hass, demand)
@@ -785,16 +818,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
             power_kw = check.positive(more.get(CONF_CHARGING_POWER_KW), SECTION_ACCURACY)
             meter = check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY)
             if pump and not check.errors:
-                data: dict[str, Any] = {
-                    CONF_KIND: KIND_HOT_WATER,
-                    CONF_DEMAND_ENTITY: pump.entity_id,
-                    CONF_DEMAND_TYPE: str(DemandMethod.ON_OFF),
-                    CONF_SIZE_TYPE: str(SizeMethod.DEFAULT if power_kw is None else SizeMethod.NOMINAL_POWER),
-                }
-                if power_kw is not None:
-                    data[CONF_SIZE_VALUE] = power_kw * 1000
-                if meter:
-                    data[CONF_METER_ENTITY] = meter.entity_id
+                data = _hot_water_data(pump.entity_id, power_kw, meter.entity_id if meter is not None else None)
                 return self._finish(name, data)
 
         schema = vol.Schema(
