@@ -76,7 +76,7 @@
 
     **Einstellungen → Geräte & Dienste → Heat Ledger**, die drei Punkte, **Löschen**. Die Sensoren verschwinden, ihr
     Verlauf bleibt. Entferne die Einträge im Energie-Dashboard von Hand, es behält sie und meldet sie als fehlend. Dann
-    entferne Heat Ledger in HACS.
+    deinstalliere Heat Ledger im Marketplace: dort öffnen und **Deinstallieren** wählen.
 
 ## Hilfe
 

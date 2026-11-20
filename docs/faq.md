@@ -75,7 +75,7 @@
 
     **Settings → Devices & services → Heat Ledger**, the three dots, **Delete**. Its sensors disappear, their history
     stays. Remove the entries from the Energy dashboard by hand, it keeps them and reports them as missing. Then remove
-    Heat Ledger in HACS.
+    Heat Ledger in the Marketplace: open it there and choose **Uninstall**.
 
 ## Help
 

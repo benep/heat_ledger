@@ -22,10 +22,6 @@ so you can see it per room, right in the Energy dashboard.
 
     The rooms appear as devices in the Energy dashboard from **2026.12** on.
 
-- :material-store: **HACS**
-
-    The community store for Home Assistant, to install Heat Ledger.
-
 - :material-counter: **A meter for your heating**
 
     Anything in Home Assistant that counts what your heating uses or makes, and only goes up: a gas meter, the oil
@@ -54,6 +50,6 @@ tells when the **hot water** is heated. [Setup](setup.md#step-3-pumps) explains 
 
 ## Next steps
 
-1. [**Install**](installation.md) Heat Ledger with HACS (5 minutes).
+1. [**Install**](installation.md) Heat Ledger from the Marketplace of Home Assistant (5 minutes).
 2. [**Set it up**](setup.md): four short steps, in the direction the heat flows.
 3. [**Add the rooms to the Energy dashboard**](energy-dashboard.md).

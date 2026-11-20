@@ -22,10 +22,6 @@ damit du sie pro Raum siehst, direkt im Energie-Dashboard.
 
     Als Geräte im Energie-Dashboard erscheinen die Räume ab **2026.12**.
 
-- :material-store: **HACS**
-
-    Der Community-Store für Home Assistant, darüber installierst du Heat Ledger.
-
 - :material-counter: **Einen Zähler deiner Heizung**
 
     Irgendetwas in Home Assistant, das zählt, was deine Heizung verbraucht oder erzeugt, und nur steigt: ein
@@ -55,6 +51,6 @@ einer, der meldet, wann das **Warmwasser** geheizt wird. Wie du die bekommst, st
 
 ## Nächste Schritte
 
-1. Heat Ledger mit HACS [**installieren**](installation.md) (5 Minuten).
+1. Heat Ledger aus dem Marketplace von Home Assistant [**installieren**](installation.md) (5 Minuten).
 2. [**Einrichten**](setup.md): vier kurze Schritte, in der Richtung, in der die Wärme fließt.
 3. [**Die Räume ins Energie-Dashboard eintragen**](energy-dashboard.md).

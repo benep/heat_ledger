@@ -1,39 +1,43 @@
 # Installation
 
-Heat Ledger is installed with **HACS**, the community store for Home Assistant. If you do not have HACS yet, install
-it first: [hacs.xyz](https://hacs.xyz/docs/use/).
+Heat Ledger is installed from the **Marketplace**, which is built into Home Assistant: you find it in the sidebar.
 
 ```mermaid
 flowchart LR
-    A["1. Add the repository<br>to HACS"] --> B["2. Download<br>Heat Ledger"] --> C["3. Restart<br>Home Assistant"] --> D["4. Add the<br>integration"]
+    A["1. Add Heat Ledger<br>to the Marketplace"] --> B["2. Install"] --> C["3. Restart<br>Home Assistant"] --> D["4. Add the<br>integration"]
 ```
 
-## 1. Add the repository to HACS
+## 1. Add Heat Ledger to the Marketplace
 
-Heat Ledger is not in the HACS list yet, so you tell HACS where to find it once:
+Heat Ledger is not in the catalog of the Marketplace yet, so you add it once by its GitHub link. Click this button:
 
-<div class="steps" markdown>
+[Add Heat Ledger to the Marketplace](https://my.home-assistant.io/redirect/marketplace_repository/?owner=benep&repository=heat_ledger&category=integration){ .md-button .md-button--primary }
 
-1. Open **HACS** in the sidebar.
-2. Click the three dots :material-dots-vertical: at the top right and choose **Custom repositories**.
-3. Enter `https://github.com/benep/heat_ledger` as **Repository** and choose **Integration** as **Type**.
-4. Click **Add** and close the dialog.
-
-</div>
-
-## 2. Download Heat Ledger
+Or by hand:
 
 <div class="steps" markdown>
 
-1. Search for **Heat Ledger** in HACS and open it.
-2. Click **Download** at the bottom right and confirm.
+1. Open **Marketplace** in the sidebar and choose the tab **Add from link**.
+2. Enter `https://github.com/benep/heat_ledger` as **GitHub link** and choose **Integration** as **Type**.
+3. Click **Add**.
 
 </div>
+
+!!! info "Adding from a link needs a GitHub account"
+
+    The first time you add something from a link, Home Assistant asks you to **connect GitHub** (a free account is
+    enough). It shows a code; open the link it gives you, sign in to GitHub and enter the code there. You never enter
+    your GitHub password in Home Assistant, and the connection only reads public information. Once Heat Ledger is in
+    the catalog of the Marketplace, this step is no longer needed.
+
+## 2. Install
+
+Open **Heat Ledger** in the Marketplace, click **Install** and confirm.
 
 ## 3. Restart Home Assistant
 
-Home Assistant only finds a new integration after a restart: **Settings → System**, the power button
-:material-power: at the top right, **Restart Home Assistant**.
+Home Assistant only finds a new integration after a restart. The Marketplace shows a button **Restart Home
+Assistant** right after the installation.
 
 ## 4. Add the integration
 
@@ -45,5 +49,5 @@ The setup starts right away. Continue with [Setup](setup.md).
 
 ??? question "Updates"
 
-    HACS shows a new version of Heat Ledger like any other update under **Settings → Updates**. Your counters keep
-    their values across updates and restarts.
+    The Marketplace shows a new version of Heat Ledger like any other update under **Settings → Updates**. Your
+    counters keep their values across updates and restarts.

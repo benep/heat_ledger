@@ -12,8 +12,8 @@ and gets more accurate with every detail you add. It only reads; it does not con
 
 ## Install
 
-Add `https://github.com/benep/heat_ledger` as a custom repository of type *Integration* in HACS, download Heat
-Ledger, restart Home Assistant and add the integration.
+In the **Marketplace** of Home Assistant, choose **Add from link**, enter `https://github.com/benep/heat_ledger` as
+type *Integration* and install Heat Ledger. Restart Home Assistant and add the integration.
 
 ## Help
 

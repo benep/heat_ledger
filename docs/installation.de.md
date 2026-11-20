@@ -1,39 +1,45 @@
 # Installation
 
-Heat Ledger wird mit **HACS** installiert, dem Community-Store für Home Assistant. Hast du HACS noch nicht, installiere
-es zuerst: [hacs.xyz](https://hacs.xyz/docs/use/).
+Heat Ledger wird über den **Marketplace** installiert, der in Home Assistant eingebaut ist: Du findest ihn in der
+Seitenleiste.
 
 ```mermaid
 flowchart LR
-    A["1. Repository<br>in HACS eintragen"] --> B["2. Heat Ledger<br>herunterladen"] --> C["3. Home Assistant<br>neu starten"] --> D["4. Integration<br>hinzufügen"]
+    A["1. Heat Ledger zum<br>Marketplace hinzufügen"] --> B["2. Installieren"] --> C["3. Home Assistant<br>neu starten"] --> D["4. Integration<br>hinzufügen"]
 ```
 
-## 1. Repository in HACS eintragen
+## 1. Heat Ledger zum Marketplace hinzufügen
 
-Heat Ledger steht noch nicht in der Liste von HACS. Du sagst HACS deshalb einmal, wo es zu finden ist:
+Heat Ledger steht noch nicht im Katalog des Marketplace. Du fügst es deshalb einmal über seinen GitHub-Link hinzu.
+Klicke auf diesen Knopf:
 
-<div class="steps" markdown>
+[Heat Ledger zum Marketplace hinzufügen](https://my.home-assistant.io/redirect/marketplace_repository/?owner=benep&repository=heat_ledger&category=integration){ .md-button .md-button--primary }
 
-1. Öffne **HACS** in der Seitenleiste.
-2. Klicke oben rechts auf die drei Punkte :material-dots-vertical: und wähle **Benutzerdefinierte Repositories**.
-3. Trage `https://github.com/benep/heat_ledger` als **Repository** ein und wähle **Integration** als **Typ**.
-4. Klicke auf **Hinzufügen** und schließe den Dialog.
-
-</div>
-
-## 2. Heat Ledger herunterladen
+Oder von Hand:
 
 <div class="steps" markdown>
 
-1. Suche in HACS nach **Heat Ledger** und öffne es.
-2. Klicke unten rechts auf **Herunterladen** und bestätige.
+1. Öffne **Marketplace** in der Seitenleiste und wähle den Reiter **Über Link hinzufügen**.
+2. Trage `https://github.com/benep/heat_ledger` als **GitHub-Link** ein und wähle **Integration** als **Typ**.
+3. Klicke auf **Hinzufügen**.
 
 </div>
+
+!!! info "Hinzufügen über einen Link braucht ein GitHub-Konto"
+
+    Beim ersten Mal fragt Home Assistant, ob du **GitHub verbinden** willst (ein kostenloses Konto genügt). Es zeigt
+    dir einen Code; öffne den angezeigten Link, melde dich bei GitHub an und gib den Code dort ein. Dein
+    GitHub-Passwort gibst du nie in Home Assistant ein, und die Verbindung liest nur öffentliche Informationen. Sobald
+    Heat Ledger im Katalog des Marketplace steht, fällt dieser Schritt weg.
+
+## 2. Installieren
+
+Öffne **Heat Ledger** im Marketplace, klicke auf **Installieren** und bestätige.
 
 ## 3. Home Assistant neu starten
 
-Eine neue Integration findet Home Assistant erst nach einem Neustart: **Einstellungen → System**, oben rechts der
-Ein-/Aus-Knopf :material-power:, **Home Assistant neu starten**.
+Eine neue Integration findet Home Assistant erst nach einem Neustart. Der Marketplace zeigt dafür direkt nach der
+Installation einen Knopf **Home Assistant neu starten**.
 
 ## 4. Integration hinzufügen
 
@@ -46,5 +52,5 @@ Die Einrichtung startet sofort. Weiter geht es mit der [Einrichtung](setup.md).
 
 ??? question "Updates"
 
-    Eine neue Version von Heat Ledger zeigt HACS wie jedes andere Update unter **Einstellungen → Updates** an. Deine
-    Zähler behalten ihren Stand über Updates und Neustarts hinweg.
+    Eine neue Version von Heat Ledger zeigt der Marketplace wie jedes andere Update unter **Einstellungen → Updates**
+    an. Deine Zähler behalten ihren Stand über Updates und Neustarts hinweg.
