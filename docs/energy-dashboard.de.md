@@ -67,55 +67,77 @@ Sie tauchen zweimal auf: im Strom-Reiter als Strom, im Gas-Reiter als Wärme. Do
 werden nicht addiert. Setze den Preis der Wärmequelle im Gas-Reiter auf **0**, sonst stehen die Kosten doppelt in der
 Übersicht.
 
-## Diagramme pro Raum
+## Ein Wärme-Dashboard
 
-Der Strom-Reiter hat Balkendiagramme pro Gerät, der Gas-Reiter noch nicht. Zwei Karten **Statistikdiagramm** auf
-einem beliebigen Dashboard zeigen dasselbe. Ersetze die Entitäten durch deine eigenen Sensoren **Wärme**. Trage die
-Räume und das Warmwasser ein, nicht die Heizkreise, sonst zählen die gestapelten Balken jeden Raum doppelt.
+Der Strom-Reiter hat Diagramme pro Gerät, der Gas-Reiter noch nicht. Heat Ledger bringt zwei Karten mit, die sie für
+die Gasgeräte zeigen. Damit baust du dir ein eigenes Dashboard für deine Wärme: alles aus dem Gas-Reiter, dazu deine
+Räume im Verlauf und im Vergleich.
 
-Wärme pro Raum und Tag, gestapelt:
+![Ein Wärme-Dashboard: Wärme pro Tag, Summen, die Räume pro Tag und im Vergleich und der Wärmefluss](assets/screenshots/heat-dashboard.png){ .screenshot }
 
-```yaml
-type: statistics-graph
-title: Wärme pro Tag
-chart_type: bar-stack
-period: day
-days_to_show: 7
-stat_types:
-  - change
-entities:
-  - entity: sensor.wohnzimmer_warme
-    name: Wohnzimmer
-  - entity: sensor.schlafzimmer_warme
-    name: Schlafzimmer
-  - entity: sensor.bad_warme
-    name: Bad
-  - entity: sensor.warmwasser_warme
-    name: Warmwasser
-```
+Die Karten nehmen die Räume und das Warmwasser aus dem Gas-Reiter des Energie-Dashboards, du musst also nichts
+ausfüllen: Trägst du dort einen Raum ein, erscheint er auch hier.
 
-Räume nebeneinander, pro Monat:
+<div class="steps" markdown>
+
+1. Gehe zu **Einstellungen → Dashboards**, klicke auf **Dashboard hinzufügen** und wähle **Neues Dashboard von Grund
+   auf**.
+2. Gib als **Titel** *Wärme* ein, wähle ein **Seitenleistensymbol** wie `mdi:radiator` und klicke auf
+   **Erstellen**.
+3. Öffne das neue Dashboard in der Seitenleiste. Klicke auf den Stift (**Dashboard bearbeiten**), dann auf die drei
+   Punkte und **Raw-Konfigurationseditor**.
+4. Ersetze alles dort durch den Text unten und klicke auf **Speichern**. Schließe den Editor und klicke auf
+   **Fertig**.
+
+</div>
 
 ```yaml
-type: statistics-graph
-title: Räume im Vergleich
-chart_type: bar
-period: month
-days_to_show: 30
-stat_types:
-  - change
-entities:
-  - entity: sensor.wohnzimmer_warme
-    name: Wohnzimmer
-  - entity: sensor.schlafzimmer_warme
-    name: Schlafzimmer
-  - entity: sensor.bad_warme
-    name: Bad
-  - entity: sensor.warmwasser_warme
-    name: Warmwasser
+views:
+  - title: Wärme
+    type: sections
+    max_columns: 3
+    dense_section_placement: true
+    footer:
+      card:
+        type: energy-date-selection
+        opening_direction: right
+        vertical_opening_direction: up
+    sections:
+      - type: grid
+        column_span: 3
+        cards:
+          - type: energy-compare
+            grid_options:
+              columns: 36
+          - type: energy-gas-graph
+            title: Erzeugte Wärme
+            grid_options:
+              columns: 24
+          - type: energy-sources-table
+            title: Summen
+            types:
+              - gas
+            grid_options:
+              columns: 12
+          - type: custom:heat-ledger-gas-devices-detail-graph
+            title: Räume pro Tag
+            grid_options:
+              columns: 36
+          - type: custom:heat-ledger-gas-devices-graph
+            title: Räume im Vergleich
+            grid_options:
+              columns: 36
+          - type: gas-sankey
+            title: Wärmefluss
+            group_by_floor: true
+            group_by_area: true
+            grid_options:
+              columns: 36
 ```
 
-Für andere Zeiträume ändere `period` und `days_to_show`, zum Beispiel `period: week` mit `days_to_show: 90`.
+Die Leiste unten wählt den Zeitraum, wie im Energie-Dashboard. Die beiden Karten kannst du auch auf jedes andere
+Dashboard setzen: In der Kartenauswahl heißen sie *Heat Ledger: gas devices over time* und *Heat Ledger: gas devices
+in total*.
 
 ## Heat Ledger entfernen
 

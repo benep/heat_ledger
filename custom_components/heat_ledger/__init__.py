@@ -6,15 +6,24 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.typing import ConfigType
 
-from .const import STORAGE_VERSION
+from .cards import async_register_cards
+from .const import DOMAIN, STORAGE_VERSION
 from .model import build_plant
 from .runtime import HeatLedgerRuntime, store_key
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type HeatLedgerConfigEntry = ConfigEntry[HeatLedgerRuntime]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    await async_register_cards(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: HeatLedgerConfigEntry) -> bool:

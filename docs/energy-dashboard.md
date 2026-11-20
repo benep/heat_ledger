@@ -61,55 +61,74 @@ They show up twice: on the electricity tab as electricity, on the gas tab as hea
 tabs are not added up. Set the price of the heat source on the gas tab to **0**, otherwise the costs appear twice in
 the overview.
 
-## Charts per room
+## A heat dashboard
 
-The electricity tab has bar charts per device; the gas tab does not have them yet. Two **statistics graph** cards on
-any dashboard give the same view. Replace the entities with your own **Heat** sensors. List the rooms and the hot
-water, not the circuits, or the stacked bars count every room twice.
+The electricity tab has charts per device; the gas tab does not have them yet. Heat Ledger brings two cards that
+show them for the gas devices. With them you can build a dashboard of its own for your heat: everything of the gas
+tab, plus your rooms over time and compared.
 
-Heat per room and day, stacked:
+![A heat dashboard: heat per day, totals, the rooms per day and compared, and the heat flow](assets/screenshots/heat-dashboard.png){ .screenshot }
 
-```yaml
-type: statistics-graph
-title: Heat per day
-chart_type: bar-stack
-period: day
-days_to_show: 7
-stat_types:
-  - change
-entities:
-  - entity: sensor.living_room_heat
-    name: Living room
-  - entity: sensor.bedroom_heat
-    name: Bedroom
-  - entity: sensor.bathroom_heat
-    name: Bathroom
-  - entity: sensor.hot_water_heat
-    name: Hot water
-```
+The cards take the rooms and the hot water from the gas tab of the Energy dashboard, so there is nothing to fill
+in: add a room there, and it shows up here as well.
 
-Rooms side by side, per month:
+<div class="steps" markdown>
+
+1. Go to **Settings → Dashboards**, click **Add dashboard** and choose **New dashboard from scratch**.
+2. Enter *Heat* as **Title**, choose an **Icon** such as `mdi:radiator` and click **Create**.
+3. Open the new dashboard in the sidebar. Click the pencil (**Edit dashboard**), then the three dots and **Raw
+   configuration editor**.
+4. Replace everything there with the text below and click **Save**. Close the editor and click **Done**.
+
+</div>
 
 ```yaml
-type: statistics-graph
-title: Rooms compared
-chart_type: bar
-period: month
-days_to_show: 30
-stat_types:
-  - change
-entities:
-  - entity: sensor.living_room_heat
-    name: Living room
-  - entity: sensor.bedroom_heat
-    name: Bedroom
-  - entity: sensor.bathroom_heat
-    name: Bathroom
-  - entity: sensor.hot_water_heat
-    name: Hot water
+views:
+  - title: Heat
+    type: sections
+    max_columns: 3
+    dense_section_placement: true
+    footer:
+      card:
+        type: energy-date-selection
+        opening_direction: right
+        vertical_opening_direction: up
+    sections:
+      - type: grid
+        column_span: 3
+        cards:
+          - type: energy-compare
+            grid_options:
+              columns: 36
+          - type: energy-gas-graph
+            title: Heat produced
+            grid_options:
+              columns: 24
+          - type: energy-sources-table
+            title: Totals
+            types:
+              - gas
+            grid_options:
+              columns: 12
+          - type: custom:heat-ledger-gas-devices-detail-graph
+            title: Rooms per day
+            grid_options:
+              columns: 36
+          - type: custom:heat-ledger-gas-devices-graph
+            title: Rooms compared
+            grid_options:
+              columns: 36
+          - type: gas-sankey
+            title: Heat flow
+            group_by_floor: true
+            group_by_area: true
+            grid_options:
+              columns: 36
 ```
 
-Change `period` and `days_to_show` for other ranges, for example `period: week` with `days_to_show: 90`.
+The bar at the bottom chooses the period, as on the Energy dashboard. You can also put the two cards on any other
+dashboard: in the card picker they are called *Heat Ledger: gas devices over time* and *Heat Ledger: gas devices in
+total*.
 
 ## Removing Heat Ledger
 
