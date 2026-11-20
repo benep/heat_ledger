@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 370" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <rect x="1" y="1" width="818" height="368" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <text x="410" y="38" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">Every extra detail makes it more accurate</text>
+
+  <rect x="30" y="230" width="150" height="70" rx="6" fill="#fde0cf"/>
+  <rect x="186" y="195" width="150" height="105" rx="6" fill="#fbc6a8"/>
+  <rect x="342" y="160" width="150" height="140" rx="6" fill="#f4a261"/>
+  <rect x="498" y="125" width="150" height="175" rx="6" fill="#9cc9a5"/>
+  <rect x="654" y="90" width="150" height="210" rx="6" fill="#2a9d8f"/>
+
+  <g font-size="14" fill="#222" text-anchor="middle">
+    <text x="105" y="254" font-weight="bold">Heat source</text>
+    <text x="105" y="272" font-weight="bold">+ thermostats</text>
+    <text x="105" y="290" font-size="12" fill="#555">the minimum</text>
+
+    <text x="261" y="219" font-weight="bold">+ pumps</text>
+    <text x="261" y="237" font-size="12" fill="#444">when heat flows</text>
+
+    <text x="417" y="184" font-weight="bold">+ demand in %</text>
+    <text x="417" y="202" font-size="12" fill="#333">how much each</text>
+    <text x="417" y="217" font-size="12" fill="#333">room asks for</text>
+
+    <text x="573" y="149" font-weight="bold">+ heat output</text>
+    <text x="573" y="167" font-size="12" fill="#333">of each radiator</text>
+    <text x="573" y="182" font-size="12" fill="#333">(watts)</text>
+
+    <text x="729" y="114" font-weight="bold" fill="#fff">+ heat meter</text>
+    <text x="729" y="132" font-size="12" fill="#fff">on a radiator or</text>
+    <text x="729" y="147" font-size="12" fill="#fff">the hot water</text>
+  </g>
+  <g font-size="13" text-anchor="middle">
+    <text x="105" y="322" fill="#777">estimated</text>
+    <text x="261" y="322" fill="#777">estimated</text>
+    <text x="417" y="322" fill="#777">estimated</text>
+    <text x="573" y="322" fill="#777">estimated</text>
+    <text x="729" y="322" fill="#2a9d8f" font-weight="bold">measured</text>
+  </g>
+  <text x="410" y="354" text-anchor="middle" font-size="13" fill="#555">Each room heating tells you which detail would help it most (attribute “Next improvement”).</text>
+</svg>

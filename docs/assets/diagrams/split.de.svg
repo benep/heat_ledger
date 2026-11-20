@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa3ad"/>
+    </marker>
+  </defs>
+  <rect x="1" y="1" width="818" height="398" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <text x="410" y="38" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">Alle 5 Minuten wird die neue Wärme nach Gewicht verteilt</text>
+
+  <!-- Source -->
+  <rect x="24" y="155" width="150" height="90" rx="10" fill="#fff" stroke="#c9ced6"/>
+  <text x="99" y="187" text-anchor="middle" font-size="14" fill="#666">Gaszähler</text>
+  <text x="99" y="221" text-anchor="middle" font-size="24" font-weight="bold" fill="#e4572e">+10 kWh</text>
+  <line x1="176" y1="200" x2="212" y2="200" stroke="#9aa3ad" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Account -->
+  <rect x="216" y="145" width="164" height="110" rx="10" fill="#fff4e6" stroke="#f4a261" stroke-width="1.5"/>
+  <text x="298" y="178" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Zu verteilen</text>
+  <text x="298" y="212" text-anchor="middle" font-size="24" font-weight="bold" fill="#e07a1f">10 kWh</text>
+  <text x="298" y="238" text-anchor="middle" font-size="12" fill="#666">wartet, wenn kein Raum heizt</text>
+
+  <g stroke="#9aa3ad" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M382 200 C410 200 410 105 432 105"/>
+    <path d="M382 200 C410 200 410 170 432 170"/>
+    <path d="M382 200 C410 200 410 235 432 235"/>
+    <path d="M382 200 C410 200 410 300 432 300"/>
+  </g>
+
+  <!-- Rooms -->
+  <text x="440" y="74" font-size="12" fill="#888">Größe × Anforderung = Gewicht</text>
+  <text x="800" y="74" text-anchor="end" font-size="12" fill="#888">Anteil an den 10 kWh</text>
+  <g font-size="14" font-weight="bold" fill="#333">
+    <text x="440" y="101">Wohnzimmer</text>
+    <text x="440" y="166">Schlafzimmer</text>
+    <text x="440" y="231">Bad</text>
+    <text x="440" y="296">Küche</text>
+  </g>
+  <g font-size="12.5" fill="#555">
+    <text x="440" y="120">2500 W × 60 % = 1500</text>
+    <text x="440" y="185">1200 W × 20 % = 240</text>
+    <text x="440" y="250">1400 W × 50 % = 700</text>
+    <text x="440" y="315">1000 W × 0 % = 0</text>
+  </g>
+  <g fill="#2a9d8f">
+    <rect x="600" y="96" width="140" height="22" rx="3"/>
+    <rect x="600" y="161" width="23" height="22" rx="3"/>
+    <rect x="600" y="226" width="66" height="22" rx="3"/>
+  </g>
+  <g font-size="14" font-weight="bold" fill="#2a9d8f">
+    <text x="746" y="112">6,1 kWh</text>
+    <text x="629" y="177">1,0 kWh</text>
+    <text x="672" y="242">2,9 kWh</text>
+    <text x="600" y="307" fill="#999">0 kWh (Thermostat aus)</text>
+  </g>
+
+  <text x="410" y="362" text-anchor="middle" font-size="13" fill="#555">Größe: die Heizleistung des Heizkörpers, oder alle gleich. Anforderung: wie viel Wärme sein Thermostat gerade will.</text>
+  <text x="410" y="382" text-anchor="middle" font-size="13" fill="#555">Die Gewichte werden über die 5 Minuten aufsummiert; jeder Raum bekommt seinen Teil.</text>
+</svg>

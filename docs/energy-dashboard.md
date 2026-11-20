@@ -1,44 +1,73 @@
 # Energy dashboard
 
-Heat Ledger's counters are meant for the **gas** tab of the Energy dashboard, which accepts any energy sensor as an
-individual device since Home Assistant 2026.12. The tab is called "Gas" even when the heat comes from oil, wood or
-a heat pump.
+The counters of Heat Ledger belong in the **gas** tab of the Energy dashboard. There, Home Assistant shows them as
+individual devices: which room used how much heat, per day, week or month.
 
-## Setup
+!!! info "Home Assistant 2026.12 or newer"
 
-In **Settings → Dashboards → Energy → Gas**:
+    Individual devices on the gas tab came with Home Assistant 2026.12. The tab is called *Gas* even if your heat
+    comes from oil, wood or a heat pump; that does not matter.
 
-1. Add each heat source as a gas source (the energy entity you gave Heat Ledger as source, or its converted
-   "heat" sensor). The name you enter there is the one the dashboard shows.
-2. Add each circuit's heat counter as an individual device.
-3. Add each radiator's heat counter as an individual device with its circuit as **upstream device**.
-4. Add hot water as an individual device without upstream device.
+## What it will look like
 
-The Sankey then shows sources → home → circuits and hot water → radiators. Like on the electricity tab, it groups
-the consumers by floor and area: Heat Ledger puts each consumer's device into the area of its thermostat (or
-pump, or heat meter) when it is created, so assign floors to your areas and the grouping follows. Name the radiators for what they are ("Radiator",
-or "Radiator window" when a room has two), not after the room: the area already says where they are. Named after
-the room, the room appears twice in the Sankey and in the entity ID (`sensor.living_room_living_room_heat`,
-because Home Assistant puts the area in front). Enter the same name as display name in the Energy settings, or the
-Sankey shows the sensor's name ("Radiator Heat").
+![The gas tab: heat per day, and its flow from the heat source through the floors to the rooms and the hot water](assets/screenshots/energy-dashboard.png){ .screenshot }
 
-The grouping applies to the top level only: radiators below a circuit stay below it, without floors. With a
-single circuit, the circuit adds little; leave it out and add the radiators without upstream device, and the Sankey
-shows home → floors → areas → radiators. Keep the circuits when there are several (radiators and underfloor
-heating, or one circuit per floor). "Untracked" is what the sources
-delivered beyond the counters: fixed losses, and heat from before Heat Ledger was set up.
+Home Assistant groups the rooms by **floor** and **area** by itself. Heat Ledger puts every room heating into the area
+of its thermostat; give your areas a floor (**Settings → Areas, labels & zones**), and the grouping follows.
 
-A heat pump or an immersion heater shows up twice: on the electricity tab as electricity, on the gas tab as heat.
-That is not double counting, the tabs are not added up. Set the price of the heat source to 0, or the costs
-appear twice in the overview.
+## Set it up
 
-## Per-device charts
+Go to **Settings → Dashboards → Energy** and open the tab **Gas**.
 
-The electricity tab has bar charts per device ("Individual devices" and its detail chart); the gas tab does not
-have them yet. Two statistics graph cards on any dashboard give the same view. List the radiators and hot water,
-not the circuits, or the stacked bars count every radiator twice.
+!!! warning "The gas source must count in kWh"
 
-Heat per consumer and day, stacked:
+    Home Assistant only lets you combine gas sources and individual gas devices that count the same kind of unit:
+    either all volume (m³) or all energy (kWh). The room counters count heat in kWh, so the **gas source must count in
+    kWh** as well. If your gas meter counts m³, do not use it as gas source here: use the sensor **Heat produced** of
+    Heat Ledger instead. It is your meter times the factor, in kWh. Enter the price per kWh then.
+
+![The gas section of the Energy settings, with the source and the individual devices](assets/screenshots/energy-gas-settings.png){ .screenshot }
+
+<div class="steps" markdown>
+
+1. **The source.** Under **Gas consumption**, click **Add gas source** and choose your heat source in kWh: the
+   meter you gave Heat Ledger if it counts heat in kWh, otherwise Heat Ledger's sensor **Heat produced**. Remove a
+   gas meter in m³ that is already there (its history stays). You can enter a price here as well.
+2. **The rooms.** Under **Individual gas devices**, click **Add device** and choose the **Heat** sensor of a room
+   heating. Repeat for every room.
+3. **The hot water.** Add its **Heat** sensor the same way.
+
+</div>
+
+!!! tip "Display name"
+
+    The dashboard shows the name you enter in the **Display name** field. Without one, it shows the sensor's name,
+    for example *Living room Heat*.
+
+**Untracked** is what your source counted beyond the room heating and the hot water: the fixed losses, if you entered
+any, and the heat from before you set up Heat Ledger.
+
+## With a heating circuit
+
+If you gave Heat Ledger a circuit pump, there is also a counter for the **heating circuit**: all its rooms together.
+
+- **One circuit:** leave it out. Add the rooms directly as above; the dashboard then groups them by floor.
+- **Several circuits** (radiators and underfloor heating, or one circuit per floor): add each circuit as a device,
+  and each of its rooms with the circuit as **upstream device**. The rooms then sit below their circuit.
+
+## A heat pump or an immersion heater
+
+They show up twice: on the electricity tab as electricity, on the gas tab as heat. That is not counted twice, the
+tabs are not added up. Set the price of the heat source on the gas tab to **0**, otherwise the costs appear twice in
+the overview.
+
+## Charts per room
+
+The electricity tab has bar charts per device; the gas tab does not have them yet. Two **statistics graph** cards on
+any dashboard give the same view. Replace the entities with your own **Heat** sensors. List the rooms and the hot
+water, not the circuits, or the stacked bars count every room twice.
+
+Heat per room and day, stacked:
 
 ```yaml
 type: statistics-graph
@@ -59,11 +88,11 @@ entities:
     name: Hot water
 ```
 
-Consumers side by side, per month:
+Rooms side by side, per month:
 
 ```yaml
 type: statistics-graph
-title: Consumers compared
+title: Rooms compared
 chart_type: bar
 period: month
 days_to_show: 30
@@ -81,3 +110,8 @@ entities:
 ```
 
 Change `period` and `days_to_show` for other ranges, for example `period: week` with `days_to_show: 90`.
+
+## Removing Heat Ledger
+
+When you delete Heat Ledger or one of its room heatings, its sensors disappear, but their history stays. The Energy
+dashboard keeps the entries and reports them as missing: remove them there by hand.

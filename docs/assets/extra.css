@@ -1,0 +1,22 @@
+/* Diagrams sit on a light card of their own, so they read the same in the light and the dark theme. */
+.md-typeset img.diagram {
+  display: block;
+  margin: 1em auto;
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+/* Screenshots get a thin frame, so a white dialog does not melt into a white page. */
+.md-typeset img.screenshot {
+  display: block;
+  margin: 1em auto;
+  max-width: 100%;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Numbered steps as a clear list for beginners. */
+.md-typeset .steps > ol > li {
+  margin-bottom: 0.8em;
+}

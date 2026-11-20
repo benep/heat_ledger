@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 440" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <g id="radiator">
+      <rect x="0" y="0" width="60" height="36" rx="3" fill="#ffd9cc" stroke="#e4572e" stroke-width="1.5"/>
+      <path d="M12 4 V32 M24 4 V32 M36 4 V32 M48 4 V32" stroke="#e4572e" stroke-width="1.5"/>
+    </g>
+    <g id="pump">
+      <circle cx="0" cy="0" r="19" fill="#fff" stroke="#333" stroke-width="2"/>
+      <path d="M-8 -11 L12 0 L-8 11 Z" fill="#333"/>
+    </g>
+  </defs>
+  <rect x="1" y="1" width="818" height="438" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <text x="410" y="36" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">Welche Pumpe ist welche?</text>
+
+  <!-- Boiler -->
+  <rect x="36" y="150" width="124" height="150" rx="10" fill="#fff" stroke="#9aa3ad" stroke-width="2"/>
+  <text x="98" y="178" text-anchor="middle" font-size="15" font-weight="bold" fill="#333">Kessel</text>
+  <path d="M98 205 C78 232 84 262 98 272 C112 262 118 232 98 205 Z" fill="#e4572e"/>
+  <path d="M98 232 C89 248 92 262 98 266 C104 262 107 248 98 232 Z" fill="#f4a261"/>
+
+  <!-- Pipes to the radiators -->
+  <path d="M160 200 H250 V110 H331 M369 110 H760" fill="none" stroke="#e4572e" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M480 110 V128 M590 110 V128 M700 110 V128" stroke="#e4572e" stroke-width="4"/>
+  <use href="#radiator" x="450" y="128"/>
+  <use href="#radiator" x="560" y="128"/>
+  <use href="#radiator" x="670" y="128"/>
+  <use href="#pump" x="350" y="110"/>
+  <text x="350" y="74" text-anchor="middle" font-size="15" font-weight="bold" fill="#222">① Heizkreispumpe</text>
+  <text x="590" y="192" text-anchor="middle" font-size="13" fill="#555">Heizkörper oder Fußbodenheizung</text>
+
+  <!-- Pipes to the hot water tank -->
+  <path d="M250 200 V310 H331 M369 310 H520" fill="none" stroke="#e4572e" stroke-width="5" stroke-linejoin="round"/>
+  <use href="#pump" x="350" y="310"/>
+  <text x="350" y="274" text-anchor="middle" font-size="15" font-weight="bold" fill="#222">② Warmwasser-Ladung</text>
+  <rect x="520" y="250" width="74" height="118" rx="32" fill="#e8f1ff" stroke="#3a86ff" stroke-width="2"/>
+  <text x="557" y="392" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">Warmwasserspeicher</text>
+
+  <!-- Circulation: not this one -->
+  <path d="M594 285 H652 M688 285 H748" fill="none" stroke="#a9b0b8" stroke-width="4" stroke-dasharray="8 5"/>
+  <circle cx="670" cy="285" r="17" fill="#fff" stroke="#a9b0b8" stroke-width="2"/>
+  <path d="M663 275 L680 285 L663 295 Z" fill="#a9b0b8"/>
+  <path d="M650 265 L690 305 M690 265 L650 305" stroke="#c0392b" stroke-width="4" stroke-linecap="round"/>
+  <path d="M748 285 H770 V300 M762 300 H778" fill="none" stroke="#a9b0b8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M770 308 v6 M770 320 v6" stroke="#3a86ff" stroke-width="3" stroke-linecap="round"/>
+  <text x="680" y="338" text-anchor="middle" font-size="14" font-weight="bold" fill="#8a9099">③ Zirkulationspumpe</text>
+  <text x="680" y="357" text-anchor="middle" font-size="14" font-weight="bold" fill="#c0392b">nicht diese</text>
+
+  <text x="410" y="420" text-anchor="middle" font-size="13" fill="#555">Heat Ledger will wissen, wann ① und ② laufen. ③ hält nur das Warmwasser an den Zapfstellen warm.</text>
+</svg>

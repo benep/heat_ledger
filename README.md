@@ -1,15 +1,22 @@
 # Heat Ledger
 
-A Home Assistant custom integration that shows where your heating energy goes: it splits the heat of one or more
-sources (boiler, heat pump, immersion heater, wood stove) into energy counters per radiator and for domestic hot
-water, ready to use as individual devices in the Energy dashboard.
+A Home Assistant integration that shows where the heat of your heating goes: it splits the heat of your boiler, heat
+pump or other heat source between your rooms and your hot water, as a counter per room for the Energy dashboard.
 
-It estimates from entities you already have (source energy, thermostat demand, pump states) and gets more accurate
-with every optional input, such as radiator ratings, flow and return temperatures or heat cost allocators.
+![Without Heat Ledger: one number for the whole house. With Heat Ledger: a counter per room and for hot water.](https://raw.githubusercontent.com/benep/heat_ledger/main/docs/assets/diagrams/overview.svg)
 
-Status: in development, not released yet.
+It estimates from what Home Assistant already knows (your heating's meter, your thermostats, optionally your pumps)
+and gets more accurate with every detail you add. It only reads; it does not control anything.
 
-How to set up the Energy dashboard with it, and two cards for per-device charts that the gas tab does not have
-yet: [docs/energy-dashboard.md](docs/energy-dashboard.md).
+**Status:** beta.
 
-Sister project: Fuel Ledger, bookkeeping for heating fuel.
+## Install
+
+Add `https://github.com/benep/heat_ledger` as a custom repository of type *Integration* in HACS, download Heat
+Ledger, restart Home Assistant and add the integration.
+
+## Help
+
+Step by step, in English and German: **[benep.github.io/heat_ledger](https://benep.github.io/heat_ledger/)**
+
+For developers: [architecture](docs/architecture.md), [development](docs/development.md).

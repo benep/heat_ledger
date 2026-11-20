@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 380" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <rect x="1" y="1" width="818" height="378" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <text x="410" y="38" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">What does your meter count?</text>
+
+  <!-- Energy input -->
+  <rect x="30" y="62" width="370" height="250" rx="12" fill="#fff4e6" stroke="#f4a261" stroke-width="1.5"/>
+  <text x="215" y="94" text-anchor="middle" font-size="17" font-weight="bold" fill="#e07a1f">Energy input</text>
+  <text x="215" y="114" text-anchor="middle" font-size="12.5" fill="#666">what goes into the boiler or heater</text>
+  <g font-size="14" fill="#333">
+    <circle cx="60" cy="146" r="5" fill="#f4a261"/><text x="76" y="151">Gas meter (m³ or kWh)</text>
+    <circle cx="60" cy="178" r="5" fill="#f4a261"/><text x="76" y="183">Heating oil (litres)</text>
+    <circle cx="60" cy="210" r="5" fill="#f4a261"/><text x="76" y="215">Pellets or wood (kg or kWh)</text>
+    <circle cx="60" cy="242" r="5" fill="#f4a261"/><text x="76" y="247">Electricity of an immersion heater</text>
+  </g>
+  <rect x="62" y="268" width="306" height="30" rx="15" fill="#f4a261"/>
+  <text x="215" y="288" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#fff">Step 2b asks for a factor</text>
+
+  <!-- Heat -->
+  <rect x="420" y="62" width="370" height="250" rx="12" fill="#e7f5f3" stroke="#2a9d8f" stroke-width="1.5"/>
+  <text x="605" y="94" text-anchor="middle" font-size="17" font-weight="bold" fill="#2a9d8f">Heat</text>
+  <text x="605" y="114" text-anchor="middle" font-size="12.5" fill="#666">what comes out, already in kWh or MJ</text>
+  <g font-size="14" fill="#333">
+    <circle cx="450" cy="146" r="5" fill="#2a9d8f"/><text x="466" y="151">A heat meter</text>
+    <circle cx="450" cy="178" r="5" fill="#2a9d8f"/><text x="466" y="183">The heat a heat pump reports</text>
+    <text x="466" y="203" font-size="12.5" fill="#666">(heat energy, thermal energy …)</text>
+  </g>
+  <rect x="452" y="268" width="306" height="30" rx="15" fill="#2a9d8f"/>
+  <text x="605" y="288" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#fff">Straight on to the pumps</text>
+
+  <text x="410" y="344" text-anchor="middle" font-size="13.5" fill="#c0392b" font-weight="bold">Heat pump: choose the heat it reports, not its electricity.</text>
+</svg>

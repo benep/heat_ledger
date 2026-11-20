@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 510" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa3ad"/>
+    </marker>
+    <g id="radiator">
+      <rect x="0" y="0" width="44" height="26" rx="3" fill="#ffd9cc" stroke="#e4572e" stroke-width="1.5"/>
+      <path d="M11 3 V23 M22 3 V23 M33 3 V23" stroke="#e4572e" stroke-width="1.5"/>
+    </g>
+  </defs>
+  <rect x="1" y="1" width="818" height="508" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <line x1="410" y1="24" x2="410" y2="486" stroke="#e2e5ea" stroke-width="2"/>
+
+  <!-- Left: one number -->
+  <text x="200" y="44" text-anchor="middle" font-size="19" font-weight="bold" fill="#222">Without Heat Ledger</text>
+  <rect x="80" y="66" width="240" height="66" rx="10" fill="#fff" stroke="#c9ced6"/>
+  <text x="200" y="92" text-anchor="middle" font-size="14" fill="#666">Gas meter</text>
+  <text x="200" y="121" text-anchor="middle" font-size="24" font-weight="bold" fill="#e4572e">85 kWh today</text>
+  <line x1="200" y1="134" x2="200" y2="158" stroke="#9aa3ad" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="70,215 200,160 330,215" fill="#fff" stroke="#9aa3ad" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="80" y="215" width="240" height="250" fill="#fff" stroke="#9aa3ad" stroke-width="2"/>
+  <path d="M80 315 H320 M80 415 H320 M200 215 V415" stroke="#c9ced6" stroke-width="2"/>
+  <g font-size="40" font-weight="bold" fill="#c3c8cf" text-anchor="middle">
+    <text x="140" y="280">?</text><text x="260" y="280">?</text>
+    <text x="140" y="380">?</text><text x="260" y="380">?</text>
+    <text x="200" y="455">?</text>
+  </g>
+  <text x="200" y="497" text-anchor="middle" font-size="14" fill="#555">One number for the whole house</text>
+
+  <!-- Right: a counter per room -->
+  <text x="610" y="44" text-anchor="middle" font-size="19" font-weight="bold" fill="#222">With Heat Ledger</text>
+  <polygon points="440,215 610,155 780,215" fill="#fff" stroke="#9aa3ad" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="450" y="215" width="320" height="250" fill="#fff" stroke="#9aa3ad" stroke-width="2"/>
+  <path d="M450 315 H770 M450 415 H770 M610 215 V415" stroke="#c9ced6" stroke-width="2"/>
+  <g font-size="14" font-weight="bold" fill="#333">
+    <text x="462" y="239">Bedroom</text>
+    <text x="622" y="239">Bathroom</text>
+    <text x="462" y="339">Living room</text>
+    <text x="622" y="339">Kitchen</text>
+  </g>
+  <use href="#radiator" x="464" y="265"/>
+  <use href="#radiator" x="624" y="265"/>
+  <use href="#radiator" x="464" y="365"/>
+  <use href="#radiator" x="624" y="365"/>
+  <g font-size="14" font-weight="bold" fill="#fff" text-anchor="middle">
+    <rect x="522" y="265" width="76" height="26" rx="13" fill="#2a9d8f"/><text x="560" y="283">12 kWh</text>
+    <rect x="682" y="265" width="76" height="26" rx="13" fill="#2a9d8f"/><text x="720" y="283">14 kWh</text>
+    <rect x="522" y="365" width="76" height="26" rx="13" fill="#2a9d8f"/><text x="560" y="383">31 kWh</text>
+    <rect x="682" y="365" width="76" height="26" rx="13" fill="#2a9d8f"/><text x="720" y="383">9 kWh</text>
+  </g>
+  <!-- Basement: boiler and hot water -->
+  <rect x="470" y="423" width="26" height="34" rx="3" fill="#eef0f3" stroke="#9aa3ad"/>
+  <path d="M483 430 C476 440 478 448 483 451 C488 448 490 440 483 430 Z" fill="#e4572e"/>
+  <text x="504" y="445" font-size="13" fill="#666">Boiler</text>
+  <rect x="578" y="421" width="22" height="38" rx="10" fill="#e8f1ff" stroke="#3a86ff"/>
+  <text x="608" y="445" font-size="14" font-weight="bold" fill="#333">Hot water</text>
+  <rect x="692" y="427" width="74" height="26" rx="13" fill="#2a9d8f"/>
+  <text x="729" y="445" text-anchor="middle" font-size="14" font-weight="bold" fill="#fff">19 kWh</text>
+  <text x="610" y="497" text-anchor="middle" font-size="14" fill="#555">A counter per room and for hot water: together 85 kWh</text>
+</svg>

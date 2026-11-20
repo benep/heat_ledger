@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 380" font-family="Roboto, 'Segoe UI', Arial, sans-serif">
+  <rect x="1" y="1" width="818" height="378" rx="14" fill="#f7f8fa" stroke="#e2e5ea"/>
+  <text x="410" y="38" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">Was zählt dein Zähler?</text>
+
+  <!-- Energy input -->
+  <rect x="30" y="62" width="370" height="250" rx="12" fill="#fff4e6" stroke="#f4a261" stroke-width="1.5"/>
+  <text x="215" y="94" text-anchor="middle" font-size="17" font-weight="bold" fill="#e07a1f">Energieeinsatz</text>
+  <text x="215" y="114" text-anchor="middle" font-size="12.5" fill="#666">was in den Kessel oder Heizstab hineingeht</text>
+  <g font-size="14" fill="#333">
+    <circle cx="60" cy="146" r="5" fill="#f4a261"/><text x="76" y="151">Gaszähler (m³ oder kWh)</text>
+    <circle cx="60" cy="178" r="5" fill="#f4a261"/><text x="76" y="183">Heizöl (Liter)</text>
+    <circle cx="60" cy="210" r="5" fill="#f4a261"/><text x="76" y="215">Pellets oder Holz (kg oder kWh)</text>
+    <circle cx="60" cy="242" r="5" fill="#f4a261"/><text x="76" y="247">Strom eines Heizstabs</text>
+  </g>
+  <rect x="62" y="268" width="306" height="30" rx="15" fill="#f4a261"/>
+  <text x="215" y="288" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#fff">Schritt 2b fragt nach einem Faktor</text>
+
+  <!-- Heat -->
+  <rect x="420" y="62" width="370" height="250" rx="12" fill="#e7f5f3" stroke="#2a9d8f" stroke-width="1.5"/>
+  <text x="605" y="94" text-anchor="middle" font-size="17" font-weight="bold" fill="#2a9d8f">Wärme</text>
+  <text x="605" y="114" text-anchor="middle" font-size="12.5" fill="#666">was herauskommt, schon in kWh oder MJ</text>
+  <g font-size="14" fill="#333">
+    <circle cx="450" cy="146" r="5" fill="#2a9d8f"/><text x="466" y="151">Ein Wärmemengenzähler</text>
+    <circle cx="450" cy="178" r="5" fill="#2a9d8f"/><text x="466" y="183">Die Wärme, die eine Wärmepumpe meldet</text>
+    <text x="466" y="203" font-size="12.5" fill="#666">(Wärmemenge, thermische Energie …)</text>
+  </g>
+  <rect x="452" y="268" width="306" height="30" rx="15" fill="#2a9d8f"/>
+  <text x="605" y="288" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#fff">Direkt weiter zu den Pumpen</text>
+
+  <text x="410" y="344" text-anchor="middle" font-size="13.5" fill="#c0392b" font-weight="bold">Wärmepumpe: die Wärme nehmen, die sie meldet, nicht ihren Strom.</text>
+</svg>
