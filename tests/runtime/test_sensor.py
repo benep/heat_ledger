@@ -11,7 +11,9 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry, mock_restore_cache_with_extra_data
 
-from custom_components.heat_ledger.const import DOMAIN
+from custom_components.heat_ledger.const import DOMAIN, STORAGE_VERSION
+from custom_components.heat_ledger.engine import Ledger
+from custom_components.heat_ledger.model import Subentry, build_plant
 
 from .common import (
     BATH_SHARE,
@@ -20,6 +22,7 @@ from .common import (
     LIVING_DEMAND,
     LIVING_SHARE,
     PUMP,
+    SUBENTRIES,
     attributes,
     entity_id,
     next_interval,
@@ -175,6 +178,103 @@ async def test_counter_continues_from_restored_value(hass: HomeAssistant, entry:
     assert value(hass, "living_heat") == pytest.approx(5.0 + LIVING_SHARE)
 
 
+async def test_counter_holds_its_value_while_an_older_store_catches_up(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer, hass_storage
+) -> None:
+    """The store is only older than the sensor's last state: the ledger books that time again, so the counter holds
+    its value until the ledger has caught up, instead of adding the difference on top."""
+    plant = build_plant({}, [Subentry(**{k: v for k, v in s.items() if k != "unique_id"}) for s in SUBENTRIES])
+    hass_storage[f"{DOMAIN}.{entry.entry_id}"] = {
+        "version": STORAGE_VERSION,
+        "minor_version": 1,
+        "key": f"{DOMAIN}.{entry.entry_id}",
+        "data": {"ledger": Ledger(plant).to_dict()},
+    }
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "living_heat",
+        suggested_object_id="living_room_heat",
+        config_entry=entry,
+        config_subentry_id="living",
+    )
+    restored = State("sensor.living_room_heat", "5.0")
+    extra = {"native_value": 5.0, "native_unit_of_measurement": "kWh", "offset": 0.0}
+    mock_restore_cache_with_extra_data(hass, [(restored, extra)])
+    await setup(hass, entry)
+    assert value(hass, "living_heat") == pytest.approx(5.0)
+
+    hass.states.async_set(BOILER, "101.0", {"unit_of_measurement": "kWh"})
+    await next_interval(hass, freezer)
+    assert value(hass, "living_heat") == pytest.approx(5.0)  # the ledger is at LIVING_SHARE, below the held value
+
+
+async def test_offset_of_the_previous_version_is_kept(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer, hass_storage
+) -> None:
+    """The previous version kept its offset only in the sensor's value (no "offset" in the restored data): the counter
+    goes on from it and keeps counting, instead of standing still until the ledger has collected the difference."""
+    plant = build_plant({}, [Subentry(**{k: v for k, v in s.items() if k != "unique_id"}) for s in SUBENTRIES])
+    ledger = Ledger(plant)
+    ledger.totals["living"] = 10.0
+    hass_storage[f"{DOMAIN}.{entry.entry_id}"] = {
+        "version": STORAGE_VERSION,
+        "minor_version": 1,
+        "key": f"{DOMAIN}.{entry.entry_id}",
+        "data": {"ledger": ledger.to_dict()},
+    }
+    er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "living_heat",
+        suggested_object_id="living_room_heat",
+        config_entry=entry,
+        config_subentry_id="living",
+    )
+    restored = State("sensor.living_room_heat", "510.0")
+    mock_restore_cache_with_extra_data(hass, [(restored, {"native_value": 510.0, "native_unit_of_measurement": "kWh"})])
+    await setup(hass, entry)
+    assert value(hass, "living_heat") == pytest.approx(510.0)
+
+    hass.states.async_set(BOILER, "101.0", {"unit_of_measurement": "kWh"})
+    await next_interval(hass, freezer)
+    assert value(hass, "living_heat") == pytest.approx(510.0 + LIVING_SHARE)
+
+
+async def test_offset_from_a_lost_store_survives_the_next_restart(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer, hass_storage
+) -> None:
+    """The store was lost once (offset 500); at the next restart the store is back with 10 kWh: the counter goes on
+    from 510 and keeps counting, instead of standing still until the ledger has collected 500 kWh again."""
+    plant = build_plant({}, [Subentry(**{k: v for k, v in s.items() if k != "unique_id"}) for s in SUBENTRIES])
+    ledger = Ledger(plant)
+    ledger.totals["living"] = 10.0
+    hass_storage[f"{DOMAIN}.{entry.entry_id}"] = {
+        "version": STORAGE_VERSION,
+        "minor_version": 1,
+        "key": f"{DOMAIN}.{entry.entry_id}",
+        "data": {"ledger": ledger.to_dict()},
+    }
+    er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "living_heat",
+        suggested_object_id="living_room_heat",
+        config_entry=entry,
+        config_subentry_id="living",
+    )
+    restored = State("sensor.living_room_heat", "510.0")
+    extra = {"native_value": 510.0, "native_unit_of_measurement": "kWh", "offset": 500.0}
+    mock_restore_cache_with_extra_data(hass, [(restored, extra)])
+    await setup(hass, entry)
+    assert value(hass, "living_heat") == pytest.approx(510.0)
+
+    hass.states.async_set(BOILER, "101.0", {"unit_of_measurement": "kWh"})
+    await next_interval(hass, freezer)
+    assert value(hass, "living_heat") == pytest.approx(510.0 + LIVING_SHARE)
+
+
 async def test_consumer_lands_in_the_area_of_its_thermostat(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     """The Energy dashboard groups consumers by floor and area: take the area of the demand entity's device."""
     other = MockConfigEntry(domain="thermostats")
@@ -265,3 +365,27 @@ async def test_source_switched_to_heat_leaves_no_leftover(hass: HomeAssistant, e
     await hass.async_block_till_done()
     assert entity_id(hass, "heat_pump_source_heat") is None
     assert dr.async_get(hass).async_get_device_by_identifier(("heat_ledger", "heat_pump"), entry.entry_id) is None
+
+
+async def test_state_of_a_deleted_counter_with_the_same_entity_id_is_ignored(
+    hass: HomeAssistant, entry: MockConfigEntry, freezer
+) -> None:
+    """Room heating removed and added again under the same name gets the same entity ID, and Home Assistant restores
+    the deleted counter's state for a week: the new counter starts at 0 instead of standing still at 800 kWh."""
+    er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "living_heat",
+        suggested_object_id="living_room_heat",
+        config_entry=entry,
+        config_subentry_id="living",
+    )
+    restored = State("sensor.living_room_heat", "800.0")
+    extra = {"native_value": 800.0, "native_unit_of_measurement": "kWh", "offset": 0.0, "unique_id": "deleted_heat"}
+    mock_restore_cache_with_extra_data(hass, [(restored, extra)])
+    await setup(hass, entry)
+    assert value(hass, "living_heat") == pytest.approx(0.0)
+
+    hass.states.async_set(BOILER, "101.0", {"unit_of_measurement": "kWh"})
+    await next_interval(hass, freezer)
+    assert value(hass, "living_heat") == pytest.approx(LIVING_SHARE)

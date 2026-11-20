@@ -281,7 +281,9 @@
     "radiator": { "name": "Room heating" },
     "hot_water": { "name": "Hot water heating" },
     "default_plant_name": { "name": "Heating" },
-    "default_hot_water_name": { "name": "Hot water" }
+    "default_hot_water_name": { "name": "Hot water" },
+    "removed_source": { "name": "Removed source" },
+    "unattributed": { "name": "Not attributed" }
   },
   "entity": {
     "sensor": {

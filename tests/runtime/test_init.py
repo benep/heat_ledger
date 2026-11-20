@@ -117,14 +117,6 @@ async def test_unreadable_store_starts_over(hass: HomeAssistant, entry: MockConf
     assert value(hass, f"{entry.entry_id}_account") == pytest.approx(0.0)
 
 
-async def test_implausible_jump_is_logged_and_skipped(hass: HomeAssistant, entry: MockConfigEntry, freezer, caplog):
-    await setup(hass, entry)
-    hass.states.async_set(BOILER, "100500.0", {"unit_of_measurement": "kWh"})  # 100400 kWh at once
-    await next_interval(hass, freezer)
-    assert f"Ignored a jump of {BOILER}" in caplog.text
-    assert value(hass, "ground_floor_heat") == pytest.approx(0.0)
-
-
 async def test_reload_keeps_the_counters(hass: HomeAssistant, entry: MockConfigEntry, freezer) -> None:
     await setup(hass, entry)
     await boiler(hass, 101.0)

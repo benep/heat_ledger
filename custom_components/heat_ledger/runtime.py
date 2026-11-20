@@ -29,7 +29,6 @@ from .const import (
     STORAGE_VERSION,
 )
 from .engine import Ledger, PlantSpec, Reading
-from .engine.ledger import MAX_PLAUSIBLE_KW
 from .model import InputKind, Subentry, input_kinds, parse_state, reference_units
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,7 +69,6 @@ class HeatLedgerRuntime:
                 # The counters keep their values through their restored states; only the split starts over.
                 _LOGGER.warning("Stored state of %s is unreadable, starting over", self.entry.title, exc_info=True)
         self.ledger.observe(self._now(), {key: self._read(key, self.hass.states.get(key)) for key in self.kinds})
-        self._log_rejected()
 
         if self.kinds:
             self._unsubscribe.append(async_track_state_change_event(self.hass, list(self.kinds), self._on_state))
@@ -142,18 +140,6 @@ class HeatLedgerRuntime:
         if self.ledger.has_reading(key, reading):
             return  # only an attribute changed (a thermostat's room temperature): nothing new for the ledger
         self.ledger.observe(self._now(), {key: reading})
-        self._log_rejected()
-
-    def _log_rejected(self) -> None:
-        for entity_id, increase in self.ledger.rejected:
-            _LOGGER.warning(
-                "Ignored a jump of %s by %.1f (a unit mixed up, or more than %.0f kW on average): taken as a glitch "
-                "or a replaced meter, not as heat",
-                entity_id,
-                increase,
-                MAX_PLAUSIBLE_KW,
-            )
-        self.ledger.rejected.clear()
 
     @callback
     def _on_interval(self, _now: Any) -> None:

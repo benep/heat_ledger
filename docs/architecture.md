@@ -33,8 +33,8 @@ Sources ──► Account (per source, kWh) ──► Consumers
   dashboard uses as parent (`included_in_stat`). A radiator moved to another circuit leaves its history with the
   old one; the new one counts it from then on, without a jump. Rewriting the history instead (as if it had always
   been in the new circuit) needs the statistics rewrite of the backfill and comes with it.
-- **Measured consumer:** a consumer with its own heat meter. Its readings are taken out of the account directly and
-  it takes no part in the split; the others share what is left.
+- **Measured consumer:** a consumer with its own heat meter. Its readings are taken out of the account directly (or as
+  soon as a source holds heat) and it takes no part in the split; the others share what is left.
 
 ## Levels
 
@@ -70,21 +70,36 @@ the time. The same code runs live, in tests and in the backfill of past statisti
 
 Rules:
 
-- **Conservation:** at every moment, heat of all sources = consumers + losses + account. Tested as a property.
-- **Counters never decrease**, also not across restarts.
+- **Conservation:** at every moment, heat of all sources = what consumers received by source + losses + account.
+  Balances never go negative: heat is only taken from sources that hold some, up to what they hold. Tested as a
+  property, also across restarts and with a source removed. (A balance an earlier version overdrew is kept, so the
+  next deliveries fill it instead of being split again.)
+- **Counters never decrease**, also not across restarts. Totals are kept apart from the split by source, so they
+  only ever grow, also in floating point.
 - **Unavailable input:** if any input needed for a weight is unavailable, that stretch of time counts for no one.
   Heat arriving then stays in the account and goes to the next interval with valid weights.
 - **No weights at all** (all pumps off, tank charging at night): the heat stays in the account.
-- **Source decreases:** counted on from the new value at once, as a reset (a meter of the day, back to 0 every
-  night). If the reading is back above the value before the drop within 6 hours, or without having risen at all
-  meanwhile, it was a glitch, such as a template adding two meters while one of them is briefly missing: only the
-  part above the old value counts, less what was booked during the drop. The same applies to heat meters.
-- **Source unavailable:** its increase is booked when it is back, measured from the last valid value.
-- **Implausible jump:** a reading 100 times the one before (a unit mixed up, Wh reported as kWh), or an increase
-  above 1 MW on average since the last change (taken over 5 minutes to 24 hours), is not booked and is logged as a
-  warning. While the reading stays on the scale of the glitch nothing is booked; when it comes back, it counts on
-  from where it was before; if it stays at a plausible distance above, the jump was a meter with a higher reading
-  and it counts on from there. Booked, it would stay in every counter for good.
+- **Source and heat meter readings** follow the rules Home Assistant applies to the statistics of a
+  `total_increasing` sensor, so the counters agree with the source in the Energy dashboard. An increase counts in
+  full. A drop below 90 % of the reading before is a reset (a meter of the day at midnight, a new meter): the new
+  reading counts in full. A smaller drop is a dip, paid off by the next increases before they count (Home Assistant
+  shows it as a negative bar instead; the sums agree, the days do not). Negative readings are skipped.
+- **No plausibility check:** like Home Assistant, Heat Ledger does not judge whether an increase is plausible. A
+  spike of the source, or a template reporting 0 for a moment, ends up in the source's statistics and in those of the
+  consumers, and is corrected there by hand (Developer tools, Statistics). A template source avoids it with an
+  `availability` template. A spike while no consumer has a weight (pumps off at night) waits in the account and
+  reaches the consumers' statistics only when they heat again, possibly hours later.
+- **Source unavailable:** its increase is booked when it is back, measured from the last valid value. Heat that
+  arrived while Home Assistant was down counts the same way.
+- **Heat meter before its source:** what a meter measures beyond what the sources hold counts for its consumer at
+  once and waits ("Not attributed" in `by_source`) until a source delivers; it is then charged to the sources
+  that hold heat at that moment, per consumer the oldest part first, and to the circuit the consumer belonged to when
+  it was measured. Removed before that, its heat is still taken out of the account, so it is not split among the
+  others. It waits for 48 hours at most (a source reporting once a day still catches up): what no delivery covered
+  by then is written off and stays "Not attributed" for good. So a heat meter that jumped takes the deliveries of
+  two days at most, not of months; for those two days the other consumers get nothing.
+- **Removed source:** stays in the books (what it delivered, what it holds, what consumers received from it), so
+  no total goes down and what it still holds is released as before; it shows as "Removed source" in `by_source`.
 - **Other meter:** a source or heat meter switched to another entity, or read in another unit, starts over from
   its next reading; the difference between the two meters is not heat. `nan` and `inf` count as unavailable.
 - **Units:** heat (sources that count heat, heat meters) must be in an energy unit and is read in kWh. Energy input

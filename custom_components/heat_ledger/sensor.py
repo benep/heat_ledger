@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
     RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
+    SensorExtraStoredData,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigSubentry
@@ -49,6 +51,8 @@ from .texts import async_texts
 
 # Restored values below the ledger by less than this are rounding, not a lost state.
 RESTORE_TOLERANCE_KWH = 1e-6
+# Key in the heat by source for what a heat meter measured that no source has delivered (yet, or written off).
+UNATTRIBUTED = "_unattributed"
 
 
 async def async_setup_entry(
@@ -74,6 +78,10 @@ async def async_setup_entry(
         None,
     )
     models = await async_texts(hass)
+    # Sources removed since stay in the books; their share shows under one common name.
+    for source_id in runtime.ledger.source_heat:
+        titles.setdefault(source_id, models[texts.REMOVED_SOURCE])
+    titles[UNATTRIBUTED] = models[texts.UNATTRIBUTED]
     for subentry in subentries:
         area = areas[subentry.subentry_id]
         entity: SensorEntity | None = None
@@ -165,11 +173,27 @@ def _input_area(hass: HomeAssistant, subentry: ConfigSubentry) -> str | None:
     return None
 
 
+OFFSET = "offset"
+UNIQUE_ID = "unique_id"
+
+
+@dataclass
+class _CounterStoredData(SensorExtraStoredData):
+    """The sensor's restored state, with the offset kept after a lost store, so it survives later restarts too, and
+    the unique ID it belongs to."""
+
+    offset: float = 0.0
+    unique_id: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return super().as_dict() | {OFFSET: self.offset, UNIQUE_ID: self.unique_id}
+
+
 class _CounterSensor(_LedgerSensor, RestoreSensor):
     """A heat counter for the Energy dashboard: never lower than the value it had before a restart.
 
-    The ledger normally restores the same value from its own store. If that store was lost or is older than the
-    restored state, the difference is kept as an offset, so the counter continues from where it was.
+    The ledger normally restores the same value from its own store. If that store was lost, the difference to the
+    restored state is kept as an offset; if it is only older, the value is held until the ledger has caught up.
     """
 
     _attr_device_class = SensorDeviceClass.ENERGY
@@ -179,6 +203,7 @@ class _CounterSensor(_LedgerSensor, RestoreSensor):
         super().__init__(runtime)
         self._id = subentry.subentry_id
         self._offset = 0.0
+        self._floor = 0.0
         self._attr_unique_id = f"{subentry.subentry_id}_{key}"
         self._attr_translation_key = key
         self._attr_device_info = device
@@ -195,12 +220,35 @@ class _CounterSensor(_LedgerSensor, RestoreSensor):
             restored = float(last.native_value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return
-        if restored > self._total() + RESTORE_TOLERANCE_KWH:
+        extra = await self.async_get_last_extra_data()
+        stored = extra.as_dict() if extra else {}
+        if stored.get(UNIQUE_ID) not in (None, self.unique_id):
+            # The state of a counter deleted with the same entity ID (room heating removed and added again under the
+            # same name), which Home Assistant keeps for a week: not this counter's.
+            return
+        try:
+            stored_offset = float(stored.get(OFFSET) or 0.0)
+        except (TypeError, ValueError):
+            stored_offset = 0.0
+        if self.runtime.ledger.restored and OFFSET in stored:
+            # The ledger's store is there; an offset from a store lost earlier still applies. If the store is only older
+            # than this state (it is written less often), the ledger books that time again from its meters: hold the
+            # value until it has caught up, instead of adding the difference twice.
+            self._offset = stored_offset
+            if restored > self._total() + self._offset + RESTORE_TOLERANCE_KWH:
+                self._floor = restored
+        elif restored > self._total() + RESTORE_TOLERANCE_KWH:
+            # The store was lost, or this state is from an older version, which kept its offset only in the value:
+            # continue from the sensor's value.
             self._offset = restored - self._total()
 
     @property
     def native_value(self) -> float:
-        return self._total() + self._offset
+        return max(self._total() + self._offset, self._floor)
+
+    @property
+    def extra_restore_state_data(self) -> _CounterStoredData:
+        return _CounterStoredData(self.native_value, self.native_unit_of_measurement, self._offset, self.unique_id)
 
 
 class _SplitSensor(_CounterSensor):
@@ -226,7 +274,10 @@ class _SplitSensor(_CounterSensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         basis = self._basis()
         by_source: dict[str, float] = {}
+        current = {source.id for source in self.runtime.plant.sources}
         for source_id, kwh in self._by_source().items():
+            if not kwh and source_id not in current:
+                continue  # a removed source this one never received anything from
             title = self._titles.get(source_id, source_id)
             by_source[title] = by_source.get(title, 0.0) + kwh
         return {
@@ -249,7 +300,11 @@ class ConsumerHeatSensor(_SplitSensor):
         return consumer_basis(plant, consumer)
 
     def _by_source(self) -> dict[str, float]:
-        return dict(self.runtime.ledger.consumed[self._id])
+        ledger = self.runtime.ledger
+        by_source = dict(ledger.consumed[self._id])
+        if unattributed := ledger.pending(self._id) + ledger.written_off.get(self._id, 0.0):
+            by_source[UNATTRIBUTED] = unattributed
+        return by_source
 
 
 class CircuitHeatSensor(_SplitSensor):
@@ -264,7 +319,11 @@ class CircuitHeatSensor(_SplitSensor):
         return circuit_basis([consumer_basis(plant, c) for c in plant.consumers if c.circuit_id == self._id])
 
     def _by_source(self) -> dict[str, float]:
-        return dict(self.runtime.ledger.circuit_consumed[self._id])
+        ledger = self.runtime.ledger
+        by_source = dict(ledger.circuit_consumed[self._id])
+        if unattributed := ledger.circuit_pending(self._id) + ledger.circuit_written_off.get(self._id, 0.0):
+            by_source[UNATTRIBUTED] = unattributed
+        return by_source
 
 
 class SourceHeatSensor(_CounterSensor):
@@ -278,7 +337,9 @@ class SourceHeatSensor(_CounterSensor):
 
 
 class AccountSensor(_LedgerSensor):
-    """Heat that has entered but is not assigned yet. Negative when a heat meter took more than the sources gave."""
+    """Heat the sources delivered that is not assigned yet. Never negative, except for a balance an earlier version
+    overdrew: what heat meters measure beyond it waits as "Not attributed" in the heat by source of their
+    consumers."""
 
     _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
