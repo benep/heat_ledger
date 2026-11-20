@@ -49,7 +49,7 @@
       },
       "thermostats": {
         "title": "Raumheizung",
-        "description": "Wähle die Thermostate deiner Heizkörper oder Fußbodenheizung, auch Raumregler mit Stellantrieben: Jedes wird eine Raumheizung mit eigenem Wärmezähler. Viele Thermostate (z. B. Tado) tragen den Namen ihres Raums, deshalb siehst du hier eventuell Raumnamen. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.\n\nGröße, Heizkreise und weitere Raumheizungen lassen sich danach auf der Seite der Integration ergänzen. Home Assistant fragt anschließend nach dem Bereich jedes neuen Geräts; wo Thermostat oder Pumpe einen haben, ist er schon eingetragen.",
+        "description": "Wähle die Thermostate deiner Heizkörper oder Fußbodenheizung, auch Raumregler mit Stellantrieben: Jedes wird eine Raumheizung mit eigenem Sensor für ihre geschätzte Wärme (kWh). Viele Thermostate (z. B. Tado) tragen den Namen ihres Raums, deshalb siehst du hier eventuell Raumnamen. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.\n\nGröße, Heizkreise und weitere Raumheizungen lassen sich danach auf der Seite der Integration ergänzen. Home Assistant fragt anschließend nach dem Bereich jedes neuen Geräts; wo Thermostat oder Pumpe einen haben, ist er schon eingetragen.",
         "data": {
           "thermostats": "Thermostate"
         },
@@ -138,7 +138,7 @@
       "step": {
         "circuit": {
           "title": "Heizkreis",
-          "description": "Raumheizungen hinter einer Pumpe, z. B. die Heizkörper oder die Fußbodenheizung. Läuft die Pumpe nicht, bekommt keine von ihnen Wärme. Der Heizkreis bekommt einen eigenen Wärmezähler, im Energie-Dashboard der übergeordnete Verbraucher seiner Raumheizungen. Welche Raumheizungen dazugehören, stellst du bei den Raumheizungen ein.\n\n**Kein Binärsensor für die Pumpe?** Hängt sie an einer Steckdose oder einem Schaltaktor mit Leistungsmessung (z. B. Shelly), lege auf deren Leistung einen Helfer **Schwellenwert** an (an ab etwa 5 W): Einstellungen → Geräte & Dienste → Helfer.",
+          "description": "Raumheizungen hinter einer Pumpe, z. B. die Heizkörper oder die Fußbodenheizung. Läuft die Pumpe nicht, bekommt keine von ihnen Wärme. Der Heizkreis bekommt einen eigenen Sensor für seine Wärme (kWh), im Energie-Dashboard der übergeordnete Verbraucher seiner Raumheizungen. Welche Raumheizungen dazugehören, stellst du bei den Raumheizungen ein.\n\n**Kein Binärsensor für die Pumpe?** Hängt sie an einer Steckdose oder einem Schaltaktor mit Leistungsmessung (z. B. Shelly), lege auf deren Leistung einen Helfer **Schwellenwert** an (an ab etwa 5 W): Einstellungen → Geräte & Dienste → Helfer.",
           "data": {
             "name": "Name",
             "pump_entity_id": "Pumpe"
@@ -174,7 +174,7 @@
         },
         "radiator": {
           "title": "Raumheizung",
-          "description": "Ein Heizkörper oder eine Fußbodenheizung mit eigenem Wärmezähler. Bekommt einen Anteil der Wärme nach Größe und Anforderung. Home Assistant fragt anschließend nach dem Bereich; hat der Thermostat einen, ist er schon eingetragen.",
+          "description": "Ein Heizkörper oder eine Fußbodenheizung. Bekommt einen Anteil der Wärme nach Größe und Anforderung, als eigenen Sensor (kWh). Home Assistant fragt anschließend nach dem Bereich; hat der Thermostat einen, ist er schon eingetragen.",
           "data": {
             "name": "Name",
             "circuit": "Heizkreis",
@@ -188,17 +188,18 @@
           "sections": {
             "accuracy": {
               "name": "Genauer machen",
+              "description": "Ohne Nennleistung und Fläche zählen alle Raumheizungen gleich (je 1000 W). Beides lässt sich zwischen Raumheizungen mischen: Die Fläche zählt als 60 W/m².",
               "data": {
-                "demand_type": "Anforderung in % ist",
-                "size_type": "Größe",
-                "size_value": "Fläche oder Nennleistung",
-                "meter_entity_id": "Wärmemengenzähler"
+                "meter_entity_id": "Wärmemengenzähler",
+                "nominal_power_w": "Nennleistung",
+                "area_m2": "Raumfläche",
+                "demand_type": "Anforderung in % ist"
               },
               "data_description": {
-                "demand_type": "Nur für einen Anforderungssensor in %.",
-                "size_type": "Standardmäßig zählen alle Raumheizungen gleich.",
-                "size_value": "Raumfläche in m² oder Nennleistung in W, je nach Auswahl oben.",
-                "meter_entity_id": "Misst die Wärme dieser Raumheizung. Ersetzt die Schätzung."
+                "meter_entity_id": "Nur wenn ein Wärmemengenzähler eingebaut ist: Er misst die Wärme dieser Raumheizung und ersetzt die Schätzung, die Felder darunter braucht es dann nicht.",
+                "nominal_power_w": "Wärmeleistung laut Typenschild oder Datenblatt (bei 75/65/20 °C). Am genauesten.",
+                "area_m2": "Wenn die Nennleistung unbekannt ist. Nicht zusammen mit der Nennleistung.",
+                "demand_type": "Nur für eine Anforderung in %."
               }
             }
           }
@@ -228,12 +229,12 @@
             "accuracy": {
               "name": "Genauer machen",
               "data": {
-                "charging_power_kw": "Ladeleistung",
-                "meter_entity_id": "Wärmemengenzähler"
+                "meter_entity_id": "Wärmemengenzähler",
+                "charging_power_kw": "Ladeleistung"
               },
               "data_description": {
-                "charging_power_kw": "Wärme, solange die Pumpe läuft, in kW. Standard: 10 kW.",
-                "meter_entity_id": "Misst die Wärme für Warmwasser. Ersetzt die Schätzung."
+                "meter_entity_id": "Nur wenn ein Wärmemengenzähler eingebaut ist: Er misst die Wärme für Warmwasser und ersetzt die Schätzung, Pumpe und Ladeleistung braucht es dann nicht.",
+                "charging_power_kw": "Wärme, solange die Pumpe läuft, in kW. Standard: 10 kW."
               }
             }
           }
@@ -244,10 +245,10 @@
         "entity_not_found": "Entität nicht gefunden.",
         "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
         "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
-        "not_energy": "Wähle einen Wärmezähler, der in einer Energieeinheit zählt (kWh, MJ …).",
+        "not_energy": "Wähle einen Wärmemengenzähler, der in einer Energieeinheit zählt (kWh, MJ …).",
         "not_percent": "Ein Sensor braucht die Einheit %.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
-        "size_value_required": "Gib für diese Größe die Fläche oder Nennleistung ein.",
+        "power_or_area": "Gib die Nennleistung oder die Fläche ein, nicht beides.",
         "pump_or_meter_required": "Wähle die Warmwasser-Ladung oder, unter „Genauer machen“, einen Wärmemengenzähler."
       },
       "abort": {
@@ -266,13 +267,6 @@
       "options": {
         "percent": "Wärmeanforderung",
         "valve": "Ventilstellung"
-      }
-    },
-    "size_type": {
-      "options": {
-        "default": "Standard (alle gleich)",
-        "area": "Raumfläche in m²",
-        "nominal_power": "Nennleistung in W"
       }
     }
   },

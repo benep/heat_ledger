@@ -49,7 +49,7 @@
       },
       "thermostats": {
         "title": "Room heating",
-        "description": "Choose the thermostats of your radiators or underfloor heating, also room controllers with actuators: each one becomes a room heating with its own heat counter. Many thermostats (Tado, for example) carry the name of their room, so you may see room names here. If a thermostat reports its heating demand in %, that is used.\n\nSizes, circuits and more room heating can be added later on the integration page. Home Assistant then asks for the area of each new device; it is already filled in where the thermostat or pump has one.",
+        "description": "Choose the thermostats of your radiators or underfloor heating, also room controllers with actuators: each one becomes a room heating with its own sensor for its estimated heat (kWh). Many thermostats (Tado, for example) carry the name of their room, so you may see room names here. If a thermostat reports its heating demand in %, that is used.\n\nSizes, circuits and more room heating can be added later on the integration page. Home Assistant then asks for the area of each new device; it is already filled in where the thermostat or pump has one.",
         "data": {
           "thermostats": "Thermostats"
         },
@@ -138,7 +138,7 @@
       "step": {
         "circuit": {
           "title": "Heating circuit",
-          "description": "Room heating behind one pump, e.g. the radiators or the underfloor heating. Without a running pump, none of it gets heat. The circuit gets a heat counter of its own, in the Energy dashboard the upstream device of its room heating. Which room heating belongs to it is set on the room heating.\n\n**No binary sensor for the pump?** If it is plugged into a smart plug or switch that measures power (e.g. a Shelly), create a **Threshold** helper on that power (on above about 5 W): Settings → Devices & services → Helpers.",
+          "description": "Room heating behind one pump, e.g. the radiators or the underfloor heating. Without a running pump, none of it gets heat. The circuit gets a sensor of its own for its heat (kWh), in the Energy dashboard the upstream device of its room heating. Which room heating belongs to it is set on the room heating.\n\n**No binary sensor for the pump?** If it is plugged into a smart plug or switch that measures power (e.g. a Shelly), create a **Threshold** helper on that power (on above about 5 W): Settings → Devices & services → Helpers.",
           "data": {
             "name": "Name",
             "pump_entity_id": "Pump"
@@ -174,7 +174,7 @@
         },
         "radiator": {
           "title": "Room heating",
-          "description": "A radiator or an underfloor heating with its own heat counter. Gets a share of the heat by its size and demand. Home Assistant then asks for the area; if the thermostat has one, it is already filled in.",
+          "description": "A radiator or an underfloor heating. Gets a share of the heat by its size and demand, as a sensor of its own (kWh). Home Assistant then asks for the area; if the thermostat has one, it is already filled in.",
           "data": {
             "name": "Name",
             "circuit": "Heating circuit",
@@ -188,17 +188,18 @@
           "sections": {
             "accuracy": {
               "name": "More accurate",
+              "description": "Without nominal power and area, all room heating counts as equal (1000 W each). Both can be mixed between room heating: the area counts as 60 W/m².",
               "data": {
-                "demand_type": "Demand in % is",
-                "size_type": "Size",
-                "size_value": "Area or nominal power",
-                "meter_entity_id": "Heat meter"
+                "meter_entity_id": "Heat meter",
+                "nominal_power_w": "Nominal power",
+                "area_m2": "Floor area",
+                "demand_type": "Demand in % is"
               },
               "data_description": {
-                "demand_type": "Only for a demand sensor in %.",
-                "size_type": "By default, all room heating counts as equal.",
-                "size_value": "Floor area in m² or nominal power in W, as chosen above.",
-                "meter_entity_id": "Measures the heat of this room heating. Replaces the estimate."
+                "meter_entity_id": "Only if a heat meter is installed: it measures the heat of this room heating and replaces the estimate, the fields below are then not needed.",
+                "nominal_power_w": "Heat output from the type plate or data sheet (at 75/65/20 °C). The most accurate.",
+                "area_m2": "If the nominal power is unknown. Not together with the nominal power.",
+                "demand_type": "Only for a demand in %."
               }
             }
           }
@@ -228,12 +229,12 @@
             "accuracy": {
               "name": "More accurate",
               "data": {
-                "charging_power_kw": "Charging power",
-                "meter_entity_id": "Heat meter"
+                "meter_entity_id": "Heat meter",
+                "charging_power_kw": "Charging power"
               },
               "data_description": {
-                "charging_power_kw": "Heat while the pump runs, in kW. Default: 10 kW.",
-                "meter_entity_id": "Measures the heat for hot water. Replaces the estimate."
+                "meter_entity_id": "Only if a heat meter is installed: it measures the heat for hot water and replaces the estimate, pump and charging power are then not needed.",
+                "charging_power_kw": "Heat while the pump runs, in kW. Default: 10 kW."
               }
             }
           }
@@ -247,7 +248,7 @@
         "not_energy": "Choose a heat meter that counts in an energy unit (kWh, MJ …).",
         "not_percent": "A sensor needs the unit %.",
         "not_positive": "Enter a number greater than 0.",
-        "size_value_required": "Enter the area or nominal power for this size.",
+        "power_or_area": "Enter the nominal power or the area, not both.",
         "pump_or_meter_required": "Choose the hot water charging or, under \"More accurate\", a heat meter."
       },
       "abort": {
@@ -266,13 +267,6 @@
       "options": {
         "percent": "Heating demand",
         "valve": "Valve position"
-      }
-    },
-    "size_type": {
-      "options": {
-        "default": "Standard (all equal)",
-        "area": "Floor area in m²",
-        "nominal_power": "Nominal power in W"
       }
     }
   },

@@ -76,7 +76,8 @@ SECTION_ACCURACY = "accuracy"
 CONF_CHARGING_POWER_KW = "charging_power_kw"  # stored as size nominal_power in W
 CONF_USE_SUGGESTION = "use_suggestion"
 
-SIZE_TYPES = (SizeMethod.DEFAULT, SizeMethod.AREA, SizeMethod.NOMINAL_POWER)
+CONF_NOMINAL_POWER_W = "nominal_power_w"  # stored as size nominal_power
+CONF_AREA_M2 = "area_m2"  # stored as size area
 SENSOR_DEMAND_TYPES = (DemandMethod.PERCENT, DemandMethod.VALVE)
 DEMAND_DOMAINS = ("climate", "sensor", "binary_sensor")
 # Percent sensors on a thermostat that are not a heating demand.
@@ -88,7 +89,7 @@ ERROR_NOT_CUMULATIVE = "not_cumulative"
 ERROR_NOT_PERCENT = "not_percent"
 ERROR_NOT_POSITIVE = "not_positive"
 ERROR_NAME_REQUIRED = "name_required"
-ERROR_SIZE_VALUE_REQUIRED = "size_value_required"
+ERROR_POWER_OR_AREA = "power_or_area"
 ERROR_SOURCE_EXISTS = "source_exists"
 ERROR_NOT_ENERGY = "not_energy"
 ERROR_HEAT_NEEDS_ENERGY = "heat_needs_energy_unit"
@@ -731,13 +732,16 @@ class ConsumerSubentryFlow(_SubentryFlow):
                 if demand.unit != PERCENTAGE:
                     check.errors[CONF_DEMAND_ENTITY] = ERROR_NOT_PERCENT
                 method = DemandMethod(more.get(CONF_DEMAND_TYPE) or DemandMethod.PERCENT)
-            size_type = SizeMethod(more.get(CONF_SIZE_TYPE) or SizeMethod.DEFAULT)
-            size = None
-            if size_type is not SizeMethod.DEFAULT:
-                if more.get(CONF_SIZE_VALUE) is None:
-                    check.errors[SECTION_ACCURACY] = ERROR_SIZE_VALUE_REQUIRED
-                else:
-                    size = check.positive(more[CONF_SIZE_VALUE], SECTION_ACCURACY)
+            # Nominal power or floor area, at most one; neither: all room heating counts as equal.
+            power = check.positive(more.get(CONF_NOMINAL_POWER_W), SECTION_ACCURACY)
+            area = check.positive(more.get(CONF_AREA_M2), SECTION_ACCURACY)
+            size_type, size = SizeMethod.DEFAULT, None
+            if power is not None and area is not None:
+                check.errors[SECTION_ACCURACY] = ERROR_POWER_OR_AREA
+            elif power is not None:
+                size_type, size = SizeMethod.NOMINAL_POWER, power
+            elif area is not None:
+                size_type, size = SizeMethod.AREA, area
             meter = check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY)
             data = _radiator_data(
                 circuit if circuit in {c[0] for c in circuits} else None,
@@ -764,14 +768,15 @@ class ConsumerSubentryFlow(_SubentryFlow):
             fields[vol.Optional(CONF_CIRCUIT)] = SelectSelector(
                 SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN)
             )
+        # The heat meter first: with one, the fields below are not needed.
         fields[vol.Required(SECTION_ACCURACY)] = _accuracy(
             {
+                vol.Optional(CONF_METER_ENTITY): _entity("sensor"),
+                vol.Optional(CONF_NOMINAL_POWER_W): _number("W"),
+                vol.Optional(CONF_AREA_M2): _number("m²"),
                 vol.Optional(CONF_DEMAND_TYPE, default=str(DemandMethod.PERCENT)): _select(
                     SENSOR_DEMAND_TYPES, "demand_type"
                 ),
-                vol.Optional(CONF_SIZE_TYPE, default=str(SizeMethod.DEFAULT)): _select(SIZE_TYPES, "size_type"),
-                vol.Optional(CONF_SIZE_VALUE): _number(),
-                vol.Optional(CONF_METER_ENTITY): _entity("sensor"),
             }
         )
         if user_input is None and self._reconfiguring:
@@ -786,6 +791,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
         subentry = self._get_reconfigure_subentry()
         data = subentry.data
         demand_type = data.get(CONF_DEMAND_TYPE)
+        size_type, size = data.get(CONF_SIZE_TYPE), data.get(CONF_SIZE_VALUE)
         return _strip_empty(
             {
                 CONF_NAME: subentry.title,
@@ -794,8 +800,8 @@ class ConsumerSubentryFlow(_SubentryFlow):
                 SECTION_ACCURACY: _strip_empty(
                     {
                         CONF_DEMAND_TYPE: demand_type if demand_type in SENSOR_DEMAND_TYPES else None,
-                        CONF_SIZE_TYPE: data.get(CONF_SIZE_TYPE),
-                        CONF_SIZE_VALUE: data.get(CONF_SIZE_VALUE),
+                        CONF_NOMINAL_POWER_W: size if size_type == SizeMethod.NOMINAL_POWER else None,
+                        CONF_AREA_M2: size if size_type == SizeMethod.AREA else None,
                         CONF_METER_ENTITY: data.get(CONF_METER_ENTITY),
                     }
                 ),
@@ -845,8 +851,8 @@ class ConsumerSubentryFlow(_SubentryFlow):
                 vol.Optional(CONF_DEMAND_ENTITY): _entity("binary_sensor"),
                 vol.Required(SECTION_ACCURACY): _accuracy(
                     {
-                        vol.Optional(CONF_CHARGING_POWER_KW): _number("kW"),
                         vol.Optional(CONF_METER_ENTITY): _entity("sensor"),
+                        vol.Optional(CONF_CHARGING_POWER_KW): _number("kW"),
                     }
                 ),
             }

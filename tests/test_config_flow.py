@@ -576,8 +576,7 @@ async def test_radiator_everything(hass: HomeAssistant, entry: MockConfigEntry) 
             CONF_DEMAND_ENTITY: VALVE,
             ACCURACY: {
                 CONF_DEMAND_TYPE: "valve",
-                CONF_SIZE_TYPE: "nominal_power",
-                CONF_SIZE_VALUE: 1450,
+                "nominal_power_w": 1450,
                 CONF_METER_ENTITY: METER,
             },
         },
@@ -602,8 +601,8 @@ async def test_radiator_everything(hass: HomeAssistant, entry: MockConfigEntry) 
         ({CONF_DEMAND_ENTITY: "climate.missing"}, {CONF_DEMAND_ENTITY: "entity_not_found"}),
         ({CONF_DEMAND_ENTITY: TEMPERATURE}, {CONF_DEMAND_ENTITY: "not_percent"}),
         ({CONF_DEMAND_ENTITY: "light.lamp"}, {CONF_DEMAND_ENTITY: "entity_not_found"}),
-        ({ACCURACY: {CONF_SIZE_TYPE: "area"}}, {ACCURACY: "size_value_required"}),
-        ({ACCURACY: {CONF_SIZE_TYPE: "area", CONF_SIZE_VALUE: 0}}, {ACCURACY: "not_positive"}),
+        ({ACCURACY: {"nominal_power_w": 1000, "area_m2": 15}}, {ACCURACY: "power_or_area"}),
+        ({ACCURACY: {"area_m2": 0}}, {ACCURACY: "not_positive"}),
         ({ACCURACY: {CONF_METER_ENTITY: POWER}}, {ACCURACY: "not_cumulative"}),
         ({ACCURACY: {CONF_METER_ENTITY: GAS}}, {ACCURACY: "not_energy"}),
     ],
@@ -642,12 +641,13 @@ async def test_radiator_wrong_domain(hass: HomeAssistant, entry: MockConfigEntry
 
 
 @pytest.mark.usefixtures("entities")
-async def test_radiator_size_value_without_type_is_dropped(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+async def test_radiator_floor_area(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Area and nominal power are fields of their own: no choice of a size type, nothing to fill in by mistake."""
     result = await radiator_form(hass, entry)
-    result = await configure(hass, result, {"name": "Study", ACCURACY: {CONF_SIZE_VALUE: 1200}})
+    result = await configure(hass, result, {"name": "Study", ACCURACY: {"area_m2": 14.5}})
     data = only_subentry(entry, SUBENTRY_CONSUMER).data
-    assert data[CONF_SIZE_TYPE] == "default"
-    assert CONF_SIZE_VALUE not in data
+    assert data[CONF_SIZE_TYPE] == "area"
+    assert data[CONF_SIZE_VALUE] == 14.5
 
 
 @pytest.mark.usefixtures("thermostat")
@@ -696,8 +696,8 @@ async def test_radiator_reconfigure(hass: HomeAssistant, entry: MockConfigEntry)
     assert suggested(result, "name") == "Living room"
     assert suggested(result, CONF_CIRCUIT) == circuit
     assert suggested(result, CONF_DEMAND_ENTITY) == DEMAND
-    assert suggested(result, CONF_SIZE_TYPE, ACCURACY) == "area"
-    assert suggested(result, CONF_SIZE_VALUE, ACCURACY) == 18.5
+    assert suggested(result, "nominal_power_w", ACCURACY) is None
+    assert suggested(result, "area_m2", ACCURACY) == 18.5
 
     # Switching to the thermostat offers the % sensor again; accepting it ends the flow in place.
     result = await configure(
@@ -706,7 +706,7 @@ async def test_radiator_reconfigure(hass: HomeAssistant, entry: MockConfigEntry)
         {
             "name": "Lounge",
             CONF_DEMAND_ENTITY: CLIMATE,
-            ACCURACY: {CONF_SIZE_TYPE: "nominal_power", CONF_SIZE_VALUE: 2000},
+            ACCURACY: {"nominal_power_w": 2000},
         },
     )
     assert result["step_id"] == "demand_suggestion"
@@ -846,7 +846,7 @@ async def test_flows_build_a_plant(hass: HomeAssistant, entry: MockConfigEntry) 
     )
     await configure(hass, result, {"use_suggestion": True})
     result = await radiator_form(hass, entry)
-    await configure(hass, result, {"name": "Study", ACCURACY: {CONF_SIZE_TYPE: "area", CONF_SIZE_VALUE: 12}})
+    await configure(hass, result, {"name": "Study", ACCURACY: {"area_m2": 12}})
     result = await hot_water_form(hass, entry)
     await configure(hass, result, {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {}})
 
