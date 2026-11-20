@@ -617,6 +617,23 @@ async def test_radiator_errors(hass: HomeAssistant, entry: MockConfigEntry, user
 
 
 @pytest.mark.usefixtures("entities")
+async def test_radiator_is_named_after_its_thermostat(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """As in the first setup: without a name, the room heating takes the thermostat's."""
+    result = await radiator_form(hass, entry)
+    assert next(iter(result["data_schema"].schema)) == CONF_DEMAND_ENTITY  # the thermostat comes first
+    result = await configure(hass, result, {CONF_DEMAND_ENTITY: CLIMATE, ACCURACY: {}})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert only_subentry(entry, SUBENTRY_CONSUMER).title == "Living room"
+
+
+@pytest.mark.usefixtures("entities")
+async def test_radiator_without_name_and_demand(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await radiator_form(hass, entry)
+    result = await configure(hass, result, {ACCURACY: {}})
+    assert result["errors"] == {"name": "name_required"}
+
+
+@pytest.mark.usefixtures("entities")
 async def test_radiator_wrong_domain(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     hass.states.async_set("light.lamp", "on")
     result = await radiator_form(hass, entry)
@@ -734,6 +751,7 @@ async def hot_water_form(hass: HomeAssistant, entry: MockConfigEntry):
 async def test_hot_water_minimal(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     result = await hot_water_form(hass, entry)
     assert result["step_id"] == "hot_water"
+    assert suggested(result, "name") == "Hot water"  # the default name, as in the first setup
     result = await configure(hass, result, {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {}})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert dict(only_subentry(entry, SUBENTRY_CONSUMER).data) == {
@@ -761,6 +779,25 @@ async def test_hot_water_errors(hass: HomeAssistant, entry: MockConfigEntry, use
     )
     assert result["errors"] == errors
     assert not entry.subentries
+
+
+@pytest.mark.usefixtures("entities")
+async def test_hot_water_with_a_heat_meter_needs_no_pump(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await hot_water_form(hass, entry)
+    result = await configure(hass, result, {"name": "Hot water", ACCURACY: {}})
+    assert result["errors"] == {CONF_DEMAND_ENTITY: "pump_or_meter_required"}
+    result = await configure(hass, result, {"name": "Hot water", ACCURACY: {CONF_METER_ENTITY: METER}})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert dict(only_subentry(entry, SUBENTRY_CONSUMER).data) == {
+        CONF_KIND: "hot_water",
+        CONF_DEMAND_TYPE: "always",
+        CONF_SIZE_TYPE: "default",
+        CONF_METER_ENTITY: METER,
+    }
+    plant = build_plant(
+        {}, [Subentry(s.subentry_id, s.subentry_type, s.title, s.data) for s in entry.subentries.values()]
+    )
+    assert plant.consumers[0].meter_key == METER
 
 
 @pytest.mark.usefixtures("entities")

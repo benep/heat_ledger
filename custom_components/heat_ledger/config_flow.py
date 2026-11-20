@@ -92,6 +92,7 @@ ERROR_SIZE_VALUE_REQUIRED = "size_value_required"
 ERROR_SOURCE_EXISTS = "source_exists"
 ERROR_NOT_ENERGY = "not_energy"
 ERROR_HEAT_NEEDS_ENERGY = "heat_needs_energy_unit"
+ERROR_PUMP_OR_METER_REQUIRED = "pump_or_meter_required"
 
 
 # --- Selectors ---------------------------------------------------------------------------------------------------
@@ -578,13 +579,17 @@ def _radiator_data(
     return data
 
 
-def _hot_water_data(pump_entity: str, power_kw: float | None = None, meter_entity: str | None = None) -> dict[str, Any]:
-    data: dict[str, Any] = {
-        CONF_KIND: KIND_HOT_WATER,
-        CONF_DEMAND_ENTITY: pump_entity,
-        CONF_DEMAND_TYPE: str(DemandMethod.ON_OFF),
-        CONF_SIZE_TYPE: str(SizeMethod.DEFAULT if power_kw is None else SizeMethod.NOMINAL_POWER),
-    }
+def _hot_water_data(
+    pump_entity: str | None, power_kw: float | None = None, meter_entity: str | None = None
+) -> dict[str, Any]:
+    """Without a pump only with a heat meter: the meter measures, the pump would only weigh a share of the split."""
+    data: dict[str, Any] = {CONF_KIND: KIND_HOT_WATER}
+    if pump_entity is None:
+        data[CONF_DEMAND_TYPE] = str(DemandMethod.ALWAYS)
+    else:
+        data[CONF_DEMAND_ENTITY] = pump_entity
+        data[CONF_DEMAND_TYPE] = str(DemandMethod.ON_OFF)
+    data[CONF_SIZE_TYPE] = str(SizeMethod.DEFAULT if power_kw is None else SizeMethod.NOMINAL_POWER)
     if power_kw is not None:
         data[CONF_SIZE_VALUE] = power_kw * 1000
     if meter_entity is not None:
@@ -715,9 +720,12 @@ class ConsumerSubentryFlow(_SubentryFlow):
         circuits = self._subentries(SUBENTRY_CIRCUIT)
         if user_input is not None:
             more = user_input.get(SECTION_ACCURACY) or {}
-            name = check.name(user_input.get(CONF_NAME))
             circuit = user_input.get(CONF_CIRCUIT)
             demand = check.entity(user_input.get(CONF_DEMAND_ENTITY), DEMAND_DOMAINS, CONF_DEMAND_ENTITY)
+            # Named after its thermostat by default, as in the first setup.
+            name = (user_input.get(CONF_NAME) or "").strip() or (demand.name if demand is not None else "")
+            if not name:
+                check.errors[CONF_NAME] = ERROR_NAME_REQUIRED
             method = DemandMethod.ALWAYS if demand is None else _demand_method(demand)
             if demand is not None and method is DemandMethod.PERCENT:
                 if demand.unit != PERCENTAGE:
@@ -747,13 +755,15 @@ class ConsumerSubentryFlow(_SubentryFlow):
                         return await self.async_step_demand_suggestion()
                 return self._finish(name, data)
 
-        fields: dict[vol.Marker, Any] = {vol.Required(CONF_NAME): TextSelector()}
+        fields: dict[vol.Marker, Any] = {
+            vol.Optional(CONF_DEMAND_ENTITY): _demand_selector(),
+            vol.Optional(CONF_NAME): TextSelector(),
+        }
         if circuits:
             options = [SelectOptionDict(value=sid, label=title) for sid, title, _ in circuits]
             fields[vol.Optional(CONF_CIRCUIT)] = SelectSelector(
                 SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN)
             )
-        fields[vol.Optional(CONF_DEMAND_ENTITY)] = _demand_selector()
         fields[vol.Required(SECTION_ACCURACY)] = _accuracy(
             {
                 vol.Optional(CONF_DEMAND_TYPE, default=str(DemandMethod.PERCENT)): _select(
@@ -819,14 +829,20 @@ class ConsumerSubentryFlow(_SubentryFlow):
             pump = check.entity(user_input.get(CONF_DEMAND_ENTITY), ("binary_sensor",), CONF_DEMAND_ENTITY)
             power_kw = check.positive(more.get(CONF_CHARGING_POWER_KW), SECTION_ACCURACY)
             meter = check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY)
-            if pump and not check.errors:
-                data = _hot_water_data(pump.entity_id, power_kw, meter.entity_id if meter is not None else None)
+            if pump is None and meter is None and not check.errors:
+                check.errors[CONF_DEMAND_ENTITY] = ERROR_PUMP_OR_METER_REQUIRED
+            if not check.errors:
+                data = _hot_water_data(
+                    pump.entity_id if pump is not None else None,
+                    power_kw,
+                    meter.entity_id if meter is not None else None,
+                )
                 return self._finish(name, data)
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): TextSelector(),
-                vol.Required(CONF_DEMAND_ENTITY): _entity("binary_sensor"),
+                vol.Optional(CONF_DEMAND_ENTITY): _entity("binary_sensor"),
                 vol.Required(SECTION_ACCURACY): _accuracy(
                     {
                         vol.Optional(CONF_CHARGING_POWER_KW): _number("kW"),
@@ -851,6 +867,8 @@ class ConsumerSubentryFlow(_SubentryFlow):
                     ),
                 }
             )
+        elif user_input is None:
+            user_input = {CONF_NAME: (await async_texts(self.hass))[texts.DEFAULT_HOT_WATER_NAME]}
         return self.async_show_form(
             step_id="hot_water",
             data_schema=self.add_suggested_values_to_schema(schema, user_input),

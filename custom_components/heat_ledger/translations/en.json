@@ -71,11 +71,12 @@
     "step": {
       "init": {
         "title": "Heating system",
+        "description": "Sources, circuits and consumers are edited on the integration page, each through its own entry.",
         "data": {
           "loss_kw": "Fixed losses"
         },
         "data_description": {
-          "loss_kw": "Heat lost all the time by a storage tank and pipes, in kW. It is taken off before the split. Leave empty if unknown."
+          "loss_kw": "Heat lost all the time by a storage tank and pipes, in kW. It is taken off before the split and shows as \"Untracked\" in the Energy dashboard. Leave empty if unknown: the losses then go to the consumers as well."
         }
       }
     },
@@ -93,7 +94,7 @@
       "step": {
         "source": {
           "title": "Heat source",
-          "description": "Where does the heat come from? A meter of your heating: gas meter, oil consumption, heat meter or the heat output of a heat pump, a fireplace or an immersion heater. A gas source of the Energy dashboard is preselected.",
+          "description": "Where does the heat come from? A meter of your heating: gas meter, oil consumption, heat meter or the heat output of a heat pump, a fireplace or an immersion heater. When adding, a gas source of the Energy dashboard that is not a source yet is preselected.",
           "data": {
             "name": "Name",
             "entity_id": "Reading",
@@ -137,14 +138,14 @@
       "step": {
         "circuit": {
           "title": "Heating circuit",
-          "description": "Room heating behind one pump, e.g. the radiators or the underfloor heating. Without a running pump, none of it gets heat.",
+          "description": "Room heating behind one pump, e.g. the radiators or the underfloor heating. Without a running pump, none of it gets heat. The circuit gets a heat counter of its own, in the Energy dashboard the upstream device of its room heating. Which room heating belongs to it is set on the room heating.\n\n**No binary sensor for the pump?** If it is plugged into a smart plug or switch that measures power (e.g. a Shelly), create a **Threshold** helper on that power (on above about 5 W): Settings → Devices & services → Helpers.",
           "data": {
             "name": "Name",
             "pump_entity_id": "Pump"
           },
           "data_description": {
-            "name": "For example the floor.",
-            "pump_entity_id": "Binary sensor that is on while the circuit pump runs. Without it, the circuit counts as always running."
+            "name": "For example radiators, underfloor heating or the floor.",
+            "pump_entity_id": "On while the circuit pump runs. Without it, the circuit only groups its room heating and counts as always running."
           }
         }
       },
@@ -173,14 +174,14 @@
         },
         "radiator": {
           "title": "Room heating",
-          "description": "Gets a share of the heat by its size and demand.",
+          "description": "A radiator or an underfloor heating with its own heat counter. Gets a share of the heat by its size and demand. Home Assistant then asks for the area; if the thermostat has one, it is already filled in.",
           "data": {
             "name": "Name",
             "circuit": "Heating circuit",
-            "demand_entity_id": "Demand"
+            "demand_entity_id": "Thermostat or demand"
           },
           "data_description": {
-            "name": "For example the room.",
+            "name": "Empty: the name of the thermostat or demand.",
             "circuit": "Without a circuit, the room heating is always supplied.",
             "demand_entity_id": "Thermostat, heating demand or valve position in %, or an on/off actuator. Without one, it counts as always heating."
           },
@@ -214,14 +215,14 @@
         },
         "hot_water": {
           "title": "Hot water",
-          "description": "Gets heat while its charging pump runs.",
+          "description": "Gets heat while the hot water tank is being heated.\n\n**No binary sensor for the pump?** If it is plugged into a smart plug or switch that measures power (e.g. a Shelly), create a **Threshold** helper on that power (on above about 5 W): Settings → Devices & services → Helpers. If your boiler's integration reports the hot water status, use that.",
           "data": {
             "name": "Name",
-            "demand_entity_id": "Pump"
+            "demand_entity_id": "Hot water charging"
           },
           "data_description": {
-            "name": "For example the storage tank.",
-            "demand_entity_id": "Binary sensor that is on while the hot water pump runs."
+            "name": "For example hot water or the storage tank.",
+            "demand_entity_id": "On while the tank is being heated: its charging pump, or the hot water status of the boiler (also for a combi boiler). Not the circulation pump. Not needed if a heat meter measures the heat."
           },
           "sections": {
             "accuracy": {
@@ -246,7 +247,8 @@
         "not_energy": "Choose a heat meter that counts in an energy unit (kWh, MJ …).",
         "not_percent": "A sensor needs the unit %.",
         "not_positive": "Enter a number greater than 0.",
-        "size_value_required": "Enter the area or nominal power for this size."
+        "size_value_required": "Enter the area or nominal power for this size.",
+        "pump_or_meter_required": "Choose the hot water charging or, under \"More accurate\", a heat meter."
       },
       "abort": {
         "reconfigure_successful": "Saved. The plant is reloaded with the change."

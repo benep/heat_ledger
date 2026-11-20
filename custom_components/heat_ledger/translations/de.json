@@ -71,11 +71,12 @@
     "step": {
       "init": {
         "title": "Heizungsanlage",
+        "description": "Quellen, Heizkreise und Verbraucher bearbeitest du auf der Seite der Integration, jeweils über ihre eigenen Einträge.",
         "data": {
           "loss_kw": "Feste Verluste"
         },
         "data_description": {
-          "loss_kw": "Wärme, die Speicher und Leitungen ständig verlieren, in kW. Wird vor der Aufteilung abgezogen. Leer lassen, wenn unbekannt."
+          "loss_kw": "Wärme, die Speicher und Leitungen ständig verlieren, in kW. Wird vor der Aufteilung abgezogen und erscheint im Energie-Dashboard als „Nicht erfasst“. Leer lassen, wenn unbekannt: Dann landen auch die Verluste bei den Verbrauchern."
         }
       }
     },
@@ -93,7 +94,7 @@
       "step": {
         "source": {
           "title": "Wärmequelle",
-          "description": "Woher kommt die Wärme? Ein Zähler deiner Heizung: Gaszähler, Ölverbrauch, Wärmemengenzähler oder die Wärmemenge einer Wärmepumpe, eines Kamins oder eines Heizstabs. Eine Gas-Quelle aus dem Energie-Dashboard ist vorausgewählt.",
+          "description": "Woher kommt die Wärme? Ein Zähler deiner Heizung: Gaszähler, Ölverbrauch, Wärmemengenzähler oder die Wärmemenge einer Wärmepumpe, eines Kamins oder eines Heizstabs. Beim Hinzufügen ist eine Gas-Quelle aus dem Energie-Dashboard vorausgewählt, die noch keine Quelle ist.",
           "data": {
             "name": "Name",
             "entity_id": "Zählerstand",
@@ -137,14 +138,14 @@
       "step": {
         "circuit": {
           "title": "Heizkreis",
-          "description": "Raumheizungen hinter einer Pumpe, z. B. die Heizkörper oder die Fußbodenheizung. Läuft die Pumpe nicht, bekommt keine von ihnen Wärme.",
+          "description": "Raumheizungen hinter einer Pumpe, z. B. die Heizkörper oder die Fußbodenheizung. Läuft die Pumpe nicht, bekommt keine von ihnen Wärme. Der Heizkreis bekommt einen eigenen Wärmezähler, im Energie-Dashboard der übergeordnete Verbraucher seiner Raumheizungen. Welche Raumheizungen dazugehören, stellst du bei den Raumheizungen ein.\n\n**Kein Binärsensor für die Pumpe?** Hängt sie an einer Steckdose oder einem Schaltaktor mit Leistungsmessung (z. B. Shelly), lege auf deren Leistung einen Helfer **Schwellenwert** an (an ab etwa 5 W): Einstellungen → Geräte & Dienste → Helfer.",
           "data": {
             "name": "Name",
             "pump_entity_id": "Pumpe"
           },
           "data_description": {
-            "name": "Zum Beispiel das Stockwerk.",
-            "pump_entity_id": "Binärsensor, der an ist, solange die Heizkreispumpe läuft. Ohne ihn gilt der Kreis als immer aktiv."
+            "name": "Zum Beispiel Heizkörper, Fußbodenheizung oder das Stockwerk.",
+            "pump_entity_id": "An, solange die Heizkreispumpe läuft. Ohne sie fasst der Kreis seine Raumheizungen nur zusammen und gilt als immer aktiv."
           }
         }
       },
@@ -173,14 +174,14 @@
         },
         "radiator": {
           "title": "Raumheizung",
-          "description": "Bekommt einen Anteil der Wärme nach Größe und Anforderung.",
+          "description": "Ein Heizkörper oder eine Fußbodenheizung mit eigenem Wärmezähler. Bekommt einen Anteil der Wärme nach Größe und Anforderung. Home Assistant fragt anschließend nach dem Bereich; hat der Thermostat einen, ist er schon eingetragen.",
           "data": {
             "name": "Name",
             "circuit": "Heizkreis",
-            "demand_entity_id": "Anforderung"
+            "demand_entity_id": "Thermostat oder Anforderung"
           },
           "data_description": {
-            "name": "Zum Beispiel der Raum.",
+            "name": "Leer: der Name des Thermostats bzw. der Anforderung.",
             "circuit": "Ohne Heizkreis wird die Raumheizung immer versorgt.",
             "demand_entity_id": "Thermostat, Wärmeanforderung oder Ventilstellung in % oder ein Stellantrieb (an/aus). Ohne gilt die Raumheizung als immer heizend."
           },
@@ -214,14 +215,14 @@
         },
         "hot_water": {
           "title": "Warmwasser",
-          "description": "Bekommt Wärme, solange die Ladepumpe läuft.",
+          "description": "Bekommt Wärme, solange der Warmwasserspeicher geladen wird.\n\n**Kein Binärsensor für die Pumpe?** Hängt sie an einer Steckdose oder einem Schaltaktor mit Leistungsmessung (z. B. Shelly), lege auf deren Leistung einen Helfer **Schwellenwert** an (an ab etwa 5 W): Einstellungen → Geräte & Dienste → Helfer. Meldet die Integration deines Kessels den Warmwasser-Status, nimm diesen.",
           "data": {
             "name": "Name",
-            "demand_entity_id": "Pumpe"
+            "demand_entity_id": "Warmwasser-Ladung"
           },
           "data_description": {
-            "name": "Zum Beispiel der Speicher.",
-            "demand_entity_id": "Binärsensor, der an ist, solange die Warmwasserpumpe läuft."
+            "name": "Zum Beispiel Warmwasser oder der Speicher.",
+            "demand_entity_id": "An, solange der Speicher geladen wird: seine Ladepumpe oder der Warmwasser-Status des Kessels (auch bei einer Kombitherme). Nicht die Zirkulationspumpe. Nicht nötig, wenn ein Wärmemengenzähler die Wärme misst."
           },
           "sections": {
             "accuracy": {
@@ -246,7 +247,8 @@
         "not_energy": "Wähle einen Wärmezähler, der in einer Energieeinheit zählt (kWh, MJ …).",
         "not_percent": "Ein Sensor braucht die Einheit %.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
-        "size_value_required": "Gib für diese Größe die Fläche oder Nennleistung ein."
+        "size_value_required": "Gib für diese Größe die Fläche oder Nennleistung ein.",
+        "pump_or_meter_required": "Wähle die Warmwasser-Ladung oder, unter „Genauer machen“, einen Wärmemengenzähler."
       },
       "abort": {
         "reconfigure_successful": "Gespeichert. Die Anlage wird mit der Änderung neu geladen."
