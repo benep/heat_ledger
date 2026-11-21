@@ -36,6 +36,29 @@ so you can see it per room, right in the Energy dashboard.
 Optional, but it makes the split much better: a sensor that tells when the **heating pump** runs, and one that
 tells when the **hot water** is heated. [Setup](setup.md#step-3-pumps) explains how to get them.
 
+## Does it fit your home?
+
+Two things decide whether Heat Ledger gives you useful numbers. You can check both in a minute, before you install
+anything.
+
+**Does your heating have a meter of its own in Home Assistant?** Heat Ledger only splits what this meter counts.
+
+- :material-check: **Fits:** a house or a flat with its own heating (gas boiler, oil boiler, heat pump, district
+  heating with a heat meter) whose consumption or heat arrives in Home Assistant.
+- :material-close: **Does not fit:** a flat on a central heating for the whole building, of which you only know the
+  yearly bill. Without a meter there is nothing to split.
+- No meter in Home Assistant yet? [Questions](faq.md#getting-started) lists ways to get one.
+
+**Do your thermostats report whether they are heating right now?** Open **Developer tools → States** and look for one
+of your thermostats (`climate.…`). If its attributes show `hvac_action` with a value like `heating` or `idle`, it
+fits.
+
+- If `hvac_action` is missing, check whether the thermostat has a sensor of its own in % (heating power, heating
+  demand or valve position). Choose that one instead of the thermostat, see [More accurate](more-accurate.md#demand-in).
+- If it has neither, the room counts as heating for as long as the thermostat is switched on. The heat is then split
+  almost only by the size of the radiators, and you do not see which room really heats a lot. Heat Ledger is hardly
+  worth it then.
+
 !!! info "An estimate, not a measurement"
 
     Heat Ledger does not measure the heat of each room: there is no meter on your radiators. It estimates the split

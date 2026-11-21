@@ -123,7 +123,26 @@ Open **Settings → Devices & services → Heat Ledger**. You see your heating s
 | **Room heating** | One per thermostat, with the counter **Heat** in kWh. |
 | **Hot water** | Only if you chose the hot water charging, with the counter **Heat** in kWh. |
 
-The counters start at 0 and grow from now on. Continue with the [Energy dashboard](energy-dashboard.md).
+The counters start at 0 and grow from now on.
+
+## Is it working?
+
+Heat Ledger calculates every five minutes. This is how you see that everything is right:
+
+- **After the first heating phase** (your meter counted something, and a thermostat is heating), the counter **Heat**
+  of that room goes up. If your meter only reports a new value now and then, it takes that much longer.
+- **After a day**, the rooms that heated have a value, and those switched off are at 0. Rooms and hot water together
+  add up to about what your heat source counted since the setup.
+
+If everything stays at 0, open the sensor **Unassigned heat** of the heating system:
+
+| What you see | What it means |
+|---|---|
+| It stays at 0 as well | The heat source counted nothing since the setup. Check whether its meter goes up. |
+| Its attribute **Blocked by** names an entity | That input is unavailable. The heat waits for as long as it is. |
+| It goes up, but no room does | No thermostat asks for heat, or the circuit pump stands still. The heat waits until a room takes it. |
+
+Continue with the [Energy dashboard](energy-dashboard.md).
 
 ## Adding and changing things later
 

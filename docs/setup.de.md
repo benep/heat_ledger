@@ -124,7 +124,26 @@ Energie-Dashboard die Räume nach Stockwerk.
 | **Raumheizung** | Eine pro Thermostat, mit dem Zähler **Wärme** in kWh. |
 | **Warmwasser** | Nur wenn du die Warmwasser-Ladung gewählt hast, mit dem Zähler **Wärme** in kWh. |
 
-Die Zähler beginnen bei 0 und wachsen ab jetzt. Weiter geht es mit dem [Energie-Dashboard](energy-dashboard.md).
+Die Zähler beginnen bei 0 und wachsen ab jetzt.
+
+## Läuft es?
+
+Heat Ledger rechnet alle fünf Minuten. So siehst du, ob alles stimmt:
+
+- **Nach der ersten Heizphase** (dein Zähler hat etwas gezählt, und ein Thermostat heizt) steigt der Zähler **Wärme**
+  dieses Raums. Meldet dein Zähler nur selten einen neuen Wert, dauert es entsprechend länger.
+- **Nach einem Tag** haben die Räume, die geheizt haben, einen Wert, die ausgeschalteten stehen bei 0. Räume und
+  Warmwasser zusammen ergeben etwa das, was deine Wärmequelle seit der Einrichtung gezählt hat.
+
+Bleibt alles bei 0, öffne den Sensor **Nicht verteilte Wärme** der Heizungsanlage:
+
+| Was du siehst | Was es heißt |
+|---|---|
+| Auch er bleibt bei 0 | Die Wärmequelle hat seit der Einrichtung nichts gezählt. Prüfe, ob ihr Zähler steigt. |
+| Sein Attribut **Blockiert durch** nennt eine Entität | Dieser Eingang ist nicht verfügbar. Solange wartet die Wärme. |
+| Er steigt, aber kein Raum | Kein Thermostat will Wärme, oder die Heizkreispumpe steht. Die Wärme wartet, bis ein Raum sie abnimmt. |
+
+Weiter geht es mit dem [Energie-Dashboard](energy-dashboard.md).
 
 ## Später ergänzen und ändern
 

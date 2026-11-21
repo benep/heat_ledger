@@ -37,6 +37,29 @@ Optional, aber es macht die Aufteilung deutlich besser: ein Sensor, der meldet, 
 einer, der meldet, wann das **Warmwasser** geheizt wird. Wie du die bekommst, steht unter
 [Einrichtung](setup.md#schritt-3-pumpen).
 
+## Passt das zu dir?
+
+Zwei Dinge entscheiden, ob Heat Ledger bei dir brauchbare Zahlen liefert. Beide prüfst du in einer Minute, bevor du
+etwas installierst.
+
+**Hat deine Heizung einen eigenen Zähler in Home Assistant?** Heat Ledger verteilt nur, was dieser Zähler zählt.
+
+- :material-check: **Passt:** ein Haus oder eine Wohnung mit eigener Heizung (Gastherme, Ölkessel, Wärmepumpe,
+  Fernwärme mit Wärmemengenzähler), deren Verbrauch oder Wärme in Home Assistant ankommt.
+- :material-close: **Passt nicht:** eine Wohnung an einer Zentralheizung für das ganze Haus, von der du nur die
+  jährliche Abrechnung kennst. Ohne Zähler gibt es nichts zu verteilen.
+- Noch kein Zähler in Home Assistant? Wege dorthin stehen unter [Häufige Fragen](faq.md#erste-schritte).
+
+**Melden deine Thermostate, ob sie gerade heizen?** Öffne **Entwicklerwerkzeuge → Zustände** und suche eines deiner
+Thermostate (`climate.…`). Steht bei seinen Attributen `hvac_action` mit einem Wert wie `heating` oder `idle`, passt
+es.
+
+- Fehlt `hvac_action`, sieh nach, ob das Thermostat einen eigenen Sensor in % hat (Heizleistung, Heizbedarf oder
+  Ventilstellung). Den wählst du dann statt des Thermostats, siehe [Genauer machen](more-accurate.md#anforderung-in).
+- Hat es keines von beiden, zählt der Raum als heizend, solange das Thermostat eingeschaltet ist. Die Wärme wird dann
+  fast nur nach der Größe der Heizkörper verteilt, und du siehst nicht, welcher Raum wirklich viel heizt. Dafür
+  lohnt sich Heat Ledger kaum.
+
 !!! info "Eine Schätzung, keine Messung"
 
     Heat Ledger misst die Wärme der einzelnen Räume nicht: An deinen Heizkörpern sitzt ja kein Zähler. Es schätzt die

@@ -25,8 +25,7 @@ Gehe zu **Einstellungen → Dashboards → Energie** und öffne den Reiter **Gas
     Home Assistant lässt nur Gas-Quellen und einzelne Gasgeräte zusammen zu, die dieselbe Art von Einheit zählen:
     entweder alle Volumen (m³) oder alle Energie (kWh). Die Zähler der Räume zählen Wärme in kWh, also muss auch die
     **Gas-Quelle in kWh zählen**. Zählt dein Gaszähler in m³, nimm ihn hier nicht als Gas-Quelle, sondern den Sensor
-    **Erzeugte Wärme** von Heat Ledger. Das ist dein Zähler mal dem Faktor, in kWh. Den Preis trägst du dann pro kWh
-    ein.
+    **Erzeugte Wärme** von Heat Ledger. Das ist dein Zähler mal dem Faktor, in kWh.
 
 ![Der Gas-Bereich der Energie-Einstellungen, mit der Quelle und den einzelnen Geräten](assets/screenshots/energy-gas-settings.png){ .screenshot }
 
@@ -34,13 +33,33 @@ Gehe zu **Einstellungen → Dashboards → Energie** und öffne den Reiter **Gas
 
 1. **Die Quelle.** Klicke unter **Gasverbrauch** auf **Gaszähler hinzufügen** und wähle deine Wärmequelle in kWh:
    den Zähler, den du Heat Ledger gegeben hast, wenn er Wärme in kWh zählt, sonst den Sensor **Erzeugte Wärme** von
-   Heat Ledger. Einen Gaszähler in m³, der schon drinsteht, entferne (sein Verlauf bleibt). Einen Preis kannst du
-   hier auch eintragen.
+   Heat Ledger. Einen Gaszähler in m³, der schon drinsteht, entferne; was dabei mit seinem Verlauf geschieht, steht
+   unten. Einen Preis kannst du hier auch eintragen, pro kWh Wärme (siehe unten).
 2. **Die Räume.** Klicke unter **Einzelne Gasgeräte** auf **Gerät hinzufügen** und wähle den Sensor **Wärme** einer
    Raumheizung. Wiederhole das für jeden Raum.
 3. **Das Warmwasser.** Trage seinen Sensor **Wärme** genauso ein.
 
 </div>
+
+!!! info "Dein bisheriger Gasverbrauch verschwindet aus dem Gas-Reiter"
+
+    Entfernst du einen Gaszähler als Quelle, zeigt der Gas-Reiter seinen bisherigen Verbrauch nicht mehr an: Das
+    Dashboard zeigt nur, was eingetragen ist. Gelöscht wird nichts. Die Statistik des Zählers bleibt in Home
+    Assistant, du siehst sie weiter im Verlauf des Sensors. Der Gas-Reiter beginnt dann mit dem Tag, an dem du Heat
+    Ledger eingerichtet hast.
+
+!!! tip "Der Preis gilt pro kWh Wärme"
+
+    Ist **Erzeugte Wärme** deine Quelle, gilt ihr Preis für eine kWh **Wärme**, nicht für eine kWh Gas oder einen
+    Liter Öl. Rechne ihn um: der **Preis einer Einheit deines Zählers geteilt durch den Faktor** aus der Einrichtung.
+
+    | Dein Zähler zählt | Preis pro kWh Wärme | Beispiel |
+    |---|---|---|
+    | Gas in m³ oder kWh | Gaspreis pro kWh ÷ Wirkungsgrad des Kessels | 12 ct ÷ 0,9 = 13,3 ct |
+    | Heizöl in Litern | Preis pro Liter ÷ Faktor | 100 ct ÷ 9 = 11,1 ct |
+
+    Mit dem Gaspreis von der Rechnung ohne Umrechnung wären die Kosten rund 10 % zu niedrig. Zählt deine Quelle
+    schon Wärme (ein Wärmemengenzähler, Fernwärme), trägst du ihren Preis pro kWh direkt ein.
 
 !!! tip "Anzeigename"
 

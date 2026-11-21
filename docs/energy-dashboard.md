@@ -24,7 +24,7 @@ Go to **Settings → Dashboards → Energy** and open the tab **Gas**.
     Home Assistant only lets you combine gas sources and individual gas devices that count the same kind of unit:
     either all volume (m³) or all energy (kWh). The room counters count heat in kWh, so the **gas source must count in
     kWh** as well. If your gas meter counts m³, do not use it as gas source here: use the sensor **Heat produced** of
-    Heat Ledger instead. It is your meter times the factor, in kWh. Enter the price per kWh then.
+    Heat Ledger instead. It is your meter times the factor, in kWh.
 
 ![The gas section of the Energy settings, with the source and the individual devices](assets/screenshots/energy-gas-settings.png){ .screenshot }
 
@@ -32,12 +32,32 @@ Go to **Settings → Dashboards → Energy** and open the tab **Gas**.
 
 1. **The source.** Under **Gas consumption**, click **Add gas source** and choose your heat source in kWh: the
    meter you gave Heat Ledger if it counts heat in kWh, otherwise Heat Ledger's sensor **Heat produced**. Remove a
-   gas meter in m³ that is already there (its history stays). You can enter a price here as well.
+   gas meter in m³ that is already there; what happens to its history is explained below. You can enter a price
+   here as well, per kWh of heat (see below).
 2. **The rooms.** Under **Individual gas devices**, click **Add device** and choose the **Heat** sensor of a room
    heating. Repeat for every room.
 3. **The hot water.** Add its **Heat** sensor the same way.
 
 </div>
+
+!!! info "Your gas consumption so far disappears from the gas tab"
+
+    If you remove a gas meter as source, the gas tab no longer shows what it counted so far: the dashboard only shows
+    what is entered. Nothing is deleted. The statistics of the meter stay in Home Assistant, and you still see them in
+    the history of the sensor. The gas tab then starts on the day you set up Heat Ledger.
+
+!!! tip "The price is per kWh of heat"
+
+    If **Heat produced** is your source, its price is for a kWh of **heat**, not for a kWh of gas or a litre of oil.
+    Convert it: the **price of one unit of your meter divided by the factor** from the setup.
+
+    | Your meter counts | Price per kWh of heat | Example |
+    |---|---|---|
+    | Gas in m³ or kWh | Gas price per kWh ÷ efficiency of the boiler | 0.12 ÷ 0.9 = 0.133 |
+    | Heating oil in litres | Price per litre ÷ factor | 1.00 ÷ 9 = 0.111 |
+
+    With the gas price from your bill and no conversion, the costs would be about 10 % too low. If your source
+    already counts heat (a heat meter, district heating), enter its price per kWh as it is.
 
 !!! tip "Display name"
 
