@@ -29,6 +29,29 @@
     und Woche, gröber pro Stunde. Mit den Pumpen, der Anforderung in % und der Größe der Heizkörper wird sie deutlich
     besser. Warum, zeigt [So funktioniert es](how-it-works.md#wie-genau-ist-das).
 
+??? question "Meine Heizung ist nicht hydraulisch abgeglichen. Stimmt die Aufteilung trotzdem?"
+
+    Die Summe ja, die Aufteilung zwischen den Räumen weniger gut. Heat Ledger nimmt an, dass jeder Heizkörper bei
+    offenem Ventil seine Nennleistung abgibt. Das stimmt, wenn die Anlage abgeglichen ist: Dann bekommt jeder
+    Heizkörper so viel Wasser, wie er braucht.
+
+    Ohne Abgleich bekommen die Heizkörper nahe der Pumpe zu viel Wasser und die entfernten zu wenig:
+
+    - Ein **schlecht versorgter** Heizkörper wird nur lauwarm. Sein Thermostat heizt deshalb länger, und Heat Ledger
+      schreibt ihm **zu viel** Wärme zu.
+    - Ein **gut versorgter** Heizkörper wärmt den Raum schon mit wenig geöffnetem Ventil. Heat Ledger schreibt ihm
+      **zu wenig** zu.
+
+    Der Fehler ist für jeden Raum immer derselbe. Der Vergleich eines Raums mit sich selbst (diese Woche gegen die
+    letzte) stimmt also trotzdem; nur der Vergleich der Räume untereinander ist verschoben.
+
+    Was du tun kannst:
+
+    - Bleibt ein Heizkörper auch voll aufgedreht nur lauwarm, trage bei ihm eine kleinere **Nennleistung** (oder
+      Raumfläche) ein.
+    - Ein hydraulischer Abgleich behebt die Ursache.
+    - Ein Wärmemengenzähler misst, statt zu schätzen, siehe [Genauer machen](more-accurate.md#warmemengenzahler).
+
 ??? question "Ein Raum bekommt keine Wärme, obwohl es dort warm ist."
 
     Sieh dir die Raumheizung auf der Seite der Integration an:

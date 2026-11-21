@@ -49,6 +49,12 @@ ein kleiner im WC. Dafür gibt es zwei Felder, nimm **eines** davon:
 Du kannst beides mischen: ein Raum mit Nennleistung, ein anderer mit Fläche. Lässt du beide Felder leer, zählt der
 Raum als 1000 W.
 
+!!! info "Heizkörper, die nur lauwarm werden"
+
+    Die Nennleistung gilt für einen Heizkörper, der genug Wasser bekommt. In einer Anlage ohne hydraulischen Abgleich
+    werden manche Heizkörper auch voll aufgedreht nur lauwarm: Trage bei ihnen eine kleinere Zahl ein. Warum, steht
+    unter [Häufige Fragen](faq.md#die-zahlen).
+
 ??? question "Wo finde ich die Nennleistung?"
 
     - Auf einem **Typenschild** am Heizkörper, oft seitlich oder unten.

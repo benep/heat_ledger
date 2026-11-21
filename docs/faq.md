@@ -29,6 +29,27 @@
     rougher per hour. With the pumps, the demand in % and the size of the radiators it gets much better.
     [How it works](how-it-works.md#how-accurate-is-it) shows why.
 
+??? question "My heating is not hydraulically balanced. Is the split still right?"
+
+    The total is, the split between the rooms less so. Heat Ledger assumes that every radiator gives off its nominal
+    power when its valve is open. That is true in a balanced system: every radiator then gets as much water as it
+    needs.
+
+    Without balancing, the radiators near the pump get too much water and the distant ones too little:
+
+    - A **poorly supplied** radiator only gets lukewarm. Its thermostat therefore heats for longer, and Heat Ledger
+      gives it **too much** heat.
+    - A **well supplied** radiator warms the room with its valve barely open. Heat Ledger gives it **too little**.
+
+    The error is always the same for each room. Comparing a room with itself (this week against the last) is still
+    right; only the comparison between the rooms is shifted.
+
+    What you can do:
+
+    - If a radiator stays lukewarm even when fully open, enter a smaller **nominal power** (or floor area) for it.
+    - Hydraulic balancing fixes the cause.
+    - A heat meter measures instead of estimating, see [More accurate](more-accurate.md#heat-meter).
+
 ??? question "A room gets no heat, although it is warm there."
 
     Check the room heating on the integration page:

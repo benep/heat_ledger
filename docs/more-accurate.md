@@ -47,6 +47,12 @@ as a small one in the toilet. Two fields, use **one** of them:
 You can mix them: one room with nominal power, the other with floor area. Leave both empty and the room counts as
 1000 W.
 
+!!! info "Radiators that only get lukewarm"
+
+    The nominal power holds for a radiator that gets enough water. In a system without hydraulic balancing, some
+    radiators stay lukewarm even when fully open: enter a smaller number for them. [Questions](faq.md#the-numbers)
+    explains why.
+
 ??? question "Where do I find the nominal power?"
 
     - On a **type plate** on the radiator, often at the side or bottom.
