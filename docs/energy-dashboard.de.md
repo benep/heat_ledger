@@ -158,6 +158,16 @@ Die Leiste unten wählt den Zeitraum, wie im Energie-Dashboard. Die beiden Karte
 Dashboard setzen: In der Kartenauswahl heißen sie *Heat Ledger: gas devices over time* und *Heat Ledger: gas devices
 in total*.
 
+### Kosten statt kWh
+
+Hat deine Wärmequelle im Gas-Reiter einen Preis (siehe [Einrichten](#einrichten)), bekommen beide Karten oben rechts
+einen kleinen Umschalter: **kWh** oder deine Währung, zum Beispiel **€**. Auf **€** zeigen sie, was jeder Raum und
+das Warmwasser gekostet haben.
+
+Ein Raum kostet seine Wärme mal den Preis, den deine Wärmequelle zu dieser Zeit hatte. Die Räume ergeben zusammen
+also die Kosten aus den Summen, abzüglich der Wärme, die kein Raum abgenommen hat. Der Umschalter gilt für beide
+Karten, und dein Browser merkt ihn sich. Ohne Preis gibt es keinen Umschalter.
+
 ## Heat Ledger entfernen
 
 Löschst du Heat Ledger oder eine seiner Raumheizungen, verschwinden ihre Sensoren, ihr Verlauf bleibt. Das

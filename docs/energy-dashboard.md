@@ -150,6 +150,16 @@ The bar at the bottom chooses the period, as on the Energy dashboard. You can al
 dashboard: in the card picker they are called *Heat Ledger: gas devices over time* and *Heat Ledger: gas devices in
 total*.
 
+### Costs instead of kWh
+
+If your heat source has a price on the gas tab (see [Set it up](#set-it-up)), both cards get a small switch in the
+top right corner: **kWh** or your currency, for example **€**. On **€** they show what each room and the hot water
+cost.
+
+A room costs its heat times the price your heat source had at that time. The rooms therefore add up to the costs
+in the totals, less the heat that no room took. The switch applies to both cards, and your browser remembers it.
+Without a price there is no switch.
+
 ## Removing Heat Ledger
 
 When you delete Heat Ledger or one of its room heatings, its sensors disappear, but their history stays. The Energy

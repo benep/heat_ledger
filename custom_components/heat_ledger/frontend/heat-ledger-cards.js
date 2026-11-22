@@ -6,7 +6,17 @@
 // Both extend the electricity cards and hand them the gas devices of the Energy dashboard
 // (device_consumption_gas) instead of the electricity devices. The energy collection loads their statistics anyway,
 // for the gas Sankey. If several devices share a name, their area is shown instead, as the Sankey groups by area.
-// They rely on internal names of the frontend (_data, _getStatistics), so check them after a frontend update.
+//
+// If a gas source has costs, both cards get a switch between kWh and costs. It applies to all of these cards and
+// is remembered in the browser. The costs of a device are its heat times the price the gas sources had in the
+// same hour or day (their costs divided by their energy), so the devices add up to the costs of the sources, less
+// the heat no device took.
+//
+// The base cards only know kWh. They keep calculating as if the costs were kWh, and these cards rewrite the unit
+// in what they show: the axis, the legend, the tooltip and the total.
+//
+// The cards rely on internal names of the frontend (_data, _getStatistics, _processStatistics, _createOptions,
+// _legendData, _chartData) and on its tooltips being lit templates, so check them after a frontend update.
 
 const CARDS = [
   {
@@ -25,6 +35,78 @@ const CARDS = [
   },
 ];
 
+// The unit the electricity cards write behind every number
+const ENERGY_UNIT = "kWh";
+// That unit behind a number, with the decimal before it if it is a single one: costs get a second ("16.4" to "16.40")
+const ENERGY_AMOUNT = /([.,]\d)?(\s*)kWh/;
+const COST_LABEL = "ui.panel.lovelace.cards.energy.energy_sources_table.cost";
+const STORAGE_KEY = "heat-ledger-cards-unit";
+
+const TOGGLE_STYLE = `
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .heat-ledger-unit {
+    display: flex;
+    flex: none;
+    margin-left: auto;
+    border: 1px solid var(--divider-color);
+    border-radius: 999px;
+    overflow: hidden;
+    font-family: var(--ha-font-family-body, inherit);
+    font-size: var(--ha-font-size-s, 12px);
+    font-weight: var(--ha-font-weight-medium, 500);
+    line-height: 1;
+    letter-spacing: normal;
+  }
+  .heat-ledger-unit[hidden] {
+    display: none;
+  }
+  .content > .heat-ledger-unit {
+    width: fit-content;
+    margin-bottom: 8px;
+  }
+  .heat-ledger-unit button {
+    all: unset;
+    box-sizing: border-box;
+    min-width: 44px;
+    padding: 8px 12px;
+    text-align: center;
+    color: var(--secondary-text-color);
+    cursor: pointer;
+  }
+  .heat-ledger-unit button[aria-pressed="true"] {
+    background: var(--primary-color);
+    color: var(--text-primary-color, #fff);
+  }
+  .heat-ledger-unit button:focus-visible {
+    outline: 2px solid var(--primary-text-color);
+    outline-offset: -3px;
+  }
+`;
+
+const cards = new Set();
+const rewrittenOptions = new WeakSet();
+let showCosts = false;
+try {
+  showCosts = localStorage.getItem(STORAGE_KEY) === "cost";
+} catch {
+  // No storage, for example in a private window: the choice then lasts until the page is reloaded.
+}
+
+function setShowCosts(value) {
+  if (value === showCosts) return;
+  showCosts = value;
+  try {
+    localStorage.setItem(STORAGE_KEY, value ? "cost" : "energy");
+  } catch {
+    // See above
+  }
+  for (const card of cards) card._unitChanged();
+}
+
 function withGasDevices(hass, data) {
   if (!data?.prefs) return data;
   const devices = data.prefs.device_consumption_gas || [];
@@ -39,6 +121,188 @@ function withGasDevices(hass, data) {
     d.name && count[d.name] > 1 ? { ...d, name: areaName(d.stat_consumption) || d.name } : d,
   );
   return { ...data, prefs: { ...data.prefs, device_consumption: named } };
+}
+
+// The gas sources that have costs, each with the statistics of its energy and of its costs
+function gasSourcesWithCosts(data) {
+  return (data.prefs.energy_sources || [])
+    .filter((source) => source.type === "gas")
+    .map((source) => ({
+      energy: source.stat_energy_from,
+      cost: source.stat_cost || data.info?.cost_sensors?.[source.stat_energy_from],
+    }))
+    .filter((source) => source.cost);
+}
+
+// The price per period of the statistics: the costs of the sources divided by their energy. A period in which
+// they delivered nothing takes the price before it, because heat that waited in a boiler or buffer tank was paid
+// for when it was produced; periods before the first delivery take the first price. Energy without costs, as
+// before a price was set, has the price 0, like in the Energy dashboard.
+function priceByPeriod(sources, stats) {
+  const energy = new Map();
+  const cost = new Map();
+  const add = (sum, points) => {
+    for (const point of points || []) {
+      if (point.change > 0) sum.set(point.start, (sum.get(point.start) || 0) + point.change);
+    }
+  };
+  for (const source of sources) {
+    add(energy, stats[source.energy]);
+    add(cost, stats[source.cost]);
+  }
+  const starts = [...energy.keys()].sort((a, b) => a - b);
+  const prices = starts.map((start) => (cost.get(start) || 0) / energy.get(start));
+  return (start) => {
+    if (!starts.length) return 0;
+    let low = 0;
+    let high = starts.length - 1;
+    while (low < high) {
+      const middle = (low + high + 1) >> 1;
+      if (starts[middle] <= start) low = middle;
+      else high = middle - 1;
+    }
+    return prices[low];
+  };
+}
+
+function withCosts(data, sources) {
+  const convert = (stats) => {
+    if (!stats) return stats;
+    const price = priceByPeriod(sources, stats);
+    const converted = { ...stats };
+    for (const device of data.prefs.device_consumption) {
+      const points = stats[device.stat_consumption];
+      if (!points) continue;
+      converted[device.stat_consumption] = points.map((point) =>
+        point.change ? { ...point, change: point.change * price(point.start) } : point,
+      );
+    }
+    return converted;
+  };
+  return { ...data, stats: convert(data.stats), statsCompare: convert(data.statsCompare) };
+}
+
+function currencySymbol(hass) {
+  const currency = hass?.config?.currency;
+  try {
+    return new Intl.NumberFormat(hass.locale.language, { style: "currency", currency, currencyDisplay: "narrowSymbol" })
+      .formatToParts(0)
+      .find((part) => part.type === "currency").value;
+  } catch {
+    return currency || "¤";
+  }
+}
+
+// A lit template as the frontend builds it for a tooltip, with every text in it rewritten
+function mapTemplateTexts(value, rewrite) {
+  if (typeof value === "string") return rewrite(value);
+  if (Array.isArray(value)) return value.map((item) => mapTemplateTexts(item, rewrite));
+  if (value && Array.isArray(value.strings) && Array.isArray(value.values)) {
+    return { ...value, values: value.values.map((item) => mapTemplateTexts(item, rewrite)) };
+  }
+  return value;
+}
+
+function createToggle() {
+  const toggle = document.createElement("div");
+  toggle.className = "heat-ledger-unit";
+  toggle.setAttribute("role", "group");
+  const style = document.createElement("style");
+  style.textContent = TOGGLE_STYLE;
+  toggle.append(style);
+  for (const costs of [false, true]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.addEventListener("click", () => setShowCosts(costs));
+    toggle.append(button);
+  }
+  return toggle;
+}
+
+// What both cards share: the data they show, the unit behind the numbers, and the switch between the two units.
+// The switch is put into the rendered card by hand, in its header or, without a title, above the chart: this
+// module has no access to the templates of the frontend.
+function withUnitSwitch(Base) {
+  return class extends Base {
+    constructor() {
+      super();
+      const createOptions = this._createOptions;
+      this._createOptions = (...args) => this._optionsInUnit(createOptions(...args));
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      cards.add(this);
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      cards.delete(this);
+    }
+
+    _mapData(data) {
+      if (!data?.prefs) return data;
+      const mapped = withGasDevices(this.hass, data);
+      const sources = gasSourcesWithCosts(mapped);
+      this._canShowCosts = sources.length > 0;
+      this._showsCosts = showCosts && this._canShowCosts;
+      return this._showsCosts ? withCosts(mapped, sources) : mapped;
+    }
+
+    _unit() {
+      return this._showsCosts ? currencySymbol(this.hass) : ENERGY_UNIT;
+    }
+
+    // A number the base card formatted with its unit, in the unit this card shows
+    _inUnit(text) {
+      if (!this._showsCosts || typeof text !== "string") return text;
+      return text.replace(
+        ENERGY_AMOUNT,
+        (_match, decimal, space) => (decimal ? `${decimal}0` : "") + space + this._unit(),
+      );
+    }
+
+    // The chart options of the base card, with the unit of this card on the axis and in the tooltip. The base
+    // card keeps the options until its data changes, so they are rewritten in place, once.
+    _optionsInUnit(options) {
+      if (!this._showsCosts || rewrittenOptions.has(options)) return options;
+      rewrittenOptions.add(options);
+      for (const axis of ["xAxis", "yAxis"]) {
+        if (options[axis]?.name === ENERGY_UNIT) options[axis] = { ...options[axis], name: this._unit() };
+      }
+      const formatter = options.tooltip?.formatter;
+      if (typeof formatter === "function") {
+        options.tooltip = {
+          ...options.tooltip,
+          formatter: (params) => mapTemplateTexts(formatter(params), (text) => this._inUnit(text)),
+        };
+      }
+      return options;
+    }
+
+    updated(changed) {
+      super.updated(changed);
+      const header = this.shadowRoot?.querySelector(".card-header");
+      const parent = header || this.shadowRoot?.querySelector(".content");
+      if (!parent) return;
+      if (!this._toggle) this._toggle = createToggle();
+      const toggle = this._toggle;
+      const [energy, cost] = toggle.querySelectorAll("button");
+      const symbol = currencySymbol(this.hass);
+      if (energy.textContent !== ENERGY_UNIT) energy.textContent = ENERGY_UNIT;
+      if (cost.textContent !== symbol) cost.textContent = symbol;
+      energy.setAttribute("aria-pressed", String(!this._showsCosts));
+      cost.setAttribute("aria-pressed", String(!!this._showsCosts));
+      toggle.hidden = !this._canShowCosts;
+      if (toggle.parentNode !== parent) {
+        // In the header after the title, so before the button for the chart type of the card in total
+        const title = header?.querySelector("span");
+        if (title) title.after(toggle);
+        else if (header) header.append(toggle);
+        else parent.prepend(toggle);
+      }
+    }
+  };
 }
 
 async function loadBase(type, tag) {
@@ -58,7 +322,7 @@ async function define() {
   const [detail, devices] = CARDS;
   if (!customElements.get(detail.type)) {
     const Base = await loadBase(detail.base, detail.baseTag);
-    class GasDevicesDetailGraph extends Base {
+    class GasDevicesDetailGraph extends withUnitSwitch(Base) {
       static getStubConfig = stubConfig(detail.type);
 
       get _data() {
@@ -66,20 +330,54 @@ async function define() {
       }
 
       set _data(value) {
-        super._data = withGasDevices(this.hass, value);
+        this._energyData = value;
+        super._data = this._mapData(value);
+      }
+
+      _processStatistics() {
+        super._processStatistics();
+        if (this._showsCosts && this._legendData) {
+          this._legendData = this._legendData.map((item) => ({ ...item, value: this._inUnit(item.value) }));
+        }
+      }
+
+      _unitChanged() {
+        if (this._energyData) this._data = this._energyData;
       }
     }
     customElements.define(detail.type, GasDevicesDetailGraph);
   }
   if (!customElements.get(devices.type)) {
     const Base = await loadBase(devices.base, devices.baseTag);
-    class GasDevicesGraph extends Base {
+    class GasDevicesGraph extends withUnitSwitch(Base) {
       static getStubConfig = stubConfig(devices.type);
 
+      // The base card calls this with new data of the Energy dashboard, and again with the data it already shows
+      // when a device is hidden or the chart type changes.
       _getStatistics(data) {
-        const mapped = withGasDevices(this.hass, data);
+        if (data !== this._shownData) this._energyData = data;
+        const mapped = this._mapData(this._energyData);
+        this._shownData = mapped;
         this._data = mapped;
-        return super._getStatistics(mapped);
+        const done = super._getStatistics(mapped);
+        // The base card has set the chart and the legend by now; it only waits for the update to render.
+        if (this._showsCosts) {
+          const costLabel = this._i18n?.localize?.(COST_LABEL);
+          this._legendData = this._legendData.map((item) => ({ ...item, value: this._inUnit(item.value) }));
+          this._chartData = this._chartData.map((series, index) => ({
+            ...series,
+            name: index === 0 && costLabel ? costLabel : series.name,
+            label:
+              typeof series.label?.formatter === "string"
+                ? { ...series.label, formatter: this._inUnit(series.label.formatter) }
+                : series.label,
+          }));
+        }
+        return done;
+      }
+
+      _unitChanged() {
+        if (this._energyData) this._getStatistics(this._energyData);
       }
     }
     customElements.define(devices.type, GasDevicesGraph);
