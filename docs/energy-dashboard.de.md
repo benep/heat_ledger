@@ -164,6 +164,8 @@ Hat deine Wärmequelle im Gas-Reiter einen Preis (siehe [Einrichten](#einrichten
 einen kleinen Umschalter: **kWh** oder deine Währung, zum Beispiel **€**. Auf **€** zeigen sie, was jeder Raum und
 das Warmwasser gekostet haben.
 
+![Die beiden Raum-Karten auf Kosten umgeschaltet: Euro pro Tag und pro Raum](assets/screenshots/heat-dashboard-costs.png){ .screenshot }
+
 Ein Raum kostet seine Wärme mal den Preis deiner Wärmequelle. Die Räume ergeben zusammen also die Kosten aus den
 Summen, abzüglich der Wärme, die kein Raum abgenommen hat. War Home Assistant eine Weile aus, fehlen den Summen die
 Kosten der Wärme aus dieser Zeit; die Karten zählen sie mit.

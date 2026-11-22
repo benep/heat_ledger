@@ -156,6 +156,8 @@ If your heat source has a price on the gas tab (see [Set it up](#set-it-up)), bo
 top right corner: **kWh** or your currency, for example **€**. On **€** they show what each room and the hot water
 cost.
 
+![The two room cards switched to costs: euros per day and per room](assets/screenshots/heat-dashboard-costs.png){ .screenshot }
+
 A room costs its heat times the price of your heat source. The rooms therefore add up to the costs in the totals,
 less the heat that no room took. If Home Assistant was off for a while, the totals lack the costs of the heat from
 that time; the cards count them.
