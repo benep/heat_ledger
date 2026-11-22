@@ -16,7 +16,8 @@
 // in what they show: the axis, the legend, the tooltip and the total.
 //
 // The cards rely on internal names of the frontend (_data, _getStatistics, _processStatistics, _createOptions,
-// _legendData, _chartData) and on its tooltips being lit templates, so check them after a frontend update.
+// _legendData, _chartData, _chartType, the height of ha-chart-base) and on its tooltips being lit templates, so
+// check them after a frontend update.
 
 const CARDS = [
   {
@@ -51,6 +52,9 @@ const NUMBER_LOCALES = {
 };
 const currencyFormats = new Map();
 const COST_LABEL = "ui.panel.lovelace.cards.energy.energy_sources_table.cost";
+// The least height of the chart with the donut, in px. Not a height the base card can choose (28 px per device
+// plus 50), so the two can be told apart.
+const DONUT_HEIGHT = 450;
 const STORAGE_KEY = "heat-ledger-cards-unit";
 
 const TOGGLE_STYLE = `
@@ -442,6 +446,21 @@ async function define() {
 
       _unitChanged() {
         if (this._energyData) this._getStatistics(this._energyData);
+      }
+
+      // The base card makes its chart as high as the bars need, 28 px per device, and the donut fills that
+      // height: large with the many devices of an electricity tab, tiny with a few rooms. The donut gets a
+      // minimum height here. The base card sets the height again only when its own value changes, so the height
+      // found on the chart is either its value or the one set here.
+      updated(changed) {
+        super.updated(changed);
+        const chart = this.shadowRoot?.querySelector("ha-chart-base");
+        if (!chart) return;
+        if (chart.height !== this._donutHeight) this._barsHeight = chart.height;
+        const enlarge = this._chartType === "pie" && parseFloat(this._barsHeight) < DONUT_HEIGHT;
+        this._donutHeight = enlarge ? `${DONUT_HEIGHT}px` : undefined;
+        const height = enlarge ? this._donutHeight : this._barsHeight;
+        if (chart.height !== height) chart.height = height;
       }
     }
     customElements.define(devices.type, GasDevicesGraph);
