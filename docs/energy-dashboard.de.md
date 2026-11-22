@@ -164,9 +164,11 @@ Hat deine Wärmequelle im Gas-Reiter einen Preis (siehe [Einrichten](#einrichten
 einen kleinen Umschalter: **kWh** oder deine Währung, zum Beispiel **€**. Auf **€** zeigen sie, was jeder Raum und
 das Warmwasser gekostet haben.
 
-Ein Raum kostet seine Wärme mal den Preis, den deine Wärmequelle zu dieser Zeit hatte. Die Räume ergeben zusammen
-also die Kosten aus den Summen, abzüglich der Wärme, die kein Raum abgenommen hat. Der Umschalter gilt für beide
-Karten, und dein Browser merkt ihn sich. Ohne Preis gibt es keinen Umschalter.
+Ein Raum kostet seine Wärme mal den Preis deiner Wärmequelle. Die Räume ergeben zusammen also die Kosten aus den
+Summen, abzüglich der Wärme, die kein Raum abgenommen hat. War Home Assistant eine Weile aus, fehlen den Summen die
+Kosten der Wärme aus dieser Zeit; die Karten zählen sie mit.
+
+Der Umschalter gilt für beide Karten, und dein Browser merkt ihn sich. Ohne Preis gibt es keinen Umschalter.
 
 ## Heat Ledger entfernen
 

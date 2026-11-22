@@ -156,9 +156,11 @@ If your heat source has a price on the gas tab (see [Set it up](#set-it-up)), bo
 top right corner: **kWh** or your currency, for example **€**. On **€** they show what each room and the hot water
 cost.
 
-A room costs its heat times the price your heat source had at that time. The rooms therefore add up to the costs
-in the totals, less the heat that no room took. The switch applies to both cards, and your browser remembers it.
-Without a price there is no switch.
+A room costs its heat times the price of your heat source. The rooms therefore add up to the costs in the totals,
+less the heat that no room took. If Home Assistant was off for a while, the totals lack the costs of the heat from
+that time; the cards count them.
+
+The switch applies to both cards, and your browser remembers it. Without a price there is no switch.
 
 ## Removing Heat Ledger
 

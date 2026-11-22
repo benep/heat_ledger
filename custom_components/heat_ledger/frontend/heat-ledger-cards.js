@@ -10,8 +10,7 @@
 //
 // If a gas source has costs, both cards get a switch between kWh and costs. It applies to all of these cards and
 // is remembered in the browser. The costs of a device are its heat times the price the gas sources had in the
-// same hour or day (their costs divided by their energy), so the devices add up to the costs of the sources, less
-// the heat no device took.
+// same hour or day, see priceByPeriod.
 //
 // The base cards only know kWh. They keep calculating as if the costs were kWh, and these cards rewrite the unit
 // in what they show: the axis, the legend, the tooltip and the total.
@@ -127,32 +126,62 @@ function withGasDevices(hass, data) {
   return { ...data, prefs: { ...data.prefs, device_consumption: named, energy_sources: sources } };
 }
 
-// The gas sources that have costs, each with the statistics of its energy and of its costs
+// The gas sources that have a price, each with the statistics of its energy and of its costs. fixedPrice is set
+// if the price is a number entered in the Energy dashboard, the same for every unit, and not an entity or a cost
+// statistic of its own.
 function gasSourcesWithCosts(data) {
   return (data.prefs.energy_sources || [])
     .filter((source) => source.type === "gas")
     .map((source) => ({
       energy: source.stat_energy_from,
       cost: source.stat_cost || data.info?.cost_sensors?.[source.stat_energy_from],
+      fixedPrice:
+        !source.stat_cost && !source.entity_energy_price && typeof source.number_energy_price === "number"
+          ? source.number_energy_price
+          : undefined,
     }))
-    .filter((source) => source.cost);
+    .filter((source) => source.cost || source.fixedPrice !== undefined);
 }
 
-// The price per period of the statistics: the costs of the sources divided by their energy. A period in which
-// they delivered nothing takes the price before it, because heat that waited in a boiler or buffer tank was paid
-// for when it was produced; periods before the first delivery take the first price. Energy without costs, as
-// before a price was set, has the price 0, like in the Energy dashboard.
+function increases(points) {
+  const sum = new Map();
+  for (const point of points || []) {
+    if (point.change > 0) sum.set(point.start, (sum.get(point.start) || 0) + point.change);
+  }
+  return sum;
+}
+
+// The price a source with a fixed price had in the statistics shown: the median of its costs per unit, so the
+// price it had back then and not the one entered today. The median, because single periods are off: Home
+// Assistant counts no costs for energy that arrived while it was not running, and a corrected statistic changes
+// only one of the two. Without any costs, as before a price was entered, it is the price entered today.
+function typicalPrice(energy, cost, entered) {
+  const prices = [];
+  for (const [start, amount] of energy) {
+    if (cost.has(start)) prices.push(cost.get(start) / amount);
+  }
+  prices.sort((a, b) => a - b);
+  return prices.length ? prices[prices.length >> 1] : entered;
+}
+
+// The price per period of the statistics: the costs of the sources divided by their energy. A source with a
+// fixed price costs its energy times that price in every period; for a price that changes, the costs are those
+// Home Assistant counted. A period in which the sources delivered nothing takes the price before it, because heat
+// that waited in a boiler or buffer tank was paid for when it was produced; periods before the first delivery
+// take the first price.
 function priceByPeriod(sources, stats) {
   const energy = new Map();
   const cost = new Map();
-  const add = (sum, points) => {
-    for (const point of points || []) {
-      if (point.change > 0) sum.set(point.start, (sum.get(point.start) || 0) + point.change);
-    }
-  };
+  const add = (sum, start, amount) => sum.set(start, (sum.get(start) || 0) + amount);
   for (const source of sources) {
-    add(energy, stats[source.energy]);
-    add(cost, stats[source.cost]);
+    const sourceEnergy = increases(stats[source.energy]);
+    const sourceCost = increases(stats[source.cost]);
+    const fixed =
+      source.fixedPrice === undefined ? undefined : typicalPrice(sourceEnergy, sourceCost, source.fixedPrice);
+    for (const [start, amount] of sourceEnergy) {
+      add(energy, start, amount);
+      add(cost, start, fixed === undefined ? sourceCost.get(start) || 0 : amount * fixed);
+    }
   }
   const starts = [...energy.keys()].sort((a, b) => a - b);
   const prices = starts.map((start) => (cost.get(start) || 0) / energy.get(start));
@@ -248,7 +277,8 @@ function withUnitSwitch(Base) {
       if (!data?.prefs) return data;
       const mapped = withGasDevices(this.hass, data);
       const sources = gasSourcesWithCosts(mapped);
-      this._canShowCosts = sources.length > 0;
+      // A source with the price 0 counts into the price of the heat, but alone it gives nothing to show.
+      this._canShowCosts = sources.some((source) => source.fixedPrice !== 0);
       this._showsCosts = showCosts && this._canShowCosts;
       return this._showsCosts ? withCosts(mapped, sources) : mapped;
     }
