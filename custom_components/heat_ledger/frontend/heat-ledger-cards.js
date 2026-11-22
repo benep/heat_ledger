@@ -6,6 +6,7 @@
 // Both extend the electricity cards and hand them the gas devices of the Energy dashboard
 // (device_consumption_gas) instead of the electricity devices. The energy collection loads their statistics anyway,
 // for the gas Sankey. If several devices share a name, their area is shown instead, as the Sankey groups by area.
+// The electricity sources are kept from the base cards, which would otherwise compare the gas devices with them.
 //
 // If a gas source has costs, both cards get a switch between kWh and costs. It applies to all of these cards and
 // is remembered in the browser. The costs of a device are its heat times the price the gas sources had in the
@@ -120,7 +121,10 @@ function withGasDevices(hass, data) {
   const named = devices.map((d) =>
     d.name && count[d.name] > 1 ? { ...d, name: areaName(d.stat_consumption) || d.name } : d,
   );
-  return { ...data, prefs: { ...data.prefs, device_consumption: named } };
+  // Only the gas sources: from the electricity sources the base cards would work out an "untracked consumption",
+  // the electricity of the house less the heat of the gas devices.
+  const sources = (data.prefs.energy_sources || []).filter((source) => source.type === "gas");
+  return { ...data, prefs: { ...data.prefs, device_consumption: named, energy_sources: sources } };
 }
 
 // The gas sources that have costs, each with the statistics of its energy and of its costs
