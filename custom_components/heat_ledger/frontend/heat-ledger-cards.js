@@ -37,8 +37,19 @@ const CARDS = [
 
 // The unit the electricity cards write behind every number
 const ENERGY_UNIT = "kWh";
-// That unit behind a number, with the decimal before it if it is a single one: costs get a second ("16.4" to "16.40")
-const ENERGY_AMOUNT = /([.,]\d)?(\s*)kWh/;
+// A number with that unit behind it, as the electricity cards write an amount of energy
+const ENERGY_AMOUNT = /([\d.,'’  ]*\d)\s*kWh/;
+// The locales the frontend formats numbers with, by the number format of the user profile; any other format
+// follows the language.
+const NUMBER_LOCALES = {
+  comma_decimal: ["en-US", "en"],
+  decimal_comma: ["de", "es", "it"],
+  space_comma: ["fr", "sv", "cs"],
+  quote_decimal: ["de-CH"],
+  none: "en-US",
+  system: undefined,
+};
+const currencyFormats = new Map();
 const COST_LABEL = "ui.panel.lovelace.cards.energy.energy_sources_table.cost";
 const STORAGE_KEY = "heat-ledger-cards-unit";
 
@@ -215,15 +226,32 @@ function withCosts(data, sources) {
   return { ...data, stats: convert(data.stats), statsCompare: convert(data.statsCompare) };
 }
 
-function currencySymbol(hass) {
+// How Home Assistant writes an amount of money for this user: the symbol of the currency, and what stands in
+// front of and behind the number ("€" in front in English, " €" behind in German). The locale follows the number
+// format of the user profile, as in the frontend.
+function currencyFormat(hass) {
   const currency = hass?.config?.currency;
-  try {
-    return new Intl.NumberFormat(hass.locale.language, { style: "currency", currency, currencyDisplay: "narrowSymbol" })
-      .formatToParts(0)
-      .find((part) => part.type === "currency").value;
-  } catch {
-    return currency || "¤";
+  const numberFormat = hass?.locale?.number_format;
+  const key = `${currency}|${numberFormat}|${hass?.locale?.language}`;
+  if (!currencyFormats.has(key)) {
+    let format = { symbol: currency || "¤", before: "", after: ` ${currency || "¤"}` };
+    try {
+      const locale = numberFormat in NUMBER_LOCALES ? NUMBER_LOCALES[numberFormat] : hass.locale.language;
+      const parts = new Intl.NumberFormat(locale, { style: "currency", currency }).formatToParts(1);
+      const first = parts.findIndex((part) => part.type === "integer");
+      const last = parts.findLastIndex((part) => part.type === "integer" || part.type === "fraction");
+      const text = (list) => list.map((part) => part.value).join("");
+      format = {
+        symbol: parts.find((part) => part.type === "currency").value,
+        before: text(parts.slice(0, first)),
+        after: text(parts.slice(last + 1)),
+      };
+    } catch {
+      // An unknown currency or locale: the code of the currency behind the number
+    }
+    currencyFormats.set(key, format);
   }
+  return currencyFormats.get(key);
 }
 
 // A lit template as the frontend builds it for a tooltip, with every text in it rewritten
@@ -284,15 +312,17 @@ function withUnitSwitch(Base) {
     }
 
     _unit() {
-      return this._showsCosts ? currencySymbol(this.hass) : ENERGY_UNIT;
+      return this._showsCosts ? currencyFormat(this.hass).symbol : ENERGY_UNIT;
     }
 
     // A number the base card formatted with its unit, in the unit this card shows
     _inUnit(text) {
       if (!this._showsCosts || typeof text !== "string") return text;
+      const { before, after } = currencyFormat(this.hass);
+      // Costs with a single decimal get a second one: "16.4" becomes "16.40"
       return text.replace(
         ENERGY_AMOUNT,
-        (_match, decimal, space) => (decimal ? `${decimal}0` : "") + space + this._unit(),
+        (_match, number) => before + (/[.,]\d$/.test(number) ? `${number}0` : number) + after,
       );
     }
 
@@ -322,7 +352,7 @@ function withUnitSwitch(Base) {
       if (!this._toggle) this._toggle = createToggle();
       const toggle = this._toggle;
       const [energy, cost] = toggle.querySelectorAll("button");
-      const symbol = currencySymbol(this.hass);
+      const { symbol } = currencyFormat(this.hass);
       if (energy.textContent !== ENERGY_UNIT) energy.textContent = ENERGY_UNIT;
       if (cost.textContent !== symbol) cost.textContent = symbol;
       energy.setAttribute("aria-pressed", String(!this._showsCosts));
