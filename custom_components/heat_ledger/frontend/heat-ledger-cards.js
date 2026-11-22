@@ -8,6 +8,9 @@
 // for the gas Sankey. If several devices share a name, their area is shown instead, as the Sankey groups by area.
 // The electricity sources are kept from the base cards, which would otherwise compare the gas devices with them.
 //
+// Without gas devices in the Energy dashboard (before Home Assistant 2026.12, or before the user has entered any)
+// the cards show the room heating and hot water of Heat Ledger itself, see withOwnConsumers.
+//
 // If a gas source has costs, both cards get a switch between kWh and costs. It applies to all of these cards and
 // is remembered in the browser. The costs of a device are its heat times the price the gas sources had in the
 // same hour or day, see priceByPeriod.
@@ -119,7 +122,7 @@ function setShowCosts(value) {
   } catch {
     // See above
   }
-  for (const card of cards) card._unitChanged();
+  for (const card of cards) card._remap();
 }
 
 function withGasDevices(hass, data) {
@@ -139,6 +142,64 @@ function withGasDevices(hass, data) {
   // the electricity of the house less the heat of the gas devices.
   const sources = (data.prefs.energy_sources || []).filter((source) => source.type === "gas");
   return { ...data, prefs: { ...data.prefs, device_consumption: named, energy_sources: sources } };
+}
+
+// The period of the statistics the Energy dashboard loaded: that of its gas sources, or, if they have none, by
+// the rule of the frontend (getSuggestedPeriod).
+function statisticsPeriod(data) {
+  for (const source of data.prefs.energy_sources || []) {
+    const point = source.type === "gas" && data.stats?.[source.stat_energy_from]?.[0];
+    if (!point?.end) continue;
+    const hours = (point.end - point.start) / 3600000;
+    return hours < 0.5 ? "5minute" : hours < 12 ? "hour" : hours < 24 * 14 ? "day" : "month";
+  }
+  const start = data.start;
+  const end = data.end || new Date();
+  const date = (day) => Date.UTC(day.getFullYear(), day.getMonth(), day.getDate());
+  let days = Math.round((date(end) - date(start)) / 86400000);
+  const sameTime = new Date(start);
+  sameTime.setDate(start.getDate() + days);
+  if (days > 0 && sameTime > end) days -= 1;
+  const lastOfMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+  const wholeMonths = start.getDate() === 1 && (!data.end || end.getDate() === lastOfMonth);
+  return wholeMonths && days > 35 ? "month" : days > 2 ? "day" : "hour";
+}
+
+// The data of the Energy dashboard with the consumers of Heat Ledger as its gas devices, for when it has none:
+// before Home Assistant 2026.12, which brought them, or before the user has entered any. The Energy dashboard
+// only loads the statistics of its own devices, so those of the consumers are loaded here, for the same time and
+// in the same periods. Not followed: the shift the frontend applies to days and months if the browser is in
+// another time zone than Home Assistant.
+async function withOwnConsumers(hass, data) {
+  const consumers = await hass.callWS({ type: "heat_ledger/consumers" });
+  if (!consumers.length) return data;
+  const period = statisticsPeriod(data);
+  const load = (start, end) =>
+    hass.callWS({
+      type: "recorder/statistics_during_period",
+      start_time: start.toISOString(),
+      end_time: end?.toISOString(),
+      statistic_ids: consumers.map((consumer) => consumer.entity_id),
+      period,
+      units: { energy: ENERGY_UNIT },
+      types: ["change"],
+    });
+  const [stats, statsCompare] = await Promise.all([
+    load(data.start, data.end),
+    data.startCompare ? load(data.startCompare, data.endCompare) : undefined,
+  ]);
+  return {
+    ...data,
+    prefs: {
+      ...data.prefs,
+      device_consumption_gas: consumers.map((consumer) => ({
+        stat_consumption: consumer.entity_id,
+        name: consumer.name,
+      })),
+    },
+    stats: { ...data.stats, ...stats },
+    statsCompare: statsCompare ? { ...data.statsCompare, ...statsCompare } : data.statsCompare,
+  };
 }
 
 // The gas sources that have a price, each with the statistics of its energy and of its costs. fixedPrice is set
@@ -305,14 +366,41 @@ function withUnitSwitch(Base) {
       cards.delete(this);
     }
 
+    // The data of the Energy dashboard as this card shows it. Without gas devices in the Energy dashboard the
+    // consumers of Heat Ledger are loaded first; until they are there, the card keeps what it shows.
     _mapData(data) {
       if (!data?.prefs) return data;
-      const mapped = withGasDevices(this.hass, data);
+      let energyData = data;
+      if (!(data.prefs.device_consumption_gas || []).length) {
+        if (this._ownConsumers?.of === data) energyData = this._ownConsumers.data;
+        else {
+          this._loadOwnConsumers(data);
+          if (this._mapped) return this._mapped;
+        }
+      }
+      const mapped = withGasDevices(this.hass, energyData);
       const sources = gasSourcesWithCosts(mapped);
       // A source with the price 0 counts into the price of the heat, but alone it gives nothing to show.
       this._canShowCosts = sources.some((source) => source.fixedPrice !== 0);
       this._showsCosts = showCosts && this._canShowCosts;
-      return this._showsCosts ? withCosts(mapped, sources) : mapped;
+      this._mapped = this._showsCosts ? withCosts(mapped, sources) : mapped;
+      return this._mapped;
+    }
+
+    async _loadOwnConsumers(data) {
+      if (this._loadingFor === data) return;
+      this._loadingFor = data;
+      let own = data;
+      try {
+        own = await withOwnConsumers(this.hass, data);
+      } catch (err) {
+        console.error("Heat Ledger: could not load the consumers for the gas device cards", err);
+      }
+      // Newer data of the Energy dashboard may have arrived in the meantime, with a request of its own.
+      if (this._loadingFor !== data) return;
+      this._ownConsumers = { of: data, data: own };
+      this._mapped = undefined;
+      this._remap();
     }
 
     _unit() {
@@ -409,7 +497,7 @@ async function define() {
         }
       }
 
-      _unitChanged() {
+      _remap() {
         if (this._energyData) this._data = this._energyData;
       }
     }
@@ -444,7 +532,7 @@ async function define() {
         return done;
       }
 
-      _unitChanged() {
+      _remap() {
         if (this._energyData) this._getStatistics(this._energyData);
       }
 
