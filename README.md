@@ -2,6 +2,9 @@
 
 **See where the heat of your heating goes: room by room, right in the Energy dashboard of Home Assistant.**
 
+**Deutsch?** Die ganze Anleitung gibt es [auf Deutsch](https://benep.github.io/heat_ledger/de/), und auch die
+Integration selbst ist übersetzt.
+
 [![Release](https://img.shields.io/github/v/release/benep/heat_ledger?include_prereleases&label=release)](https://github.com/benep/heat_ledger/releases)
 [![License](https://img.shields.io/github/license/benep/heat_ledger)](LICENSE)
 
