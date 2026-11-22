@@ -20,7 +20,8 @@ so you can see it per room, right in the Energy dashboard.
 
 - :material-home-assistant: **Home Assistant 2026.10 or newer**
 
-    The rooms appear as devices in the Energy dashboard from **2026.12** on.
+    The rooms appear as devices in the Energy dashboard from **2026.12** on. Before that, a
+    [heat dashboard](energy-dashboard.md#a-heat-dashboard) shows them.
 
 - :material-counter: **A meter for your heating**
 

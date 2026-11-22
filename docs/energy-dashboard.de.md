@@ -94,8 +94,9 @@ Räume im Verlauf und im Vergleich.
 
 ![Ein Wärme-Dashboard: Wärme pro Tag, Summen, die Räume pro Tag und im Vergleich und der Wärmefluss](assets/screenshots/heat-dashboard.png){ .screenshot }
 
-Die Karten nehmen die Räume und das Warmwasser aus dem Gas-Reiter des Energie-Dashboards, du musst also nichts
-ausfüllen: Trägst du dort einen Raum ein, erscheint er auch hier.
+Die beiden Karten zeigen die Räume und das Warmwasser, die du im Gas-Reiter des Energie-Dashboards eingetragen hast.
+Solange dort keine stehen, zeigen sie von selbst alle Raumheizungen und das Warmwasser von Heat Ledger. So
+funktioniert dieses Dashboard schon vor Home Assistant 2026.12, nur ohne den Wärmefluss, der mit dieser Version kam.
 
 <div class="steps" markdown>
 
@@ -105,57 +106,102 @@ ausfüllen: Trägst du dort einen Raum ein, erscheint er auch hier.
    **Erstellen**.
 3. Öffne das neue Dashboard in der Seitenleiste. Klicke auf den Stift (**Dashboard bearbeiten**), dann auf die drei
    Punkte und **Raw-Konfigurationseditor**.
-4. Ersetze alles dort durch den Text unten und klicke auf **Speichern**. Schließe den Editor und klicke auf
-   **Fertig**.
+4. Ersetze alles dort durch den Text unten für deine Version von Home Assistant und klicke auf **Speichern**.
+   Schließe den Editor und klicke auf **Fertig**.
 
 </div>
 
-```yaml
-views:
-  - title: Wärme
-    type: sections
-    max_columns: 3
-    dense_section_placement: true
-    footer:
-      card:
-        type: energy-date-selection
-        opening_direction: right
-        vertical_opening_direction: up
-    sections:
-      - type: grid
-        column_span: 3
-        cards:
-          - type: energy-compare
-            grid_options:
-              columns: 36
-          - type: energy-gas-graph
-            title: Erzeugte Wärme
-            grid_options:
-              columns: 24
-          - type: energy-sources-table
-            title: Summen
-            types:
-              - gas
-            grid_options:
-              columns: 12
-          - type: custom:heat-ledger-gas-devices-detail-graph
-            title: Räume pro Tag
-            grid_options:
-              columns: 36
-          - type: custom:heat-ledger-gas-devices-graph
-            title: Räume im Vergleich
-            modes:
-              - pie
-              - bar
-            grid_options:
-              columns: 36
-          - type: gas-sankey
-            title: Wärmefluss
-            group_by_floor: true
-            group_by_area: true
-            grid_options:
-              columns: 36
-```
+=== "Home Assistant 2026.12 oder neuer"
+
+    ```yaml
+    views:
+      - title: Wärme
+        type: sections
+        max_columns: 3
+        dense_section_placement: true
+        footer:
+          card:
+            type: energy-date-selection
+            opening_direction: right
+            vertical_opening_direction: up
+        sections:
+          - type: grid
+            column_span: 3
+            cards:
+              - type: energy-compare
+                grid_options:
+                  columns: 36
+              - type: energy-gas-graph
+                title: Erzeugte Wärme
+                grid_options:
+                  columns: 24
+              - type: energy-sources-table
+                title: Summen
+                types:
+                  - gas
+                grid_options:
+                  columns: 12
+              - type: custom:heat-ledger-gas-devices-detail-graph
+                title: Räume pro Tag
+                grid_options:
+                  columns: 36
+              - type: custom:heat-ledger-gas-devices-graph
+                title: Räume im Vergleich
+                modes:
+                  - pie
+                  - bar
+                grid_options:
+                  columns: 36
+              - type: gas-sankey
+                title: Wärmefluss
+                group_by_floor: true
+                group_by_area: true
+                grid_options:
+                  columns: 36
+    ```
+
+=== "Vor 2026.12"
+
+    ```yaml
+    views:
+      - title: Wärme
+        type: sections
+        max_columns: 3
+        dense_section_placement: true
+        footer:
+          card:
+            type: energy-date-selection
+            opening_direction: right
+            vertical_opening_direction: up
+        sections:
+          - type: grid
+            column_span: 3
+            cards:
+              - type: energy-compare
+                grid_options:
+                  columns: 36
+              - type: energy-gas-graph
+                title: Erzeugte Wärme
+                grid_options:
+                  columns: 24
+              - type: energy-sources-table
+                title: Summen
+                types:
+                  - gas
+                grid_options:
+                  columns: 12
+              - type: custom:heat-ledger-gas-devices-detail-graph
+                title: Räume pro Tag
+                grid_options:
+                  columns: 36
+              - type: custom:heat-ledger-gas-devices-graph
+                title: Räume im Vergleich
+                modes:
+                  - pie
+                  - bar
+                grid_options:
+                  columns: 36
+    ```
 
 Die Leiste unten wählt den Zeitraum, wie im Energie-Dashboard. Die beiden Karten kannst du auch auf jedes andere
 Dashboard setzen: In der Kartenauswahl heißen sie *Heat Ledger: gas devices over time* und *Heat Ledger: gas devices

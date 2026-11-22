@@ -20,7 +20,8 @@ damit du sie pro Raum siehst, direkt im Energie-Dashboard.
 
 - :material-home-assistant: **Home Assistant 2026.10 oder neuer**
 
-    Als Geräte im Energie-Dashboard erscheinen die Räume ab **2026.12**.
+    Als Geräte im Energie-Dashboard erscheinen die Räume ab **2026.12**. Davor zeigt sie ein
+    [Wärme-Dashboard](energy-dashboard.md#ein-warme-dashboard).
 
 - :material-counter: **Einen Zähler deiner Heizung**
 

@@ -89,8 +89,9 @@ tab, plus your rooms over time and compared.
 
 ![A heat dashboard: heat per day, totals, the rooms per day and compared, and the heat flow](assets/screenshots/heat-dashboard.png){ .screenshot }
 
-The cards take the rooms and the hot water from the gas tab of the Energy dashboard, so there is nothing to fill
-in: add a room there, and it shows up here as well.
+The two cards show the rooms and the hot water you added to the gas tab of the Energy dashboard. As long as there
+are none, they show all room heating and hot water of Heat Ledger by themselves. So this dashboard already works
+before Home Assistant 2026.12, only without the heat flow, which came with that version.
 
 <div class="steps" markdown>
 
@@ -98,56 +99,102 @@ in: add a room there, and it shows up here as well.
 2. Enter *Heat* as **Title**, choose an **Icon** such as `mdi:radiator` and click **Create**.
 3. Open the new dashboard in the sidebar. Click the pencil (**Edit dashboard**), then the three dots and **Raw
    configuration editor**.
-4. Replace everything there with the text below and click **Save**. Close the editor and click **Done**.
+4. Replace everything there with the text below for your version of Home Assistant and click **Save**. Close the
+   editor and click **Done**.
 
 </div>
 
-```yaml
-views:
-  - title: Heat
-    type: sections
-    max_columns: 3
-    dense_section_placement: true
-    footer:
-      card:
-        type: energy-date-selection
-        opening_direction: right
-        vertical_opening_direction: up
-    sections:
-      - type: grid
-        column_span: 3
-        cards:
-          - type: energy-compare
-            grid_options:
-              columns: 36
-          - type: energy-gas-graph
-            title: Heat produced
-            grid_options:
-              columns: 24
-          - type: energy-sources-table
-            title: Totals
-            types:
-              - gas
-            grid_options:
-              columns: 12
-          - type: custom:heat-ledger-gas-devices-detail-graph
-            title: Rooms per day
-            grid_options:
-              columns: 36
-          - type: custom:heat-ledger-gas-devices-graph
-            title: Rooms compared
-            modes:
-              - pie
-              - bar
-            grid_options:
-              columns: 36
-          - type: gas-sankey
-            title: Heat flow
-            group_by_floor: true
-            group_by_area: true
-            grid_options:
-              columns: 36
-```
+=== "Home Assistant 2026.12 or newer"
+
+    ```yaml
+    views:
+      - title: Heat
+        type: sections
+        max_columns: 3
+        dense_section_placement: true
+        footer:
+          card:
+            type: energy-date-selection
+            opening_direction: right
+            vertical_opening_direction: up
+        sections:
+          - type: grid
+            column_span: 3
+            cards:
+              - type: energy-compare
+                grid_options:
+                  columns: 36
+              - type: energy-gas-graph
+                title: Heat produced
+                grid_options:
+                  columns: 24
+              - type: energy-sources-table
+                title: Totals
+                types:
+                  - gas
+                grid_options:
+                  columns: 12
+              - type: custom:heat-ledger-gas-devices-detail-graph
+                title: Rooms per day
+                grid_options:
+                  columns: 36
+              - type: custom:heat-ledger-gas-devices-graph
+                title: Rooms compared
+                modes:
+                  - pie
+                  - bar
+                grid_options:
+                  columns: 36
+              - type: gas-sankey
+                title: Heat flow
+                group_by_floor: true
+                group_by_area: true
+                grid_options:
+                  columns: 36
+    ```
+
+=== "Before 2026.12"
+
+    ```yaml
+    views:
+      - title: Heat
+        type: sections
+        max_columns: 3
+        dense_section_placement: true
+        footer:
+          card:
+            type: energy-date-selection
+            opening_direction: right
+            vertical_opening_direction: up
+        sections:
+          - type: grid
+            column_span: 3
+            cards:
+              - type: energy-compare
+                grid_options:
+                  columns: 36
+              - type: energy-gas-graph
+                title: Heat produced
+                grid_options:
+                  columns: 24
+              - type: energy-sources-table
+                title: Totals
+                types:
+                  - gas
+                grid_options:
+                  columns: 12
+              - type: custom:heat-ledger-gas-devices-detail-graph
+                title: Rooms per day
+                grid_options:
+                  columns: 36
+              - type: custom:heat-ledger-gas-devices-graph
+                title: Rooms compared
+                modes:
+                  - pie
+                  - bar
+                grid_options:
+                  columns: 36
+    ```
 
 The bar at the bottom chooses the period, as on the Energy dashboard. You can also put the two cards on any other
 dashboard: in the card picker they are called *Heat Ledger: gas devices over time* and *Heat Ledger: gas devices in

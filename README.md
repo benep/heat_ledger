@@ -43,7 +43,7 @@ Heat Ledger needs two things that are already in your Home Assistant. Check them
 Not sure? [Check both in a minute](https://benep.github.io/heat_ledger/#does-it-fit-your-home).
 
 You also need **Home Assistant 2026.10** or newer. The rooms appear as individual devices in the Energy dashboard
-from **2026.12** on.
+from **2026.12** on; before that, a heat dashboard built from the cards of Heat Ledger shows them.
 
 ## How it works
 
