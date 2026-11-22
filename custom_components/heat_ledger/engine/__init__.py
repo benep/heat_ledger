@@ -2,6 +2,7 @@
 
 from .basis import Basis, Level, circuit_basis, consumer_basis
 from .ledger import Ledger, Reading, Readings
+from .replay import Replay, ReplayResult
 from .spec import (
     ActiveMethod,
     CircuitSpec,
@@ -26,6 +27,8 @@ __all__ = [
     "PlantSpec",
     "Reading",
     "Readings",
+    "Replay",
+    "ReplayResult",
     "Size",
     "SizeMethod",
     "SourceSpec",
