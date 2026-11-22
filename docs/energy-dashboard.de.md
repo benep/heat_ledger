@@ -144,6 +144,9 @@ views:
               columns: 36
           - type: custom:heat-ledger-gas-devices-graph
             title: Räume im Vergleich
+            modes:
+              - pie
+              - bar
             grid_options:
               columns: 36
           - type: gas-sankey
