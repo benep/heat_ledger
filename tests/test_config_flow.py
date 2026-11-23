@@ -935,6 +935,10 @@ async def test_circuit_pump_power(hass: HomeAssistant, entry: MockConfigEntry) -
     assert suggested(result, CONF_HISTORY_ENTITY, ACCURACY) == POWER
     result = await configure(hass, result, {"name": "Ground floor", ACCURACY: {CONF_HISTORY_ENTITY: POWER}})
     assert result["errors"] == {ACCURACY: "history_needs_pump"}
+    # A pump is chosen, but it is gone: that is the error, not a missing pump.
+    gone = {"name": "Ground floor", CONF_PUMP_ENTITY: "binary_sensor.gone", ACCURACY: {CONF_HISTORY_ENTITY: POWER}}
+    result = await configure(hass, result, gone)
+    assert result["errors"] == {CONF_PUMP_ENTITY: "entity_not_found"}
     result = await configure(hass, result, {"name": "Ground floor", ACCURACY: {}})
     assert dict(entry.subentries[sid].data) == {}
 
@@ -958,6 +962,10 @@ async def test_first_setup_takes_the_power_of_the_pumps(hass: HomeAssistant) -> 
     pumps = {"circuit_pump": PUMP, "hot_water_pump": HOT_WATER_PUMP}
     result = await first_setup(hass, {"name": "House"}, HEAT_SOURCE, {ACCURACY: {"circuit_pump_power": POWER}})
     assert result["errors"] == {ACCURACY: "history_needs_pump"}
+    # Two errors in the section: the first one stays, rather than being hidden by the second.
+    both = {"circuit_pump": PUMP, ACCURACY: {"circuit_pump_power": TEMPERATURE, "hot_water_pump_power": POWER}}
+    result = await first_setup(hass, {"name": "House"}, HEAT_SOURCE, both)
+    assert result["errors"] == {ACCURACY: "not_power"}
 
     power = {"circuit_pump_power": POWER, "hot_water_pump_power": POWER}
     result = await first_setup(hass, {"name": "House"}, HEAT_SOURCE, pumps | {ACCURACY: power}, {})

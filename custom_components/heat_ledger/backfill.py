@@ -84,9 +84,20 @@ CALIBRATION_HOURS = 72
 # Hourly statistics are read in pieces of this length.
 STATISTICS_CHUNK = timedelta(days=31)
 HOUR = timedelta(hours=1)
-# A pump ran in an hour its sensor peaked above this share of a high peak, and all of it if it never dropped below
-# this share of what it shows while running.
+# The power of a pump: its idle level is a low hourly minimum (this percentile), its top a high hourly maximum (this
+# one, so that a few spikes of the plug do not set the scale).
+IDLE_PERCENTILE = 0.05
+TOP_PERCENTILE = 0.99
+# A pump ran in an hour its power peaked above the idle level by this share of the way to the top.
 RUNNING_SHARE = 0.2
+# It ran all of an hour its power never dropped to within this share of the way from idle to running (a controlled
+# pump running slowly). Above standby noise, below the slowest speed of a usual circulator.
+FULL_HOUR_SHARE = 0.1
+# What became of the power of a pump in the estimate (noted with it, by entity ID):
+POWER_USED = "used"
+POWER_NO_STATISTICS = "no_statistics"  # it has no hourly statistics before the recorded days
+POWER_NOT_RECORDED = "not_recorded"  # none in the recorded days: the estimate could not be calibrated with it
+POWER_NO_RUNNING = "no_running"  # it never shows the pump running, or not in the recorded days
 
 # Stored with the ledger (runtime.backfill):
 KEY_START = "start"  # the replay started here, as a timestamp
@@ -103,6 +114,7 @@ KEY_RAISED = "raised"  # how many counters' live statistics were raised
 KEY_LOST = "lost"  # how many counters' hours were not in the statistics
 KEY_SKIPPED = "skipped"  # why the backfill of the first setup wrote nothing (a key of the exceptions), if so
 KEY_ESTIMATE = "estimate"  # if chosen: start, hours and factors of the estimate, or why it was skipped (KEY_SKIPPED)
+KEY_PUMP_POWER = "pump_power"  # in the estimate: entity ID of the power of a pump -> whether it was used (POWER_*)
 
 # Reasons (translation keys of the exceptions)
 DONE = "backfill_done"
@@ -174,6 +186,21 @@ def estimate_issue_id(entry: ConfigEntry) -> str:
 class _Estimate:
     result: ReplayResult
     calibration: Calibration
+    pump_power: dict[str, str]  # entity ID of the power of a pump -> what became of it (POWER_*)
+
+
+@dataclass(frozen=True)
+class _Pump:
+    """The power of a pump, read as the share of every hour the pump ran."""
+
+    idle: float  # what its sensor shows while the pump stands
+    running: float  # and while it runs: the usual hourly maximum of the hours it ran in
+    usual: float  # the mean share in the recorded days: for an hour without a value
+
+    def share(self, row: Mapping[str, Any] | None) -> float:
+        if (ran := _ran(row, self.idle, self.running)) is None:
+            return self.usual
+        return ran
 
 
 async def async_backfill(hass: HomeAssistant, entry: ConfigEntry, *, estimate: bool = False) -> dict[str, Any]:
@@ -229,11 +256,12 @@ async def async_backfill_at_setup(hass: HomeAssistant, entry: ConfigEntry, *, es
     if skipped is None:
         if estimate:
             _LOGGER.info(
-                "%s: estimated %s hours before them from %s, %s kWh of the sources",
+                "%s: estimated %s hours before them from %s, %s kWh of the sources, pump power: %s",
                 entry.title,
                 estimate[KEY_HOURS],
                 estimate[KEY_START],
                 estimate["source_heat"],
+                estimate[KEY_PUMP_POWER] or "none",
             )
         return
     if skipped["key"] == ESTIMATE_NOTHING_OLDER:
@@ -362,6 +390,7 @@ async def _async_backfill(
             KEY_START: older.start,
             KEY_HOURS: max(0, len(older.hours) - first),
             "factors": {cid: round(factor, 4) for cid, factor in estimate.calibration.factors.items()},
+            KEY_PUMP_POWER: estimate.pump_power,
         }
     # Noted before the hours are queued for the recorder: whatever stops Home Assistant from here on, the note says
     # what to look for. Hours that never arrive are found missing, and nothing is raised for them.
@@ -414,6 +443,7 @@ async def _async_backfill(
             "source_heat": round(older.source_heat, 3),
             "unassigned": round(older.unassigned, 3),
             "factors": {by_id[cid]: factor for cid, factor in estimate_note["factors"].items() if cid in by_id},
+            KEY_PUMP_POWER: estimate.pump_power,
         }
     elif estimate_note is not None:
         summary[KEY_ESTIMATE] = estimate_note
@@ -431,9 +461,12 @@ def _series(target: _Target, older: ReplayResult | None, result: ReplayResult) -
 async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, result: ReplayResult) -> _Estimate:
     """Estimate the time before the replay from the hourly statistics, calibrated on the hours of the replay.
 
-    The estimate starts at the first hour every meter has statistics for; a demand whose statistics start later (or
-    are missing) counts as always on throughout, the calibration included. It ends where the replay starts: the hour
-    the replay started in is its, from the moment it started.
+    The estimate starts at the first hour every meter has statistics for; a demand in % whose statistics start later
+    (or are missing) counts as always on throughout, the calibration included. The power of a pump is used from its
+    first hour on; an hour without it (before it, or the plug was offline) counts with the pump's mean share in the
+    recorded days, the share its weight was calibrated for. A power that cannot be calibrated with, or never shows the
+    pump running, is left out: the pump counts as running throughout, as without it, and the note says so. The
+    estimate ends where the replay starts: the hour the replay started in is its, from the moment it started.
     """
     from homeassistant.components.recorder import get_instance, statistics
 
@@ -479,11 +512,10 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
         raise BackfillError(ESTIMATE_NOTHING_OLDER)
     if calibration_count < CALIBRATION_HOURS:
         raise BackfillError(ESTIMATE_TOO_SHORT, hours=str(calibration_count), needed=str(CALIBRATION_HOURS))
-    # The first hour of the estimate is only the baseline of the meters: a demand may start an hour later. A demand
-    # whose statistics start later counts as always on throughout. A pump's power is taken from its first hour on: an
-    # hour without it (before it, or the plug was offline) counts as the pump running, as without the power at all.
+    # The first hour of the estimate is only the baseline of the meters: a demand may start an hour later.
     percent = {key for key in demands if key not in pumps and key in firsts and firsts[key] <= start + HOUR}
     powered = {key for key in demands if key in pumps and key in firsts}
+    pump_power = {key: POWER_NO_STATISTICS for key in pumps if key not in powered}
 
     # Each meter in a unit Heat Ledger converts from (without one, Home Assistant converts to the unit the entity
     # shows now); demands in %, not as a ratio, which a demand without a unit of its own would come as.
@@ -514,10 +546,19 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
 
     older_rows = await instance.async_add_executor_job(read, start, replay_hour)
     calibration_rows = await instance.async_add_executor_job(read, replay_hour, last_hour + HOUR)
-    # Calibrated with the power, estimated with it: one with none in the recorded days is left out.
-    powered = {key for key in powered if any(key in row for row in calibration_rows.values())}
-    hourly = percent | powered
-    running = await hass.async_add_executor_job(_running_power, powered, [older_rows, calibration_rows])
+    exact = {cid: totals[-1] - totals[0] for cid, totals in result.consumers.items()}
+    # Pumps whose consumer or circuit got heat in the recorded days: their power has to show them running there.
+    booked = {c.history_key for c in plant.consumers if c.history_key and exact.get(c.id, 0.0) > 0}
+    booked |= {
+        circuit.history_key
+        for circuit in plant.circuits
+        if circuit.history_key and any(exact.get(c.id, 0.0) > 0 for c in plant.consumers if c.circuit_id == circuit.id)
+    }
+    found, dropped = await hass.async_add_executor_job(_pumps, powered, booked, older_rows, calibration_rows)
+    pump_power |= dropped | {key: POWER_USED for key in found}
+    for key, why in sorted(dropped.items()):
+        _LOGGER.warning("The power %s is not used for the estimate (%s): the pump counts as always running", key, why)
+    hourly = percent | set(found)
 
     def hours_of(rows: dict[float, dict[str, dict[str, Any]]]) -> list[Hour]:
         hours = []
@@ -541,15 +582,14 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
             for key in percent:
                 if (mean := row.get(key, {}).get("mean")) is not None:
                     means[key] = mean / 100
-            for key in powered:
-                means[key] = _ran(row.get(key), running[key])
+            for key, pump in found.items():
+                means[key] = pump.share(row.get(key))
             hours.append(Hour(t, means, readings))
         return hours
 
     older_hours = await hass.async_add_executor_job(hours_of, older_rows)
     calibration_hours = await hass.async_add_executor_job(hours_of, calibration_rows)
     del older_rows, calibration_rows
-    exact = {cid: totals[-1] - totals[0] for cid, totals in result.consumers.items()}
     try:
         calibration = await hass.async_add_executor_job(calibrate, plant, calibration_hours, hourly, exact)
     except ValueError as err:
@@ -557,7 +597,7 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
     older = await hass.async_add_executor_job(
         replay_hours, rough_plant(plant, calibration.factors, hourly), older_hours, hourly
     )
-    return _Estimate(older, calibration)
+    return _Estimate(older, calibration, pump_power)
 
 
 def _metadata(hass: HomeAssistant, statistic_ids: set[str]) -> dict[str, tuple[str | None, str | None]]:
@@ -568,36 +608,59 @@ def _metadata(hass: HomeAssistant, statistic_ids: set[str]) -> dict[str, tuple[s
     return {key: (meta.get("unit_class"), meta["unit_of_measurement"]) for key, (_, meta) in found.items()}
 
 
-def _running_power(
-    keys: set[str], row_sets: Sequence[Mapping[float, Mapping[str, Mapping[str, Any]]]]
-) -> dict[str, float]:
-    """What each pump's sensor shows while the pump runs: the median of the hourly maxima of the hours it ran in (a
-    maximum above RUNNING_SHARE of a high one, the 90th percentile, so that a single spike of the plug does not set
-    the scale). Nothing has to be entered for it, and a pump with a few speeds is taken at its usual one. A sensor
-    that never showed anything: the pump never ran (infinite, so a share of 0)."""
-    running = {}
-    for key in keys:
-        maxima = sorted(
-            peak for rows in row_sets for row in rows.values() if (peak := (row.get(key) or {}).get("max") or 0) > 0
-        )
-        if not maxima:
-            running[key] = math.inf
+Rows = Mapping[float, Mapping[str, Mapping[str, Any]]]
+
+
+def _pumps(keys: set[str], booked: set[str], older: Rows, recorded: Rows) -> tuple[dict[str, _Pump], dict[str, str]]:
+    """The powers of pumps to estimate with, and why the others are left out (POWER_*).
+
+    Nothing has to be entered: the idle level is a low hourly minimum (standby of the plug, or 0), the top a high
+    hourly maximum, and the pump runs at the median maximum of the hours that peaked well above idle, so a pump with a
+    few speeds is taken at its usual one. A power whose top is not well above its idle level shows no running: the
+    pump always ran, or it is the wrong sensor. One with no hour in the recorded days cannot be calibrated with, nor
+    can one that never shows its pump running there although its consumer or circuit got heat (`booked`).
+    """
+    found: dict[str, _Pump] = {}
+    dropped: dict[str, str] = {}
+    for key in sorted(keys):
+        if not any(key in row for row in recorded.values()):
+            dropped[key] = POWER_NOT_RECORDED
             continue
-        high = maxima[int(0.9 * (len(maxima) - 1))]
-        ran = [peak for peak in maxima if peak > RUNNING_SHARE * high]
-        running[key] = ran[len(ran) // 2]
-    return running
+        lows: list[float] = []
+        peaks: list[float] = []
+        for rows in (older, recorded):
+            for row in rows.values():
+                if (item := row.get(key)) is None or (mean := item.get("mean")) is None:
+                    continue
+                lows.append(mean if item.get("min") is None else item["min"])
+                peaks.append(mean if item.get("max") is None else item["max"])
+        lows.sort()
+        peaks.sort()
+        idle = lows[int(IDLE_PERCENTILE * (len(lows) - 1))]
+        top = peaks[int(TOP_PERCENTILE * (len(peaks) - 1))]
+        if top <= 0 or top - idle <= RUNNING_SHARE * top:
+            dropped[key] = POWER_NO_RUNNING
+            continue
+        ran = [peak for peak in peaks if peak >= idle + RUNNING_SHARE * (top - idle)]
+        running = ran[len(ran) // 2]
+        shares = [share for row in recorded.values() if (share := _ran(row.get(key), idle, running)) is not None]
+        if key in booked and not any(shares):
+            dropped[key] = POWER_NO_RUNNING
+            continue
+        found[key] = _Pump(idle, running, sum(shares) / len(shares) if shares else 0.0)
+    return found, dropped
 
 
-def _ran(row: Mapping[str, Any] | None, running: float) -> float:
-    """The share of an hour a pump ran, from its sensor's statistics of the hour: the mean over what it shows while
-    running, or all of it if it never dropped below RUNNING_SHARE of that (a controlled pump that ran slowly all hour).
-    Without a value: as if there were no sensor, the pump counts as running."""
-    if row is None or row.get("mean") is None:
+def _ran(row: Mapping[str, Any] | None, idle: float, running: float) -> float | None:
+    """The share of an hour a pump ran, from its power's statistics of the hour: the mean above idle over what it shows
+    running above idle, or all of the hour if it never dropped near idle (a controlled pump that ran slowly all hour).
+    None without a value."""
+    if row is None or (mean := row.get("mean")) is None:
+        return None
+    span = running - idle
+    if (low := row.get("min")) is not None and low >= idle + FULL_HOUR_SHARE * span:
         return 1.0
-    if (low := row.get("min")) is not None and low >= RUNNING_SHARE * running:
-        return 1.0
-    return min(1.0, max(0.0, row["mean"] / running))
+    return min(1.0, max(0.0, (mean - idle) / span))
 
 
 async def async_adjust_pending(hass: HomeAssistant, runtime: HeatLedgerRuntime) -> None:

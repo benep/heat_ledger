@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -1424,35 +1423,77 @@ async def test_the_hot_water_pump_by_its_power(
     assert gains[5] > 0.9 * 2.5  # all hour: nearly all of the 2.5 kWh, the living room is at 0 %, the bath small
 
 
+POWER = "sensor.pump_power"
+
+
+def power_rows(*hours: tuple[float, float, float]) -> dict[float, dict[str, dict[str, float]]]:
+    """Hourly statistics of the power of a pump: (mean, min, max) per hour."""
+    return {float(i): {POWER: {"mean": m, "min": lo, "max": hi}} for i, (m, lo, hi) in enumerate(hours)}
+
+
 def test_the_power_a_pump_runs_at():
-    """The usual hourly maximum: a single spike of the plug does not set the scale, and a sensor that never showed
-    anything belongs to a pump that never ran."""
-    key = "sensor.pump_power"
-    maxima = [0.0] * 20 + [25.0, 26.0, 27.0, 28.0] * 10 + [3000.0]
-    rows = {float(i): {key: {"max": peak}} for i, peak in enumerate(maxima)}
-    assert backfill._running_power({key}, [rows]) == {key: 27.0}
-    assert backfill._running_power({key}, [{0.0: {key: {"max": 0.0}}}]) == {key: math.inf}
+    """The usual hourly maximum of the hours it ran in: a single spike of the plug does not set the scale."""
+    rows = power_rows(*[(0.0, 0.0, 0.0)] * 20, *[(p, 0.0, p) for p in (25.0, 26.0, 27.0, 28.0)] * 10, (5, 0, 3000))
+    found, dropped = backfill._pumps({POWER}, set(), {}, rows)
+    assert dropped == {}
+    assert (found[POWER].idle, found[POWER].running) == (0.0, 27.0)
+
+
+def test_a_pump_that_rarely_runs_above_standby():
+    """Standby of 0.5 W, charging in 2 hours of 24: the running power is the charging one, not the standby, and an
+    hour of standby is no running at all."""
+    day = [(0.5, 0.5, 0.5)] * 22 + [(12.75, 0.5, 25.0)] * 2
+    found, _ = backfill._pumps({POWER}, {POWER}, power_rows(*day * 3), power_rows(*day * 4))
+    pump = found[POWER]
+    assert (pump.idle, pump.running) == (0.5, 25.0)
+    assert pump.share({"mean": 0.5, "min": 0.5, "max": 0.5}) == 0.0
+    assert pump.share({"mean": 12.75, "min": 0.5, "max": 25.0}) == pytest.approx(0.5)
+    # An hour without a value: the mean share of the recorded days, the one the weight was calibrated for.
+    assert pump.usual == pytest.approx(2 / 24 * 0.5)
+    assert pump.share(None) == pytest.approx(pump.usual)
+
+
+@pytest.mark.parametrize(
+    ("older", "recorded", "booked", "why"),
+    [
+        ([(0.0, 0.0, 0.0)] * 5, [(0.0, 0.0, 0.0)] * 5, False, "no_running"),  # the wrong sensor, say
+        ([(27.0, 27.0, 27.0)] * 5, [(27.0, 27.0, 27.0)] * 5, False, "no_running"),  # always the same: always ran
+        ([(10.0, 0.0, 20.0)] * 5, [(0.0, 0.0, 0.0)] * 5, True, "no_running"),  # heat booked, the pump never ran
+        ([(10.0, 0.0, 20.0)] * 5, [], False, "not_recorded"),
+    ],
+    ids=["nothing", "constant", "not running though heated", "not in the recorded days"],
+)
+def test_a_power_left_out(older: list, recorded: list, booked: bool, why: str):
+    found, dropped = backfill._pumps({POWER}, {POWER} if booked else set(), power_rows(*older), power_rows(*recorded))
+    assert found == {}
+    assert dropped == {POWER: why}
+
+
+def test_a_pump_that_did_not_run_in_the_recorded_days():
+    """Nothing was heated there either: the power is used, and an hour without a value counts as not running."""
+    found, _ = backfill._pumps({POWER}, set(), power_rows(*[(10.0, 0.0, 20.0)] * 5), power_rows(*[(0, 0, 0)] * 5))
+    assert found[POWER].share(None) == 0.0
 
 
 @pytest.mark.parametrize(
     ("row", "share"),
     [
-        (None, 1.0),  # no value: as without the power, running
-        ({"mean": 5.0, "min": 0.0}, 0.25),
-        ({"mean": 8.0, "min": 6.0}, 1.0),  # a controlled pump, slow all hour: it ran all of it
-        ({"mean": 30.0, "min": 0.0}, 1.0),
-        ({"mean": 1.0, "min": 1.0}, 0.05),  # standby is not running
+        (None, None),
+        ({"mean": 1.0, "min": 1.0}, 0.0),  # standby is not running
+        ({"mean": 6.0, "min": 1.0}, 0.25),  # above standby: a quarter of the way to running
+        ({"mean": 4.0, "min": 4.0}, 1.0),  # a controlled pump, slow all hour: it ran all of it
+        ({"mean": 30.0, "min": 1.0}, 1.0),
     ],
 )
-def test_the_share_of_an_hour_a_pump_ran(row: dict[str, float] | None, share: float):
-    assert backfill._ran(row, 20.0) == pytest.approx(share)
+def test_the_share_of_an_hour_a_pump_ran(row: dict[str, float] | None, share: float | None):
+    assert backfill._ran(row, 1.0, 21.0) == (None if share is None else pytest.approx(share))
 
 
 async def test_the_circuit_pump_by_its_power(
     recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
 ) -> None:
     """The circuit is active the share of an hour its pump's power shows. Its statistics start later than the
-    meters' and miss an hour: there it counts as running, as without the power."""
+    meters' and miss an hour: there it counts with its share in the recorded days, all of every hour here."""
     power = "sensor.circuit_pump_power"
     await record_past(hass, freezer)
     await import_inputs(hass, OLDER | RECORDED)
@@ -1477,15 +1518,58 @@ async def test_the_circuit_pump_by_its_power(
     entry.add_to_hass(hass)
     await setup(hass, entry)
 
-    await async_backfill(hass, entry, estimate=True)
+    summary = await async_backfill(hass, entry, estimate=True)
     await async_wait_recording_done(hass)
 
+    assert summary["estimate"]["pump_power"] == {power: "used"}
     circuit, hot_water = [await sums(hass, key) for key in ("ground_floor_heat", "hot_water_heat")]
 
     def gain(totals: dict[datetime, float], hour: int) -> float:
         return totals[at(hour)] - totals.get(at(hour - 1), 0.0)
 
-    assert gain(circuit, 1) > 0.9 * 2.0  # before its statistics: running
+    assert gain(circuit, 1) > 0.9 * 2.0  # before its statistics: as in the recorded days
     assert gain(circuit, 3) > 0.9 * 2.0
     assert gain(circuit, 5) == pytest.approx(0.0)  # the pump was off: all to the hot water, always on
     assert gain(hot_water, 5) == pytest.approx(2.5)
+
+
+async def test_a_power_that_never_shows_the_pump_running(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    short_calibration: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The wrong plug, reading 0 W, while the circuit's pump ran in the recorded days: the power is left out, the
+    circuit counts as always active (not as never), and the summary and the log say so."""
+    power = "sensor.circuit_pump_power"
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED)
+    metadata = {
+        "mean_type": StatisticMeanType.ARITHMETIC,
+        "has_sum": False,
+        "name": None,
+        "source": "recorder",
+        "statistic_id": power,
+        "unit_class": "power",
+        "unit_of_measurement": "W",
+    }
+    rows = [{"start": at(h), "mean": 0.0, "min": 0.0, "max": 0.0} for h in OLDER | RECORDED]
+    async_import_statistics(hass, metadata, rows)
+    await async_wait_recording_done(hass)
+    subentries = [
+        s | {"data": s["data"] | {CONF_HISTORY_ENTITY: power}} if s["subentry_id"] == "ground_floor" else s
+        for s in SUBENTRIES
+    ]
+    entry = MockConfigEntry(domain=DOMAIN, title="Heating", data={}, options={}, subentries_data=subentries)
+    entry.add_to_hass(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+    await async_wait_recording_done(hass)
+
+    assert summary["estimate"]["pump_power"] == {power: "no_running"}
+    assert entry.runtime_data.backfill["estimate"]["pump_power"] == {power: "no_running"}
+    assert f"The power {power} is not used" in caplog.text
+    circuit = await sums(hass, "ground_floor_heat")
+    assert circuit[at(1)] - circuit.get(at(0), 0.0) > 0.9 * 2.0  # hour 0 is the baseline, not written

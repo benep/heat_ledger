@@ -195,16 +195,20 @@ def _device_name(hass: HomeAssistant, entry: er.RegistryEntry) -> str | None:
 
 
 class _Checker:
-    """Collects form errors. Fields inside a section report their error on the section, as core does."""
+    """Collects form errors. Fields inside a section report their error on the section, as core does; the first one
+    stays, so the user gets the errors one after the other rather than one hiding another."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
         self.errors: dict[str, str] = {}
 
+    def error(self, field: str, error: str) -> None:
+        self.errors.setdefault(field, error)
+
     def name(self, value: str | None, field: str = CONF_NAME) -> str:
         name = (value or "").strip()
         if not name:
-            self.errors[field] = ERROR_NAME_REQUIRED
+            self.error(field, ERROR_NAME_REQUIRED)
         return name
 
     def entity(
@@ -214,11 +218,11 @@ class _Checker:
             return None
         info = _entity_info(self.hass, value)
         if info is None:
-            self.errors[field] = ERROR_ENTITY_NOT_FOUND
+            self.error(field, ERROR_ENTITY_NOT_FOUND)
         elif info.domain not in domains:
-            self.errors[field] = ERROR_WRONG_DOMAIN
+            self.error(field, ERROR_WRONG_DOMAIN)
         elif cumulative and info.state_class == "measurement":
-            self.errors[field] = ERROR_NOT_CUMULATIVE
+            self.error(field, ERROR_NOT_CUMULATIVE)
         else:
             return info
         return None
@@ -227,22 +231,23 @@ class _Checker:
         """A heat meter: a cumulative sensor in an energy unit (a water meter in L would count as kWh)."""
         info = self.entity(value, ("sensor",), field, cumulative=True)
         if info is not None and info.unit not in ENERGY_TO_KWH:
-            self.errors[field] = ERROR_NOT_ENERGY
+            self.error(field, ERROR_NOT_ENERGY)
             return None
         return info
 
-    def history(self, value: str | None, field: str, pump: _EntityInfo | None) -> _EntityInfo | None:
+    def history(self, value: str | None, field: str, pump: _EntityInfo | None, pump_field: str) -> _EntityInfo | None:
         """The power of a pump, standing in for its binary sensor in the estimate of older periods: it needs hourly
-        means, so statistics, and a pump to stand in for."""
+        means, so statistics, and a pump to stand in for (unless the pump chosen has an error of its own already)."""
         info = self.entity(value, ("sensor",), field)
         if info is None:
             return None
         if info.unit not in PowerConverter.VALID_UNITS:
-            self.errors[field] = ERROR_NOT_POWER
+            self.error(field, ERROR_NOT_POWER)
         elif info.state_class != "measurement":
-            self.errors[field] = ERROR_NO_STATISTICS
+            self.error(field, ERROR_NO_STATISTICS)
         elif pump is None:
-            self.errors[field] = ERROR_HISTORY_NEEDS_PUMP
+            if pump_field not in self.errors:
+                self.error(field, ERROR_HISTORY_NEEDS_PUMP)
         else:
             return info
         return None
@@ -251,7 +256,7 @@ class _Checker:
         if value is None:
             return None
         if value <= 0:
-            self.errors[field] = ERROR_NOT_POSITIVE
+            self.error(field, ERROR_NOT_POSITIVE)
             return None
         return float(value)
 
@@ -500,8 +505,12 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
             circuit_pump = check.entity(user_input.get(CONF_CIRCUIT_PUMP), ("binary_sensor",), CONF_CIRCUIT_PUMP)
             hot_water_pump = check.entity(user_input.get(CONF_HOT_WATER_PUMP), ("binary_sensor",), CONF_HOT_WATER_PUMP)
             # Here already: the estimate of older periods, ticked in the next step, runs right after the setup.
-            circuit_power = check.history(more.get(CONF_CIRCUIT_PUMP_POWER), SECTION_ACCURACY, circuit_pump)
-            hot_water_power = check.history(more.get(CONF_HOT_WATER_PUMP_POWER), SECTION_ACCURACY, hot_water_pump)
+            circuit_power = check.history(
+                more.get(CONF_CIRCUIT_PUMP_POWER), SECTION_ACCURACY, circuit_pump, CONF_CIRCUIT_PUMP
+            )
+            hot_water_power = check.history(
+                more.get(CONF_HOT_WATER_PUMP_POWER), SECTION_ACCURACY, hot_water_pump, CONF_HOT_WATER_PUMP
+            )
             if not check.errors:
                 self._pumps = (circuit_pump, hot_water_pump)
                 self._pump_powers = (circuit_power, hot_water_power)
@@ -743,7 +752,7 @@ class CircuitSubentryFlow(_SubentryFlow):
             more = user_input.get(SECTION_ACCURACY) or {}
             name = check.name(user_input.get(CONF_NAME))
             pump = check.entity(user_input.get(CONF_PUMP_ENTITY), ("binary_sensor",), CONF_PUMP_ENTITY)
-            history = check.history(more.get(CONF_HISTORY_ENTITY), SECTION_ACCURACY, pump)
+            history = check.history(more.get(CONF_HISTORY_ENTITY), SECTION_ACCURACY, pump, CONF_PUMP_ENTITY)
             if not check.errors:
                 data = {CONF_PUMP_ENTITY: pump.entity_id} if pump else {}
                 if history:
@@ -908,9 +917,9 @@ class ConsumerSubentryFlow(_SubentryFlow):
             pump = check.entity(user_input.get(CONF_DEMAND_ENTITY), ("binary_sensor",), CONF_DEMAND_ENTITY)
             power_kw = check.positive(more.get(CONF_CHARGING_POWER_KW), SECTION_ACCURACY)
             meter = check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY)
-            history = check.history(more.get(CONF_HISTORY_ENTITY), SECTION_ACCURACY, pump)
+            history = check.history(more.get(CONF_HISTORY_ENTITY), SECTION_ACCURACY, pump, CONF_DEMAND_ENTITY)
             if pump is None and meter is None and not check.errors:
-                check.errors[CONF_DEMAND_ENTITY] = ERROR_PUMP_OR_METER_REQUIRED
+                check.error(CONF_DEMAND_ENTITY, ERROR_PUMP_OR_METER_REQUIRED)
             if not check.errors:
                 data = _hot_water_data(
                     pump.entity_id if pump is not None else None,
