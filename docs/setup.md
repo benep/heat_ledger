@@ -106,6 +106,11 @@ counter.
 - If a thermostat also reports its heating demand in % (Tado, for example), Heat Ledger uses that automatically.
 - A room with two radiators and one thermostat counts as one room heating.
 
+**Calculate the past days as well** (optional): tick this, and Heat Ledger works out the heat of every room for the
+days Home Assistant still has recorded, 10 days by default. Your dashboards then do not start empty. It calculates
+with the heating system as you have just set it up. This is written into the statistics once and cannot be undone
+with a click, which is why it is not ticked by default.
+
 Click **Submit**. Home Assistant then asks for the **area** of each new device. Where the thermostat or the pump
 already has one, it is filled in: just click **Finish**. The areas let the Energy dashboard group the rooms by floor.
 
@@ -123,7 +128,8 @@ Open **Settings → Devices & services → Heat Ledger**. You see your heating s
 | **Room heating** | One per thermostat, with the counter **Heat** in kWh. |
 | **Hot water** | Only if you chose the hot water charging, with the counter **Heat** in kWh. |
 
-The counters start at 0 and grow from now on.
+The counters start at 0 and grow from now on. If you ticked **Calculate the past days as well**, the Energy dashboard
+shows the days before as well; the counters themselves still start at 0.
 
 ## Is it working?
 

@@ -65,7 +65,7 @@ Go to **Settings → Dashboards → Energy** and open the tab **Gas**.
     for example *Living room Heat*.
 
 **Untracked** is what your source counted beyond the room heating and the hot water: the fixed losses, if you entered
-any, and the heat from before you set up Heat Ledger.
+any, and the heat from before you set up Heat Ledger, unless you had the past days calculated.
 
 ## With a heating circuit
 

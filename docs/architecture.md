@@ -32,7 +32,7 @@ Sources ──► Account (per source, kWh) ──► Consumers
   their valves say. Its counter is what its radiators received while they belonged to it, which the Energy
   dashboard uses as parent (`included_in_stat`). A radiator moved to another circuit leaves its history with the
   old one; the new one counts it from then on, without a jump. Rewriting the history instead (as if it had always
-  been in the new circuit) needs the statistics rewrite of the backfill and comes with it.
+  been in the new circuit) would need a rewrite of its statistics, which the backfill does not do yet.
 - **Measured consumer:** a consumer with its own heat meter. Its readings are taken out of the account directly (or as
   soon as a source holds heat) and it takes no part in the split; the others share what is left.
 
@@ -114,7 +114,7 @@ Rules:
   `account × (1 − e^(−Δt/τ))` per interval, but it is not offered in the UI: it shifts heat from
   burner times to whatever runs hours later, which is less plausible, not more.
 - **Downtime:** heat that arrived while Home Assistant was down shows up as one increase after the restart and is
-  split by the weights after the restart. The backfill can correct this from recorded history.
+  split by the weights after the restart.
 
 ## Home Assistant layer
 
@@ -125,6 +125,7 @@ Rules:
 | `runtime.py` | Listens to all input entities, converts states to readings, calls the ledger, runs the 5-minute timer, persists the state, notifies the sensors. |
 | `sensor.py` | Energy counter per consumer and per circuit (`energy`, kWh, `total_increasing`), heat per converted source, account (diagnostic). Restored on start, never lower than before. |
 | `config_flow.py` | Guided first setup (name, source, thermostats, pumps: creates the entry with its subentries), options (fixed losses) and subentry flows for sources, circuits and consumers to add or refine later. Required fields first, everything else in a collapsible "more accurate" section. |
+| `backfill.py` | The days before the setup, from the recorder: replays the inputs, imports the hours as statistics and raises the live ones (see Backfill). |
 
 Converting states to readings: `climate` → `hvac_action` is `heating` or `preheating` (anything else off; a
 thermostat that does not report `hvac_action` counts as heating in `heat`, `heat_cool` or `auto`);
@@ -133,11 +134,52 @@ entity. `unavailable` and `unknown` become `None`.
 
 Devices: one per subentry, so the Home Assistant UI groups the sensors of a consumer, circuit or source.
 
-Backfill (later milestone): a service that feeds hourly long-term statistics of the inputs into a fresh ledger and
-imports the resulting hourly counters with `async_import_statistics`, adjusting the live statistics after them so
-the sums stay continuous. The recorder continues a sum from the last short-term (5-minute) row only, never from
-imported hourly rows: the adjustment must run once the sensor has its first short-term row, otherwise it changes
-nothing and the live sum starts at 0 again.
+## Backfill
+
+`backfill.py` calculates the days before the plant was set up, once per entry: chosen in the first setup, or later
+with the action `heat_ledger.backfill` (administrators only).
+
+- **Recalculation:** a second ledger (`engine/replay.py`) is fed the recorded states of the inputs, read from the
+  recorder day by day, up to the moment the entry was created; from then on the live counters count. It closes its
+  intervals on the clock like the runtime and notes the totals at every full hour. It reaches as far back as the
+  recorder keeps states (`purge_keep_days`, 10 days by default).
+- **The state of every input at the beginning:** the recorder purges the last state from before the days it keeps
+  as well, so an input that has not changed for long has no state at the beginning. An input of the split (pump,
+  demand) is known from its first valid recorded state, as Home Assistant's history shows it, and the recalculation
+  starts when every one is known; the heat delivered before is left out instead of being split with a guess. Two
+  exceptions count from the beginning: an input Home Assistant has not updated since before it (its state now), and
+  one whose first recorded state is the one Home Assistant wrote when it started, at the first start since the
+  beginning (within ten minutes of a start of the recorder, read from its table of runs; with the value it settled
+  to in those minutes): it had not changed while Home Assistant was running before. An input with no state at an
+  earlier start did not exist or was not recorded then. The second exception also applies to a state written at a
+  start after the end, for an input with none in the recording. Meters (sources, heat meters) are not waited for:
+  their first reading is the baseline of the next. An input that stays unknown, or a meter with no recorded state at
+  all, stops the recalculation: then nothing is written.
+- **Statistics:** the hours before the entry was created are imported as long-term statistics of the counters
+  (`async_import_statistics`): room heating, hot water, circuits, and the heat of sources that count energy input,
+  which is what the Energy dashboard gets as source. The hour the entry was created in is not written: its
+  statistics are the live ones.
+- **Raising the live statistics:** the recorder continues a sum from its last short-term (5-minute) row only, never
+  from imported hours. So the statistics compiled since are raised by what was backfilled
+  (`async_adjust_statistics`), which is only possible once the recorder has compiled the first of them. Until then
+  the counter stays pending; it is tried again after every interval, also after a restart, and noted with the stored
+  ledger. A counter is raised only once its hours are in the statistics: raised without them, all the days would
+  show as heat of the hour of the setup. The note is saved before the hours are queued, so every interruption leaves
+  a note to go by. Hours not there after six intervals of looking are taken for lost (Home Assistant stopped before
+  the recorder wrote them, or the recorder dropped them): that counter is not raised, and if no counter's hours are
+  there, the backfill may run again. A counter the recorder compiles no statistics for is given up after two days of
+  running in vain.
+- **Only statistics are written.** The counters keep their values and the live ledger is untouched. Heat still in
+  the replay's account at the end is not handed over.
+- **The plant as it is now:** the whole past is calculated with the current setup. A room added later is not
+  backfilled on its own.
+- **Nothing is written** if a counter already has statistics from before the entry was created, if an input has no
+  valid reading in the recording, if the sources delivered nothing or no consumer received anything, or if the
+  entry is reloaded during the recalculation. Chosen in the first setup, the reason is shown as a repair issue
+  (unless there was simply nothing to calculate), and the action can be tried again.
+
+Not built yet: older periods from the hourly long-term statistics of the inputs (rougher: binary sensors have
+none), and rewriting the history of a single consumer.
 
 ## Tests
 

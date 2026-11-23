@@ -10,8 +10,13 @@
 ??? question "I just set it up. Why are all counters at 0?"
 
     The counters start when you set up Heat Ledger and grow from then on. The first heat appears within a few minutes
-    after your meter counts something and a thermostat asks for heat. Earlier heat, before the setup, is not split
-    up; the Energy dashboard shows it as *untracked*.
+    after your meter counts something and a thermostat asks for heat.
+
+    Earlier heat, before the setup, is only split up if you ticked **Calculate the past days as well** in the last
+    step of the setup; otherwise the Energy dashboard shows it as *untracked*. You can still do it afterwards, once:
+    go to **Developer tools → Actions**, choose **Heat Ledger: Calculate the past days**, pick your heating system and
+    click **Perform action**. It covers the days before the setup that Home Assistant still has recorded, 10 days by
+    default; so do it soon after the setup, every day later there is one day less.
 
 ??? question "My heating has no meter in Home Assistant."
 

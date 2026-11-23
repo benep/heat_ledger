@@ -67,7 +67,8 @@ Gehe zu **Einstellungen → Dashboards → Energie** und öffne den Reiter **Gas
     zum Beispiel *Wohnzimmer Wärme*.
 
 **Nicht erfasst** ist, was deine Quelle über die Raumheizungen und das Warmwasser hinaus gezählt hat: die festen
-Verluste, falls du welche eingetragen hast, und die Wärme aus der Zeit, bevor du Heat Ledger eingerichtet hast.
+Verluste, falls du welche eingetragen hast, und die Wärme aus der Zeit, bevor du Heat Ledger eingerichtet hast, außer
+du hast die vergangenen Tage nachrechnen lassen.
 
 ## Mit Heizkreis
 

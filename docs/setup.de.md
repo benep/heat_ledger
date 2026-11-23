@@ -106,6 +106,11 @@ Wähle die **Thermostate** deiner Heizkörper oder Fußbodenheizung. Jedes wird 
 - Meldet ein Thermostat auch seinen Heizbedarf in % (zum Beispiel Tado), nimmt Heat Ledger den von selbst.
 - Ein Raum mit zwei Heizkörpern und einem Thermostat zählt als eine Raumheizung.
 
+**Vergangene Tage nachrechnen** (optional): Setzt du den Haken, rechnet Heat Ledger die Wärme jedes Raums für die
+Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. Deine Dashboards beginnen dann
+nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie gerade eingerichtet hast. Das wird einmalig in die
+Statistik geschrieben und lässt sich nicht mit einem Klick rückgängig machen, deshalb ist der Haken nicht gesetzt.
+
 Klicke auf **Absenden**. Home Assistant fragt danach nach dem **Bereich** jedes neuen Geräts. Wo das Thermostat oder
 die Pumpe schon einen hat, ist er eingetragen: einfach **Fertig** klicken. Über die Bereiche gruppiert das
 Energie-Dashboard die Räume nach Stockwerk.
@@ -124,7 +129,8 @@ Energie-Dashboard die Räume nach Stockwerk.
 | **Raumheizung** | Eine pro Thermostat, mit dem Zähler **Wärme** in kWh. |
 | **Warmwasser** | Nur wenn du die Warmwasser-Ladung gewählt hast, mit dem Zähler **Wärme** in kWh. |
 
-Die Zähler beginnen bei 0 und wachsen ab jetzt.
+Die Zähler beginnen bei 0 und wachsen ab jetzt. Hast du **Vergangene Tage nachrechnen** angekreuzt, zeigt das
+Energie-Dashboard auch die Tage davor; die Zähler selbst beginnen trotzdem bei 0.
 
 ## Läuft es?
 

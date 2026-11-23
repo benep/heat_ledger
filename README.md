@@ -105,7 +105,8 @@ Every step with a screenshot: [Setup](https://benep.github.io/heat_ledger/setup/
 
 Heat Ledger is in **beta**.
 
-- **The counters start with the setup.** Heat from before is not split up.
+- **The counters start with the setup.** If you want, the setup also works out the days before, as far as Home
+  Assistant still has them recorded (10 days by default).
 - **The tab is called *Gas***, even if your heat comes from oil, wood or a heat pump. That does not matter.
 - **The gas tab needs a source in kWh.** If your gas meter counts m³, Heat Ledger gives you a sensor in kWh to use
   as the source instead. [Energy dashboard](https://benep.github.io/heat_ledger/energy-dashboard/#set-it-up) explains

@@ -10,8 +10,14 @@
 ??? question "Ich habe es gerade eingerichtet. Warum stehen alle Zähler auf 0?"
 
     Die Zähler beginnen, wenn du Heat Ledger einrichtest, und wachsen ab dann. Die erste Wärme erscheint wenige Minuten
-    nachdem dein Zähler etwas gezählt hat und ein Thermostat heizen will. Frühere Wärme, vor der Einrichtung, wird
-    nicht aufgeteilt; das Energie-Dashboard zeigt sie als *nicht erfasst*.
+    nachdem dein Zähler etwas gezählt hat und ein Thermostat heizen will.
+
+    Frühere Wärme, vor der Einrichtung, wird nur aufgeteilt, wenn du im letzten Schritt der Einrichtung **Vergangene
+    Tage nachrechnen** angekreuzt hast; sonst zeigt das Energie-Dashboard sie als *nicht erfasst*. Du kannst es
+    einmalig nachholen: Gehe zu **Entwicklerwerkzeuge → Aktionen**, wähle **Heat Ledger: Vergangene Tage
+    nachrechnen**, wähle deine Heizungsanlage und klicke auf **Aktion ausführen**. Es umfasst die Tage vor der
+    Einrichtung, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage; mach es also bald nach der
+    Einrichtung, jeder Tag später ist ein Tag weniger.
 
 ??? question "Meine Heizung hat keinen Zähler in Home Assistant."
 
