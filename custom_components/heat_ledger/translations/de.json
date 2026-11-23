@@ -45,6 +45,16 @@
         "data_description": {
           "circuit_pump": "An, solange die Pumpe läuft, die das Wasser durch Heizkörper oder Fußbodenheizung bewegt. Ohne sie zählt eine Raumheizung immer, wenn sein Thermostat heizen will, auch wenn der Kessel gerade nur Warmwasser macht.",
           "hot_water_pump": "An, solange der Warmwasserspeicher geladen wird: seine Ladepumpe oder der Warmwasser-Status des Kessels (auch bei einer Kombitherme). Nicht die Zirkulationspumpe, die das warme Wasser zu den Zapfstellen umwälzt. Ohne sie wird die Wärme fürs Warmwasser auf die Räume verteilt."
+        },
+        "sections": {
+          "accuracy": {
+            "name": "Genauer machen",
+            "description": "Nur für das Schätzen der Zeit vor den aufgezeichneten Tagen (nächster Schritt): Den Verlauf des Binärsensors einer Pumpe hebt Home Assistant nicht so lange auf, Stundenmittel ihrer Leistung schon. Ohne gilt die Pumpe dort als immer an.",
+            "data": {
+              "circuit_pump_power": "Leistung der Heizkreispumpe",
+              "hot_water_pump_power": "Leistung der Warmwasser-Ladepumpe"
+            }
+          }
         }
       },
       "thermostats": {
@@ -58,7 +68,7 @@
         "data_description": {
           "thermostats": "Klima-Entitäten, eine je Raum oder Heizkörper.",
           "backfill": "Heat Ledger rechnet die Wärme jedes Raums für die Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. So beginnt dein Dashboard nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie hier einrichtest. Das schreibt einmalig Statistiken für die Vergangenheit und lässt sich nicht mit einem Klick rückgängig machen.",
-          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Den Verlauf von Pumpen und An/Aus-Thermostaten hebt Home Assistant nicht so lange auf, sie gelten deshalb als immer an, und jeder Raum bekommt den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen. Schließt die vergangenen Tage oben ein."
+          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Den Verlauf von Pumpen und An/Aus-Thermostaten hebt Home Assistant nicht so lange auf, sie gelten deshalb als immer an (Pumpen mit gemessener Leistung im Schritt davor nicht), und jeder Raum bekommt den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen. Schließt die vergangenen Tage oben ein."
         }
       }
     },
@@ -68,7 +78,10 @@
       "entity_not_found": "Entität nicht gefunden.",
       "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
       "not_cumulative": "Wähle einen Zählerstand, keinen Momentanwert.",
-      "heat_needs_energy_unit": "Wärme wird in einer Energieeinheit gezählt (kWh, MJ …). Ein Gaszähler in m³ oder Öl in Litern ist Energieeinsatz."
+      "heat_needs_energy_unit": "Wärme wird in einer Energieeinheit gezählt (kWh, MJ …). Ein Gaszähler in m³ oder Öl in Litern ist Energieeinsatz.",
+      "not_power": "Wähle die Leistung der Pumpe, einen Sensor in W oder kW.",
+      "no_statistics": "Wähle einen Sensor mit Zustandsklasse (Messung): Nur dann hebt Home Assistant seine Stundenmittel auf.",
+      "history_needs_pump": "Die Leistung einer Pumpe steht für ihren Binärsensor: Wähle auch die Pumpe."
     }
   },
   "options": {
@@ -150,13 +163,27 @@
           "data_description": {
             "name": "Zum Beispiel Heizkörper, Fußbodenheizung oder das Stockwerk.",
             "pump_entity_id": "An, solange die Heizkreispumpe läuft. Ohne sie fasst der Kreis seine Raumheizungen nur zusammen und gilt als immer aktiv."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "Genauer machen",
+              "data": {
+                "history_entity_id": "Leistung der Pumpe"
+              },
+              "data_description": {
+                "history_entity_id": "Nur für das Schätzen der Zeit vor den aufgezeichneten Tagen: Den Verlauf des Binärsensors der Pumpe hebt Home Assistant nicht so lange auf, Stundenmittel ihrer Leistung schon. Ohne gilt die Pumpe dort als immer an."
+              }
+            }
           }
         }
       },
       "error": {
         "name_required": "Gib einen Namen ein.",
         "entity_not_found": "Entität nicht gefunden.",
-        "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt."
+        "wrong_domain": "Diese Art von Entität wird hier nicht unterstützt.",
+        "no_statistics": "Wähle einen Sensor mit Zustandsklasse (Messung): Nur dann hebt Home Assistant seine Stundenmittel auf.",
+        "not_power": "Wähle die Leistung der Pumpe, einen Sensor in W oder kW.",
+        "history_needs_pump": "Die Leistung einer Pumpe steht für ihren Binärsensor: Wähle auch die Pumpe."
       },
       "abort": {
         "reconfigure_successful": "Gespeichert. Die Anlage wird mit der Änderung neu geladen."
@@ -234,11 +261,13 @@
               "name": "Genauer machen",
               "data": {
                 "meter_entity_id": "Wärmemengenzähler",
-                "charging_power_kw": "Ladeleistung"
+                "charging_power_kw": "Ladeleistung",
+                "history_entity_id": "Leistung der Pumpe"
               },
               "data_description": {
                 "meter_entity_id": "Nur wenn ein Wärmemengenzähler eingebaut ist: Er misst die Wärme für Warmwasser und ersetzt die Schätzung, Pumpe und Ladeleistung braucht es dann nicht.",
-                "charging_power_kw": "Wärme, solange die Pumpe läuft, in kW. Standard: 10 kW."
+                "charging_power_kw": "Wärme, solange die Pumpe läuft, in kW. Standard: 10 kW.",
+                "history_entity_id": "Nur für das Schätzen der Zeit vor den aufgezeichneten Tagen: Den Verlauf des Binärsensors der Pumpe hebt Home Assistant nicht so lange auf, Stundenmittel ihrer Leistung schon. Ohne gilt die Pumpe dort als immer an."
               }
             }
           }
@@ -253,7 +282,10 @@
         "not_percent": "Ein Sensor braucht die Einheit %.",
         "not_positive": "Gib eine Zahl größer als 0 ein.",
         "power_or_area": "Gib die Nennleistung oder die Fläche ein, nicht beides.",
-        "pump_or_meter_required": "Wähle die Warmwasser-Ladung oder, unter „Genauer machen“, einen Wärmemengenzähler."
+        "pump_or_meter_required": "Wähle die Warmwasser-Ladung oder, unter „Genauer machen“, einen Wärmemengenzähler.",
+        "no_statistics": "Wähle einen Sensor mit Zustandsklasse (Messung): Nur dann hebt Home Assistant seine Stundenmittel auf.",
+        "not_power": "Wähle die Leistung der Pumpe, einen Sensor in W oder kW.",
+        "history_needs_pump": "Die Leistung einer Pumpe steht für ihren Binärsensor: Wähle auch die Pumpe."
       },
       "abort": {
         "reconfigure_successful": "Gespeichert. Die Anlage wird mit der Änderung neu geladen."

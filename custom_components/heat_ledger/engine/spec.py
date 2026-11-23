@@ -77,6 +77,9 @@ class CircuitSpec:
     id: str
     active: ActiveMethod = ActiveMethod.ALWAYS
     pump_key: str | None = None
+    # A sensor whose hourly mean tells how long the pump ran (its power), for the estimate of older periods: binary
+    # sensors keep no statistics. The ledger itself never reads it.
+    history_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,7 @@ class ConsumerSpec:
     demand: Demand = field(default_factory=Demand)
     meter_key: str | None = None  # cumulative heat in kWh: measured, takes no part in the split
     hot_water: bool = False  # size is a charging power, floor area makes no sense
+    history_key: str | None = None  # as for a circuit, for an on/off demand (the hot water pump)
 
 
 @dataclass(frozen=True)

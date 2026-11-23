@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.heat_ledger.const import (
     CONF_CIRCUIT,
+    CONF_HISTORY_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     DOMAIN,
@@ -272,3 +273,23 @@ async def test_failed_setup_leaves_no_listeners(hass: HomeAssistant, entry: Mock
         await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.SETUP_ERROR
     assert entry.runtime_data._unsubscribe == []
+
+
+@pytest.mark.usefixtures("inputs")
+async def test_renamed_pump_power_is_followed(hass: HomeAssistant) -> None:
+    """The power of the circuit pump, read only by the estimate of older periods, is followed like an input."""
+    power = "sensor.pump_power"
+    registry = er.async_get(hass)
+    registry.async_get_or_create("sensor", "plugs", "pump_power", suggested_object_id="pump_power")
+    subentries = [
+        s | {"data": s["data"] | {CONF_HISTORY_ENTITY: power}} if s["subentry_id"] == "ground_floor" else s
+        for s in SUBENTRIES
+    ]
+    entry = MockConfigEntry(domain=DOMAIN, title="Heating", options={}, subentries_data=subentries)
+    entry.add_to_hass(hass)
+    await setup(hass, entry)
+
+    registry.async_update_entity(power, new_entity_id="sensor.circuit_pump_power")
+    await hass.async_block_till_done()
+
+    assert entry.subentries["ground_floor"].data[CONF_HISTORY_ENTITY] == "sensor.circuit_pump_power"

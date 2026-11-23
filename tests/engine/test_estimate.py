@@ -21,6 +21,7 @@ from custom_components.heat_ledger.engine.estimate import (
     MAX_FACTOR,
     Hour,
     calibrate,
+    history_keys,
     hourly_demands,
     meter_keys,
     replay_hours,
@@ -176,3 +177,34 @@ def test_a_fixed_loss_is_taken_every_interval():
     result = replay_hours(plant, hours((1.0, 1.0, 100.0), (1.0, 1.0, 110.0), (1.0, 1.0, 120.0)), DEMANDS)
 
     assert sum(result.consumer_totals[c] for c in ("living", "bath")) == pytest.approx(2 * (10.0 - 1.2))
+
+
+def test_pumps_with_a_sensor_standing_in():
+    """The power of a pump, as the share of the hour it ran: the circuit is active that long, the hot water charges
+    that long. Without its hourly values, the pump is always on as before."""
+    circuit = CircuitSpec("circuit", ActiveMethod.PUMP, "binary_sensor.pump", history_key="sensor.pump_power")
+    consumers = tuple(
+        replace(c, history_key="sensor.hot_water_power") if c.id == "hot_water" else c for c in PLANT.consumers
+    )
+    plant = replace(PLANT, circuits=(circuit,), consumers=consumers)
+    hourly = hourly_demands(plant)
+    assert hourly == DEMANDS | {"sensor.pump_power", "sensor.hot_water_power"}
+    assert history_keys(plant) == {"sensor.pump_power", "sensor.hot_water_power"}
+
+    rough = rough_plant(plant, {"office": 0.0}, hourly)
+    assert rough.circuits == (replace(circuit, pump_key="sensor.pump_power"),)  # active by the pump's sensor
+    hot_water = next(c for c in rough.consumers if c.id == "hot_water")
+    assert hot_water.demand == Demand(DemandMethod.ON_OFF, "sensor.hot_water_power")
+    shares = {"sensor.living": 1.0, "sensor.bath": 1.0, "sensor.pump_power": 0.25, "sensor.hot_water_power": 0.75}
+    rows = [
+        Hour(T0, shares, {"sensor.boiler": 100.0, "sensor.cellar_meter": 0.0}),
+        Hour(T0 + HOUR, shares, {"sensor.boiler": 110.0, "sensor.cellar_meter": 0.0}),
+    ]
+    result = replay_hours(rough, rows, hourly)
+    # Weights: living 2000 W × 0.25, bath 1000 W × 0.25, hot water 10000 W × 0.75.
+    assert result.consumer_totals["living"] == pytest.approx(10.0 * 500 / 8250)
+    assert result.consumer_totals["hot_water"] == pytest.approx(10.0 * 7500 / 8250)
+
+    without = rough_plant(plant, None, DEMANDS)
+    assert without.circuits == (CircuitSpec("circuit", ActiveMethod.ALWAYS, None, "sensor.pump_power"),)
+    assert next(c for c in without.consumers if c.id == "hot_water").demand == Demand(DemandMethod.ALWAYS)

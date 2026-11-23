@@ -45,6 +45,16 @@
         "data_description": {
           "circuit_pump": "On while the pump runs that moves the water through radiators or underfloor heating. Without it, a room heating counts whenever its thermostat asks for heat, even while the boiler only heats water.",
           "hot_water_pump": "On while the hot water tank is being heated: its charging pump, or the hot water status of the boiler (also for a combi boiler). Not the circulation pump that keeps hot water moving to the taps. Without it, the heat for hot water is split between the rooms."
+        },
+        "sections": {
+          "accuracy": {
+            "name": "More accurate",
+            "description": "Only for estimating the time before the recorded days (next step): Home Assistant does not keep the history of a pump's binary sensor that long, but it keeps hourly means of its power. Without it, the pump counts as always running there.",
+            "data": {
+              "circuit_pump_power": "Power of the heating circuit pump",
+              "hot_water_pump_power": "Power of the hot water charging pump"
+            }
+          }
         }
       },
       "thermostats": {
@@ -58,7 +68,7 @@
         "data_description": {
           "thermostats": "Climate entities, one per room or radiator.",
           "backfill": "Heat Ledger works out the heat of every room for the days Home Assistant still has recorded, 10 days by default, so your dashboard does not start empty. It uses the heating system as you set it up here. This writes statistics for the past once and cannot be undone with a click.",
-          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: Home Assistant does not keep the history of pumps and on/off thermostats that long, so they count as always on, and each room gets the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more. Includes the past days above."
+          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: Home Assistant does not keep the history of pumps and on/off thermostats that long, so they count as always on (pumps whose power you chose in the step before do not), and each room gets the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more. Includes the past days above."
         }
       }
     },
@@ -68,7 +78,10 @@
       "entity_not_found": "Entity not found.",
       "wrong_domain": "This type of entity is not supported here.",
       "not_cumulative": "Choose a meter reading, not a momentary value.",
-      "heat_needs_energy_unit": "Heat is counted in an energy unit (kWh, MJ …). A gas meter in m³ or oil in litres is energy input."
+      "heat_needs_energy_unit": "Heat is counted in an energy unit (kWh, MJ …). A gas meter in m³ or oil in litres is energy input.",
+      "not_power": "Choose the power of the pump, a sensor in W or kW.",
+      "no_statistics": "Choose a sensor with a state class (measurement): only then does Home Assistant keep its hourly means.",
+      "history_needs_pump": "The power of a pump stands in for its binary sensor: choose the pump as well."
     }
   },
   "options": {
@@ -150,13 +163,27 @@
           "data_description": {
             "name": "For example radiators, underfloor heating or the floor.",
             "pump_entity_id": "On while the circuit pump runs. Without it, the circuit only groups its room heating and counts as always running."
+          },
+          "sections": {
+            "accuracy": {
+              "name": "More accurate",
+              "data": {
+                "history_entity_id": "Pump power"
+              },
+              "data_description": {
+                "history_entity_id": "Only for estimating the time before the recorded days: Home Assistant does not keep the history of the pump's binary sensor that long, but it keeps hourly means of its power. Without it, the pump counts as always running there."
+              }
+            }
           }
         }
       },
       "error": {
         "name_required": "Enter a name.",
         "entity_not_found": "Entity not found.",
-        "wrong_domain": "This type of entity is not supported here."
+        "wrong_domain": "This type of entity is not supported here.",
+        "no_statistics": "Choose a sensor with a state class (measurement): only then does Home Assistant keep its hourly means.",
+        "not_power": "Choose the power of the pump, a sensor in W or kW.",
+        "history_needs_pump": "The power of a pump stands in for its binary sensor: choose the pump as well."
       },
       "abort": {
         "reconfigure_successful": "Saved. The plant is reloaded with the change."
@@ -234,11 +261,13 @@
               "name": "More accurate",
               "data": {
                 "meter_entity_id": "Heat meter",
-                "charging_power_kw": "Charging power"
+                "charging_power_kw": "Charging power",
+                "history_entity_id": "Pump power"
               },
               "data_description": {
                 "meter_entity_id": "Only if a heat meter is installed: it measures the heat for hot water and replaces the estimate, pump and charging power are then not needed.",
-                "charging_power_kw": "Heat while the pump runs, in kW. Default: 10 kW."
+                "charging_power_kw": "Heat while the pump runs, in kW. Default: 10 kW.",
+                "history_entity_id": "Only for estimating the time before the recorded days: Home Assistant does not keep the history of the pump's binary sensor that long, but it keeps hourly means of its power. Without it, the pump counts as always running there."
               }
             }
           }
@@ -253,7 +282,10 @@
         "not_percent": "A sensor needs the unit %.",
         "not_positive": "Enter a number greater than 0.",
         "power_or_area": "Enter the nominal power or the area, not both.",
-        "pump_or_meter_required": "Choose the hot water charging or, under \"More accurate\", a heat meter."
+        "pump_or_meter_required": "Choose the hot water charging or, under \"More accurate\", a heat meter.",
+        "no_statistics": "Choose a sensor with a state class (measurement): only then does Home Assistant keep its hourly means.",
+        "not_power": "Choose the power of the pump, a sensor in W or kW.",
+        "history_needs_pump": "The power of a pump stands in for its binary sensor: choose the pump as well."
       },
       "abort": {
         "reconfigure_successful": "Saved. The plant is reloaded with the change."

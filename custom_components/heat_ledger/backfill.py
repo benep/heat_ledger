@@ -28,7 +28,7 @@ from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, State
@@ -49,7 +49,16 @@ from .const import (
     TRANSLATION_SOURCE_HEAT,
 )
 from .engine import PlantSpec, Reading, Replay, ReplayResult
-from .engine.estimate import Calibration, Hour, calibrate, hourly_demands, meter_keys, replay_hours, rough_plant
+from .engine.estimate import (
+    Calibration,
+    Hour,
+    calibrate,
+    history_keys,
+    hourly_demands,
+    meter_keys,
+    replay_hours,
+    rough_plant,
+)
 from .model import InputKind, convert, parse_state
 
 if TYPE_CHECKING:
@@ -75,6 +84,9 @@ CALIBRATION_HOURS = 72
 # Hourly statistics are read in pieces of this length.
 STATISTICS_CHUNK = timedelta(days=31)
 HOUR = timedelta(hours=1)
+# A pump ran in an hour its sensor peaked above this share of a high peak, and all of it if it never dropped below
+# this share of what it shows while running.
+RUNNING_SHARE = 0.2
 
 # Stored with the ledger (runtime.backfill):
 KEY_START = "start"  # the replay started here, as a timestamp
@@ -430,6 +442,7 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
     calibration_count = max(0, len(result.hours) - 1)  # the first hour of the replay is not a whole one
     meters = sorted(meter_keys(plant))
     demands = sorted(hourly_demands(plant))
+    pumps = history_keys(plant)
     metadata = await instance.async_add_executor_job(_metadata, hass, set(meters) | set(demands))
     if missing := [key for key in meters if key not in metadata]:
         raise BackfillError(ESTIMATE_NO_STATISTICS, entity=missing[0])
@@ -439,17 +452,22 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
     last_hour = dt_util.utc_from_timestamp(result.hours[-1])
 
     def during(
-        begin: datetime, stop: datetime, keys: set[str], period: str, units: dict[str, str] | None
+        begin: datetime,
+        stop: datetime,
+        keys: set[str],
+        period: str,
+        units: dict[str, str] | None,
+        types: set[Literal["max", "mean", "min", "sum"]],
     ) -> dict[str, list[dict[str, Any]]]:
-        return statistics.statistics_during_period(hass, begin, stop, keys, period, units, {"mean", "sum"})
+        return statistics.statistics_during_period(hass, begin, stop, keys, period, units, types)
 
     def first_hours() -> dict[str, datetime]:
         firsts = {}
-        found = during(dt_util.utc_from_timestamp(0), replay_hour, set(metadata), "month", None)
+        found = during(dt_util.utc_from_timestamp(0), replay_hour, set(metadata), "month", None, {"mean", "sum"})
         for key, rows in found.items():
             if rows:
                 month = dt_util.utc_from_timestamp(rows[0]["start"])
-                if hourly := during(month, month + STATISTICS_CHUNK, {key}, "hour", None).get(key):
+                if hourly := during(month, month + STATISTICS_CHUNK, {key}, "hour", None, {"mean", "sum"}).get(key):
                     firsts[key] = dt_util.utc_from_timestamp(hourly[0]["start"])
         return firsts
 
@@ -461,8 +479,11 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
         raise BackfillError(ESTIMATE_NOTHING_OLDER)
     if calibration_count < CALIBRATION_HOURS:
         raise BackfillError(ESTIMATE_TOO_SHORT, hours=str(calibration_count), needed=str(CALIBRATION_HOURS))
-    # The first hour of the estimate is only the baseline of the meters: a demand may start an hour later.
-    hourly = {key for key in demands if key in firsts and firsts[key] <= start + HOUR}
+    # The first hour of the estimate is only the baseline of the meters: a demand may start an hour later. A demand
+    # whose statistics start later counts as always on throughout. A pump's power is taken from its first hour on: an
+    # hour without it (before it, or the plug was offline) counts as the pump running, as without the power at all.
+    percent = {key for key in demands if key not in pumps and key in firsts and firsts[key] <= start + HOUR}
+    powered = {key for key in demands if key in pumps and key in firsts}
 
     # Each meter in a unit Heat Ledger converts from (without one, Home Assistant converts to the unit the entity
     # shows now); demands in %, not as a ratio, which a demand without a unit of its own would come as.
@@ -471,22 +492,34 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
         unit_class, unit = metadata[key]
         reading_units[key] = {"energy": "kWh", "volume": "m³"}.get(unit_class or "", unit)
 
-    def read(begin: datetime, stop: datetime) -> list[Hour]:
+    def read(begin: datetime, stop: datetime) -> dict[float, dict[str, dict[str, Any]]]:
         rows: dict[float, dict[str, dict[str, Any]]] = {}
 
-        def collect(keys: set[str], units: dict[str, str] | None) -> None:
+        def collect(keys: set[str], units: dict[str, str] | None, types: set[Any]) -> None:
             at = begin
             while at < stop and keys:
                 chunk_end = min(at + STATISTICS_CHUNK, stop)
-                for key, items in during(at, chunk_end, keys, "hour", units).items():
+                for key, items in during(at, chunk_end, keys, "hour", units, types).items():
                     for row in items:
                         rows.setdefault(row["start"], {})[key] = row
                 at = chunk_end
 
         for key in meters:
             unit_class = metadata[key][0]
-            collect({key}, {unit_class: reading_units[key]} if unit_class and reading_units[key] else None)
-        collect(hourly, {"unitless": "%"})
+            units = {unit_class: reading_units[key]} if unit_class and reading_units[key] else None
+            collect({key}, units, {"sum"})
+        collect(percent, {"unitless": "%"}, {"mean"})
+        collect(powered, None, {"mean", "min", "max"})
+        return rows
+
+    older_rows = await instance.async_add_executor_job(read, start, replay_hour)
+    calibration_rows = await instance.async_add_executor_job(read, replay_hour, last_hour + HOUR)
+    # Calibrated with the power, estimated with it: one with none in the recorded days is left out.
+    powered = {key for key in powered if any(key in row for row in calibration_rows.values())}
+    hourly = percent | powered
+    running = await hass.async_add_executor_job(_running_power, powered, [older_rows, calibration_rows])
+
+    def hours_of(rows: dict[float, dict[str, dict[str, Any]]]) -> list[Hour]:
         hours = []
         sums: dict[str, float] = {}  # last sum of each meter
         totals: dict[str, float] = {}  # its gains since, drops left out
@@ -504,12 +537,18 @@ async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, resul
                 totals[key] = totals.get(key, 0.0) + max(0.0, value - sums.get(key, value))
                 sums[key] = value
                 readings[key] = totals[key]
-            means = {key: row[key]["mean"] / 100 for key in hourly if row.get(key, {}).get("mean") is not None}
+            means: dict[str, Reading] = {}
+            for key in percent:
+                if (mean := row.get(key, {}).get("mean")) is not None:
+                    means[key] = mean / 100
+            for key in powered:
+                means[key] = _ran(row.get(key), running[key])
             hours.append(Hour(t, means, readings))
         return hours
 
-    older_hours = await instance.async_add_executor_job(read, start, replay_hour)
-    calibration_hours = await instance.async_add_executor_job(read, replay_hour, last_hour + HOUR)
+    older_hours = await hass.async_add_executor_job(hours_of, older_rows)
+    calibration_hours = await hass.async_add_executor_job(hours_of, calibration_rows)
+    del older_rows, calibration_rows
     exact = {cid: totals[-1] - totals[0] for cid, totals in result.consumers.items()}
     try:
         calibration = await hass.async_add_executor_job(calibrate, plant, calibration_hours, hourly, exact)
@@ -527,6 +566,38 @@ def _metadata(hass: HomeAssistant, statistic_ids: set[str]) -> dict[str, tuple[s
 
     found = statistics.get_metadata(hass, statistic_ids=statistic_ids)
     return {key: (meta.get("unit_class"), meta["unit_of_measurement"]) for key, (_, meta) in found.items()}
+
+
+def _running_power(
+    keys: set[str], row_sets: Sequence[Mapping[float, Mapping[str, Mapping[str, Any]]]]
+) -> dict[str, float]:
+    """What each pump's sensor shows while the pump runs: the median of the hourly maxima of the hours it ran in (a
+    maximum above RUNNING_SHARE of a high one, the 90th percentile, so that a single spike of the plug does not set
+    the scale). Nothing has to be entered for it, and a pump with a few speeds is taken at its usual one. A sensor
+    that never showed anything: the pump never ran (infinite, so a share of 0)."""
+    running = {}
+    for key in keys:
+        maxima = sorted(
+            peak for rows in row_sets for row in rows.values() if (peak := (row.get(key) or {}).get("max") or 0) > 0
+        )
+        if not maxima:
+            running[key] = math.inf
+            continue
+        high = maxima[int(0.9 * (len(maxima) - 1))]
+        ran = [peak for peak in maxima if peak > RUNNING_SHARE * high]
+        running[key] = ran[len(ran) // 2]
+    return running
+
+
+def _ran(row: Mapping[str, Any] | None, running: float) -> float:
+    """The share of an hour a pump ran, from its sensor's statistics of the hour: the mean over what it shows while
+    running, or all of it if it never dropped below RUNNING_SHARE of that (a controlled pump that ran slowly all hour).
+    Without a value: as if there were no sensor, the pump counts as running."""
+    if row is None or row.get("mean") is None:
+        return 1.0
+    if (low := row.get("min")) is not None and low >= RUNNING_SHARE * running:
+        return 1.0
+    return min(1.0, max(0.0, row["mean"] / running))
 
 
 async def async_adjust_pending(hass: HomeAssistant, runtime: HeatLedgerRuntime) -> None:

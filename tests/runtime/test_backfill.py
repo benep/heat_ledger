@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -34,7 +35,13 @@ from custom_components.heat_ledger.backfill import (
     async_backfill,
     async_backfill_at_setup,
 )
-from custom_components.heat_ledger.const import CONF_BACKFILL, CONF_ESTIMATE, CONF_METER_ENTITY, DOMAIN
+from custom_components.heat_ledger.const import (
+    CONF_BACKFILL,
+    CONF_ESTIMATE,
+    CONF_HISTORY_ENTITY,
+    CONF_METER_ENTITY,
+    DOMAIN,
+)
 from custom_components.heat_ledger.diagnostics import async_get_config_entry_diagnostics
 from custom_components.heat_ledger.runtime import HeatLedgerRuntime
 
@@ -1375,3 +1382,110 @@ async def test_the_action_estimates_as_chosen_in_the_setup(
     )
 
     assert response["estimate"]["hours"] == 5
+
+
+async def test_the_hot_water_pump_by_its_power(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    """The pump's binary sensor has no statistics, its power has: the hot water charges the share of an hour its mean
+    shows of the power it runs at (the usual hourly maximum, 100 W here), not always."""
+    power = "sensor.hot_water_pump_power"
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED)
+    means = {h: {3: 50.0, 5: 100.0}.get(h, 0.0) for h in (OLDER | RECORDED)}
+    metadata = {
+        "mean_type": StatisticMeanType.ARITHMETIC,
+        "has_sum": False,
+        "name": None,
+        "source": "recorder",
+        "statistic_id": power,
+        "unit_class": "power",
+        "unit_of_measurement": "W",
+    }
+    rows = [{"start": at(h), "mean": m, "min": 0.0, "max": 100.0 if m else 0.0} for h, m in means.items()]
+    async_import_statistics(hass, metadata, rows)
+    await async_wait_recording_done(hass)
+    subentries = [
+        s | {"data": s["data"] | {CONF_HISTORY_ENTITY: power}} if s["subentry_id"] == "hot_water" else s
+        for s in SUBENTRIES
+    ]
+    entry = MockConfigEntry(domain=DOMAIN, title="Heating", data={}, options={}, subentries_data=subentries)
+    entry.add_to_hass(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+    await async_wait_recording_done(hass)
+
+    assert summary["estimate"]["hours"] == 5
+    hot_water = await sums(hass, "hot_water_heat")
+    gains = {h: hot_water[at(h)] - hot_water.get(at(h - 1), 0.0) for h in range(1, 6)}
+    assert gains[1] == pytest.approx(0.0)  # no charging: nothing, although it is always on without the power
+    assert gains[3] > 0
+    assert gains[5] > 0.9 * 2.5  # all hour: nearly all of the 2.5 kWh, the living room is at 0 %, the bath small
+
+
+def test_the_power_a_pump_runs_at():
+    """The usual hourly maximum: a single spike of the plug does not set the scale, and a sensor that never showed
+    anything belongs to a pump that never ran."""
+    key = "sensor.pump_power"
+    maxima = [0.0] * 20 + [25.0, 26.0, 27.0, 28.0] * 10 + [3000.0]
+    rows = {float(i): {key: {"max": peak}} for i, peak in enumerate(maxima)}
+    assert backfill._running_power({key}, [rows]) == {key: 27.0}
+    assert backfill._running_power({key}, [{0.0: {key: {"max": 0.0}}}]) == {key: math.inf}
+
+
+@pytest.mark.parametrize(
+    ("row", "share"),
+    [
+        (None, 1.0),  # no value: as without the power, running
+        ({"mean": 5.0, "min": 0.0}, 0.25),
+        ({"mean": 8.0, "min": 6.0}, 1.0),  # a controlled pump, slow all hour: it ran all of it
+        ({"mean": 30.0, "min": 0.0}, 1.0),
+        ({"mean": 1.0, "min": 1.0}, 0.05),  # standby is not running
+    ],
+)
+def test_the_share_of_an_hour_a_pump_ran(row: dict[str, float] | None, share: float):
+    assert backfill._ran(row, 20.0) == pytest.approx(share)
+
+
+async def test_the_circuit_pump_by_its_power(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    """The circuit is active the share of an hour its pump's power shows. Its statistics start later than the
+    meters' and miss an hour: there it counts as running, as without the power."""
+    power = "sensor.circuit_pump_power"
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED)
+    means = {3: 27.0, 5: 0.0, 6: 27.0, 7: 27.0, 8: 27.0, 9: 27.0}  # from hour 3, hour 4 missing
+    metadata = {
+        "mean_type": StatisticMeanType.ARITHMETIC,
+        "has_sum": False,
+        "name": None,
+        "source": "recorder",
+        "statistic_id": power,
+        "unit_class": "power",
+        "unit_of_measurement": "W",
+    }
+    rows = [{"start": at(h), "mean": m, "min": m, "max": m} for h, m in means.items()]
+    async_import_statistics(hass, metadata, rows)
+    await async_wait_recording_done(hass)
+    subentries = [
+        s | {"data": s["data"] | {CONF_HISTORY_ENTITY: power}} if s["subentry_id"] == "ground_floor" else s
+        for s in SUBENTRIES
+    ]
+    entry = MockConfigEntry(domain=DOMAIN, title="Heating", data={}, options={}, subentries_data=subentries)
+    entry.add_to_hass(hass)
+    await setup(hass, entry)
+
+    await async_backfill(hass, entry, estimate=True)
+    await async_wait_recording_done(hass)
+
+    circuit, hot_water = [await sums(hass, key) for key in ("ground_floor_heat", "hot_water_heat")]
+
+    def gain(totals: dict[datetime, float], hour: int) -> float:
+        return totals[at(hour)] - totals.get(at(hour - 1), 0.0)
+
+    assert gain(circuit, 1) > 0.9 * 2.0  # before its statistics: running
+    assert gain(circuit, 3) > 0.9 * 2.0
+    assert gain(circuit, 5) == pytest.approx(0.0)  # the pump was off: all to the hot water, always on
+    assert gain(hot_water, 5) == pytest.approx(2.5)

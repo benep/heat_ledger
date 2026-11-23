@@ -49,6 +49,9 @@ CONF_DEMAND_TYPE: Final = "demand_type"  # engine.DemandMethod value; "always" w
 CONF_SIZE_TYPE: Final = "size_type"  # engine.SizeMethod value
 CONF_SIZE_VALUE: Final = "size_value"  # W for nominal power, m² for area
 CONF_METER_ENTITY: Final = "meter_entity_id"  # heat meter: measured, replaces the estimate
+# Circuit and hot water: the power of the pump, read only by the estimate of older periods (binary sensors have no
+# statistics).
+CONF_HISTORY_ENTITY: Final = "history_entity_id"
 
 # Entity translation keys (strings.json: entity.sensor.<key>)
 TRANSLATION_HEAT: Final = "heat"  # energy counter of a consumer or a circuit

@@ -12,6 +12,7 @@ from custom_components.heat_ledger.const import (
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
     CONF_FACTOR,
+    CONF_HISTORY_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
@@ -201,3 +202,26 @@ def test_reference_units():
         "sensor.old": None,
         "sensor.hm": "kWh",
     }
+
+
+def test_sensors_standing_in_for_pumps():
+    """Read only by the estimate of older periods, not by the ledger, and only where there is a pump to stand in for."""
+    pump = {CONF_PUMP_ENTITY: "binary_sensor.pump", CONF_HISTORY_ENTITY: "sensor.pump_power"}
+    hot_water = {
+        CONF_KIND: KIND_HOT_WATER,
+        CONF_DEMAND_ENTITY: "binary_sensor.dhw_pump",
+        CONF_DEMAND_TYPE: "on_off",
+        CONF_HISTORY_ENTITY: "sensor.dhw_power",
+    }
+    subentries = [
+        SUBENTRIES[0],
+        Subentry("c1", SUBENTRY_CIRCUIT, "Radiators", pump),
+        Subentry("c2", SUBENTRY_CIRCUIT, "Floor", {CONF_HISTORY_ENTITY: "sensor.floor_power"}),
+        Subentry("dhw", SUBENTRY_CONSUMER, "Hot water", hot_water),
+    ]
+
+    plant = build_plant({}, subentries)
+
+    assert [c.history_key for c in plant.circuits] == ["sensor.pump_power", None]
+    assert plant.consumers[0].history_key == "sensor.dhw_power"
+    assert not {"sensor.pump_power", "sensor.dhw_power"} & set(input_kinds(plant))

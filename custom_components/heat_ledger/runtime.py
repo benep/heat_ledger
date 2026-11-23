@@ -22,6 +22,7 @@ from .backfill import KEY_PENDING, async_adjust_pending
 from .const import (
     CONF_DEMAND_ENTITY,
     CONF_ENTITY,
+    CONF_HISTORY_ENTITY,
     CONF_METER_ENTITY,
     CONF_PUMP_ENTITY,
     DOMAIN,
@@ -81,8 +82,11 @@ class HeatLedgerRuntime:
 
         if self.kinds:
             self._unsubscribe.append(async_track_state_change_event(self.hass, list(self.kinds), self._on_state))
+        # Renamed, inputs are followed; so are the sensors standing in for pumps, which only the estimate reads.
+        history = {c.history_key for c in (*self.plant.circuits, *self.plant.consumers) if c.history_key}
+        if followed := set(self.kinds) | history:
             self._unsubscribe.append(
-                async_track_entity_registry_updated_event(self.hass, list(self.kinds), self._on_registry)
+                async_track_entity_registry_updated_event(self.hass, sorted(followed), self._on_registry)
             )
         minutes = int(INTERVAL.total_seconds() // 60)
         self._unsubscribe.append(
@@ -186,7 +190,7 @@ class HeatLedgerRuntime:
         for subentry in list(entry.subentries.values()):
             data = dict(subentry.data)
             changed = False
-            for key in (CONF_ENTITY, CONF_DEMAND_ENTITY, CONF_PUMP_ENTITY, CONF_METER_ENTITY):
+            for key in (CONF_ENTITY, CONF_DEMAND_ENTITY, CONF_PUMP_ENTITY, CONF_METER_ENTITY, CONF_HISTORY_ENTITY):
                 if data.get(key) == old:
                     data[key] = new
                     changed = True

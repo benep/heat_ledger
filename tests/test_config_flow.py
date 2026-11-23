@@ -24,6 +24,7 @@ from custom_components.heat_ledger.const import (
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
     CONF_FACTOR,
+    CONF_HISTORY_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
@@ -912,3 +913,55 @@ async def test_first_setup_offers_the_past_days_with_a_recorder(hass: HomeAssist
     assert dict(result["result"].data) == {"backfill": True, "estimate": True}
     result = await first_setup(hass, *steps, {"backfill": False, "estimate": True})
     assert dict(result["result"].data) == {"backfill": True, "estimate": True}
+
+
+@pytest.mark.usefixtures("entities")
+async def test_circuit_pump_power(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """For the estimate of older periods: a power with hourly means, and a pump to stand in for."""
+    hass.states.async_set("sensor.plug_power", "25", {"unit_of_measurement": "W"})
+    result = await start(hass, entry, SUBENTRY_CIRCUIT)
+    for sensor, error in ((TEMPERATURE, "not_power"), ("sensor.plug_power", "no_statistics")):
+        result = await configure(
+            hass, result, {"name": "Ground floor", CONF_PUMP_ENTITY: PUMP, ACCURACY: {CONF_HISTORY_ENTITY: sensor}}
+        )
+        assert result["errors"] == {ACCURACY: error}
+    result = await configure(
+        hass, result, {"name": "Ground floor", CONF_PUMP_ENTITY: PUMP, ACCURACY: {CONF_HISTORY_ENTITY: POWER}}
+    )
+    sid = only_subentry(entry, SUBENTRY_CIRCUIT).subentry_id
+    assert dict(entry.subentries[sid].data) == {CONF_PUMP_ENTITY: PUMP, CONF_HISTORY_ENTITY: POWER}
+
+    result = await start(hass, entry, SUBENTRY_CIRCUIT, sid)
+    assert suggested(result, CONF_HISTORY_ENTITY, ACCURACY) == POWER
+    result = await configure(hass, result, {"name": "Ground floor", ACCURACY: {CONF_HISTORY_ENTITY: POWER}})
+    assert result["errors"] == {ACCURACY: "history_needs_pump"}
+    result = await configure(hass, result, {"name": "Ground floor", ACCURACY: {}})
+    assert dict(entry.subentries[sid].data) == {}
+
+
+@pytest.mark.usefixtures("entities")
+async def test_hot_water_pump_power(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await hot_water_form(hass, entry)
+    result = await configure(
+        hass, result, {"name": "Hot water", CONF_DEMAND_ENTITY: HOT_WATER_PUMP, ACCURACY: {CONF_HISTORY_ENTITY: POWER}}
+    )
+    sid = only_subentry(entry, SUBENTRY_CONSUMER).subentry_id
+    assert entry.subentries[sid].data[CONF_HISTORY_ENTITY] == POWER
+
+    result = await start(hass, entry, SUBENTRY_CONSUMER, sid)
+    assert suggested(result, CONF_HISTORY_ENTITY, ACCURACY) == POWER
+
+
+@pytest.mark.usefixtures("entities")
+async def test_first_setup_takes_the_power_of_the_pumps(hass: HomeAssistant) -> None:
+    """Asked for with the pumps: the estimate, ticked in the next step, runs right after the setup."""
+    pumps = {"circuit_pump": PUMP, "hot_water_pump": HOT_WATER_PUMP}
+    result = await first_setup(hass, {"name": "House"}, HEAT_SOURCE, {ACCURACY: {"circuit_pump_power": POWER}})
+    assert result["errors"] == {ACCURACY: "history_needs_pump"}
+
+    power = {"circuit_pump_power": POWER, "hot_water_pump_power": POWER}
+    result = await first_setup(hass, {"name": "House"}, HEAT_SOURCE, pumps | {ACCURACY: power}, {})
+
+    grouped = subentries_by_type(result)
+    assert grouped[SUBENTRY_CIRCUIT][0].data[CONF_HISTORY_ENTITY] == POWER
+    assert grouped[SUBENTRY_CONSUMER][0].data[CONF_HISTORY_ENTITY] == POWER

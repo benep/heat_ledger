@@ -17,6 +17,7 @@ from .const import (
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
     CONF_FACTOR,
+    CONF_HISTORY_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
@@ -208,7 +209,12 @@ def _source(subentry: Subentry) -> SourceSpec:
 
 def _circuit(subentry: Subentry) -> CircuitSpec:
     pump = subentry.data.get(CONF_PUMP_ENTITY)
-    return CircuitSpec(subentry.subentry_id, ActiveMethod.PUMP if pump else ActiveMethod.ALWAYS, pump or None)
+    return CircuitSpec(
+        subentry.subentry_id,
+        ActiveMethod.PUMP if pump else ActiveMethod.ALWAYS,
+        pump or None,
+        history_key=(subentry.data.get(CONF_HISTORY_ENTITY) or None) if pump else None,
+    )
 
 
 def _consumer(subentry: Subentry, circuit_ids: set[str]) -> ConsumerSpec:
@@ -233,4 +239,5 @@ def _consumer(subentry: Subentry, circuit_ids: set[str]) -> ConsumerSpec:
         demand=Demand(demand_type, demand_entity if demand_type is not DemandMethod.ALWAYS else None),
         meter_key=data.get(CONF_METER_ENTITY) or None,
         hot_water=hot_water,
+        history_key=(data.get(CONF_HISTORY_ENTITY) or None) if demand_type is DemandMethod.ON_OFF else None,
     )

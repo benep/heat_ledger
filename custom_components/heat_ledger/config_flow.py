@@ -40,6 +40,7 @@ from homeassistant.helpers.selector import (
     TextSelector,
 )
 from homeassistant.util.ulid import ulid_now
+from homeassistant.util.unit_conversion import PowerConverter
 
 from . import texts
 from .const import (
@@ -50,6 +51,7 @@ from .const import (
     CONF_ENTITY,
     CONF_ESTIMATE,
     CONF_FACTOR,
+    CONF_HISTORY_ENTITY,
     CONF_KIND,
     CONF_LOSS_KW,
     CONF_METER_ENTITY,
@@ -96,6 +98,9 @@ ERROR_SOURCE_EXISTS = "source_exists"
 ERROR_NOT_ENERGY = "not_energy"
 ERROR_HEAT_NEEDS_ENERGY = "heat_needs_energy_unit"
 ERROR_PUMP_OR_METER_REQUIRED = "pump_or_meter_required"
+ERROR_NO_STATISTICS = "no_statistics"
+ERROR_NOT_POWER = "not_power"
+ERROR_HISTORY_NEEDS_PUMP = "history_needs_pump"
 
 
 # --- Selectors ---------------------------------------------------------------------------------------------------
@@ -225,6 +230,22 @@ class _Checker:
             self.errors[field] = ERROR_NOT_ENERGY
             return None
         return info
+
+    def history(self, value: str | None, field: str, pump: _EntityInfo | None) -> _EntityInfo | None:
+        """The power of a pump, standing in for its binary sensor in the estimate of older periods: it needs hourly
+        means, so statistics, and a pump to stand in for."""
+        info = self.entity(value, ("sensor",), field)
+        if info is None:
+            return None
+        if info.unit not in PowerConverter.VALID_UNITS:
+            self.errors[field] = ERROR_NOT_POWER
+        elif info.state_class != "measurement":
+            self.errors[field] = ERROR_NO_STATISTICS
+        elif pump is None:
+            self.errors[field] = ERROR_HISTORY_NEEDS_PUMP
+        else:
+            return info
+        return None
 
     def positive(self, value: float | None, field: str) -> float | None:
         if value is None:
@@ -410,6 +431,8 @@ class _SourceSteps:
 CONF_THERMOSTATS = "thermostats"
 CONF_CIRCUIT_PUMP = "circuit_pump"
 CONF_HOT_WATER_PUMP = "hot_water_pump"
+CONF_CIRCUIT_PUMP_POWER = "circuit_pump_power"
+CONF_HOT_WATER_PUMP_POWER = "hot_water_pump_power"
 
 
 def _loss_schema() -> dict[vol.Marker, Any]:
@@ -428,6 +451,7 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
     _name: str
     _source: tuple[str, dict[str, Any]]
     _pumps: tuple[_EntityInfo | None, _EntityInfo | None]
+    _pump_powers: tuple[_EntityInfo | None, _EntityInfo | None] = (None, None)
     _factor_is_last_step = False  # the pumps follow
 
     @staticmethod
@@ -472,15 +496,26 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
     async def async_step_pumps(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         check = _Checker(self.hass)
         if user_input is not None:
+            more = user_input.get(SECTION_ACCURACY) or {}
             circuit_pump = check.entity(user_input.get(CONF_CIRCUIT_PUMP), ("binary_sensor",), CONF_CIRCUIT_PUMP)
             hot_water_pump = check.entity(user_input.get(CONF_HOT_WATER_PUMP), ("binary_sensor",), CONF_HOT_WATER_PUMP)
+            # Here already: the estimate of older periods, ticked in the next step, runs right after the setup.
+            circuit_power = check.history(more.get(CONF_CIRCUIT_PUMP_POWER), SECTION_ACCURACY, circuit_pump)
+            hot_water_power = check.history(more.get(CONF_HOT_WATER_PUMP_POWER), SECTION_ACCURACY, hot_water_pump)
             if not check.errors:
                 self._pumps = (circuit_pump, hot_water_pump)
+                self._pump_powers = (circuit_power, hot_water_power)
                 return await self.async_step_thermostats()
         schema = vol.Schema(
             {
                 vol.Optional(CONF_CIRCUIT_PUMP): _entity("binary_sensor"),
                 vol.Optional(CONF_HOT_WATER_PUMP): _entity("binary_sensor"),
+                vol.Optional(SECTION_ACCURACY): _accuracy(
+                    {
+                        vol.Optional(CONF_CIRCUIT_PUMP_POWER): _entity("sensor"),
+                        vol.Optional(CONF_HOT_WATER_PUMP_POWER): _entity("sensor"),
+                    }
+                ),
             }
         )
         return self.async_show_form(
@@ -537,10 +572,14 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
         title, data = self._source
         subentries: list[dict[str, Any]] = [_subentry(SUBENTRY_SOURCE, title, data)]
         circuit_id = None
+        circuit_power, hot_water_power = self._pump_powers
         if circuit_pump is not None:
             # Home Assistant takes a given subentry ID as it is, so the radiators can refer to their circuit.
             circuit_id = ulid_now()
-            circuit = _subentry(SUBENTRY_CIRCUIT, names[texts.CIRCUIT], {CONF_PUMP_ENTITY: circuit_pump.entity_id})
+            circuit_data = {CONF_PUMP_ENTITY: circuit_pump.entity_id}
+            if circuit_power is not None:
+                circuit_data[CONF_HISTORY_ENTITY] = circuit_power.entity_id
+            circuit = _subentry(SUBENTRY_CIRCUIT, names[texts.CIRCUIT], circuit_data)
             subentries.append(circuit | {"subentry_id": circuit_id})
         for climate in thermostats:
             # The heating demand in % if the thermostat has one, as the radiator flow suggests it.
@@ -548,7 +587,10 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
             radiator = _radiator_data(circuit_id, demand.entity_id, _demand_method(demand))
             subentries.append(_subentry(SUBENTRY_CONSUMER, climate.name, radiator))
         if hot_water_pump is not None:
-            hot_water = _hot_water_data(hot_water_pump.entity_id)
+            hot_water = _hot_water_data(
+                hot_water_pump.entity_id,
+                history_entity=hot_water_power.entity_id if hot_water_power is not None else None,
+            )
             subentries.append(_subentry(SUBENTRY_CONSUMER, names[texts.DEFAULT_HOT_WATER_NAME], hot_water))
         return subentries
 
@@ -594,7 +636,10 @@ def _radiator_data(
 
 
 def _hot_water_data(
-    pump_entity: str | None, power_kw: float | None = None, meter_entity: str | None = None
+    pump_entity: str | None,
+    power_kw: float | None = None,
+    meter_entity: str | None = None,
+    history_entity: str | None = None,
 ) -> dict[str, Any]:
     """Without a pump only with a heat meter: the meter measures, the pump would only weigh a share of the split."""
     data: dict[str, Any] = {CONF_KIND: KIND_HOT_WATER}
@@ -603,6 +648,8 @@ def _hot_water_data(
     else:
         data[CONF_DEMAND_ENTITY] = pump_entity
         data[CONF_DEMAND_TYPE] = str(DemandMethod.ON_OFF)
+        if history_entity is not None:
+            data[CONF_HISTORY_ENTITY] = history_entity
     data[CONF_SIZE_TYPE] = str(SizeMethod.DEFAULT if power_kw is None else SizeMethod.NOMINAL_POWER)
     if power_kw is not None:
         data[CONF_SIZE_VALUE] = power_kw * 1000
@@ -693,20 +740,33 @@ class CircuitSubentryFlow(_SubentryFlow):
     async def async_step_circuit(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         check = _Checker(self.hass)
         if user_input is not None:
+            more = user_input.get(SECTION_ACCURACY) or {}
             name = check.name(user_input.get(CONF_NAME))
             pump = check.entity(user_input.get(CONF_PUMP_ENTITY), ("binary_sensor",), CONF_PUMP_ENTITY)
+            history = check.history(more.get(CONF_HISTORY_ENTITY), SECTION_ACCURACY, pump)
             if not check.errors:
-                return self._finish(name, {CONF_PUMP_ENTITY: pump.entity_id} if pump else {})
+                data = {CONF_PUMP_ENTITY: pump.entity_id} if pump else {}
+                if history:
+                    data[CONF_HISTORY_ENTITY] = history.entity_id
+                return self._finish(name, data)
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): TextSelector(),
                 vol.Optional(CONF_PUMP_ENTITY): _entity("binary_sensor"),
+                vol.Optional(SECTION_ACCURACY): _accuracy({vol.Optional(CONF_HISTORY_ENTITY): _entity("sensor")}),
             }
         )
         if user_input is None and self._reconfiguring:
             subentry = self._get_reconfigure_subentry()
-            user_input = _strip_empty({CONF_NAME: subentry.title, **subentry.data})
+            data = subentry.data
+            user_input = _strip_empty(
+                {
+                    CONF_NAME: subentry.title,
+                    CONF_PUMP_ENTITY: data.get(CONF_PUMP_ENTITY),
+                    SECTION_ACCURACY: _strip_empty({CONF_HISTORY_ENTITY: data.get(CONF_HISTORY_ENTITY)}),
+                }
+            )
         return self.async_show_form(
             step_id="circuit",
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
@@ -848,6 +908,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
             pump = check.entity(user_input.get(CONF_DEMAND_ENTITY), ("binary_sensor",), CONF_DEMAND_ENTITY)
             power_kw = check.positive(more.get(CONF_CHARGING_POWER_KW), SECTION_ACCURACY)
             meter = check.meter(more.get(CONF_METER_ENTITY), SECTION_ACCURACY)
+            history = check.history(more.get(CONF_HISTORY_ENTITY), SECTION_ACCURACY, pump)
             if pump is None and meter is None and not check.errors:
                 check.errors[CONF_DEMAND_ENTITY] = ERROR_PUMP_OR_METER_REQUIRED
             if not check.errors:
@@ -855,6 +916,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
                     pump.entity_id if pump is not None else None,
                     power_kw,
                     meter.entity_id if meter is not None else None,
+                    history.entity_id if history is not None else None,
                 )
                 return self._finish(name, data)
 
@@ -866,6 +928,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
                     {
                         vol.Optional(CONF_METER_ENTITY): _entity("sensor"),
                         vol.Optional(CONF_CHARGING_POWER_KW): _number("kW"),
+                        vol.Optional(CONF_HISTORY_ENTITY): _entity("sensor"),
                     }
                 ),
             }
@@ -882,6 +945,7 @@ class ConsumerSubentryFlow(_SubentryFlow):
                         {
                             CONF_CHARGING_POWER_KW: power_w / 1000 if power_w else None,
                             CONF_METER_ENTITY: stored.get(CONF_METER_ENTITY),
+                            CONF_HISTORY_ENTITY: stored.get(CONF_HISTORY_ENTITY),
                         }
                     ),
                 }

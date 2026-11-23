@@ -5,7 +5,8 @@ the sum of a meter. On/off inputs (pumps, actuators, thermostats reporting hvac_
 runs the ledger over hours, with what an hour tells:
 
 - a demand in percent or a valve position is its mean over the hour;
-- every other demand counts as always on, and every circuit as always active;
+- a pump with a sensor standing in for it (its power) ran the share of the hour that sensor's mean tells;
+- every other demand counts as always on, and every other circuit as always active;
 - a meter (source, heat meter) is read at the end of every hour.
 
 That alone misjudges the split badly: a hot water pump that ran for ten minutes of an hour weighs on all of it, and
@@ -52,8 +53,16 @@ class Hour:
 
 
 def hourly_demands(plant: PlantSpec) -> set[str]:
-    """The demands an hourly mean says something about."""
-    return {c.demand.key for c in plant.consumers if c.demand.method in HOURLY_DEMANDS and c.demand.key}
+    """The inputs of the weights an hourly mean says something about: demands in percent, and the sensors standing in
+    for pumps (history keys), whose readings in an Hour are the share of the hour the pump ran."""
+    keys = {c.demand.key for c in plant.consumers if c.demand.method in HOURLY_DEMANDS and c.demand.key}
+    keys |= {c.history_key for c in plant.consumers if c.history_key and c.demand.method is DemandMethod.ON_OFF}
+    return keys | {c.history_key for c in plant.circuits if c.history_key and c.active is ActiveMethod.PUMP}
+
+
+def history_keys(plant: PlantSpec) -> set[str]:
+    """The sensors standing in for pumps."""
+    return hourly_demands(plant) - {c.demand.key for c in plant.consumers if c.demand.method in HOURLY_DEMANDS}
 
 
 def meter_keys(plant: PlantSpec) -> set[str]:
@@ -69,18 +78,29 @@ def split_consumers(plant: PlantSpec) -> list[str]:
 def rough_plant(
     plant: PlantSpec, factors: Mapping[str, float] | None = None, hourly: set[str] | None = None
 ) -> PlantSpec:
-    """The plant for hourly values: demands without an hourly value always on, circuits always active, sizes scaled.
+    """The plant for hourly values: a pump with a sensor standing in for it reads that one, demands and pumps without
+    hourly values are always on, sizes are scaled.
 
-    `hourly`: the demands with hourly values (default: all that could have them).
+    `hourly`: the inputs with hourly values (default: all that could have them).
     """
     hourly = hourly_demands(plant) if hourly is None else hourly
     factors = factors or {}
     consumers = []
     for consumer in plant.consumers:
-        demand = consumer.demand if consumer.demand.key in hourly else Demand(DemandMethod.ALWAYS)
+        if consumer.demand.key in hourly:
+            demand = consumer.demand
+        elif consumer.history_key in hourly and consumer.demand.method is DemandMethod.ON_OFF:
+            demand = Demand(DemandMethod.ON_OFF, consumer.history_key)
+        else:
+            demand = Demand(DemandMethod.ALWAYS)
         size = Size(SizeMethod.NOMINAL_POWER, consumer.size.watts * factors.get(consumer.id, 1.0))
         consumers.append(replace(consumer, demand=demand, size=size))
-    circuits = tuple(replace(circuit, active=ActiveMethod.ALWAYS, pump_key=None) for circuit in plant.circuits)
+    circuits = tuple(
+        replace(circuit, pump_key=circuit.history_key)
+        if circuit.history_key in hourly and circuit.active is ActiveMethod.PUMP
+        else replace(circuit, active=ActiveMethod.ALWAYS, pump_key=None)
+        for circuit in plant.circuits
+    )
     return replace(plant, circuits=circuits, consumers=tuple(consumers))
 
 
