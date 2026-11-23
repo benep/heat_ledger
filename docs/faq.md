@@ -16,7 +16,9 @@
     step of the setup; otherwise the Energy dashboard shows it as *untracked*. You can still do it afterwards, once:
     go to **Developer tools → Actions**, choose **Heat Ledger: Calculate the past days**, pick your heating system and
     click **Perform action**. It covers the days before the setup that Home Assistant still has recorded, 10 days by
-    default; so do it soon after the setup, every day later there is one day less.
+    default; so do it soon after the setup, every day later there is one day less. Switch on **Also estimate the
+    time before, very roughly** there to go back as far as Home Assistant has hourly statistics of your heat source
+    ([what that means](setup.md#step-4-room-heating)); it only works together with the past days, in the same run.
 
 ??? question "My heating has no meter in Home Assistant."
 

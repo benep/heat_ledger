@@ -17,7 +17,10 @@
     einmalig nachholen: Gehe zu **Entwicklerwerkzeuge → Aktionen**, wähle **Heat Ledger: Vergangene Tage
     nachrechnen**, wähle deine Heizungsanlage und klicke auf **Aktion ausführen**. Es umfasst die Tage vor der
     Einrichtung, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage; mach es also bald nach der
-    Einrichtung, jeder Tag später ist ein Tag weniger.
+    Einrichtung, jeder Tag später ist ein Tag weniger. Schaltest du dort **Auch die Zeit davor schätzen, sehr grob**
+    ein, geht es so weit zurück, wie Home Assistant Stundenstatistiken deiner Wärmequelle hat
+    ([was das heißt](setup.md#schritt-4-raumheizung)); das geht nur zusammen mit den vergangenen Tagen, im selben
+    Lauf.
 
 ??? question "Meine Heizung hat keinen Zähler in Home Assistant."
 

@@ -125,7 +125,7 @@ Rules:
 | `runtime.py` | Listens to all input entities, converts states to readings, calls the ledger, runs the 5-minute timer, persists the state, notifies the sensors. |
 | `sensor.py` | Energy counter per consumer and per circuit (`energy`, kWh, `total_increasing`), heat per converted source, account (diagnostic). Restored on start, never lower than before. |
 | `config_flow.py` | Guided first setup (name, source, thermostats, pumps: creates the entry with its subentries), options (fixed losses) and subentry flows for sources, circuits and consumers to add or refine later. Required fields first, everything else in a collapsible "more accurate" section. |
-| `backfill.py` | The days before the setup, from the recorder: replays the inputs, imports the hours as statistics and raises the live ones (see Backfill). |
+| `backfill.py` | The days before the setup, from the recorder: replays the inputs, imports the hours as statistics and raises the live ones; if chosen, estimates older periods from the hourly statistics (see Backfill). |
 
 Converting states to readings: `climate` → `hvac_action` is `heating` or `preheating` (anything else off; a
 thermostat that does not report `hvac_action` counts as heating in `heat`, `heat_cool` or `auto`);
@@ -178,8 +178,16 @@ with the action `heat_ledger.backfill` (administrators only).
   entry is reloaded during the recalculation. Chosen in the first setup, the reason is shown as a repair issue
   (unless there was simply nothing to calculate), and the action can be tried again.
 
-Not built yet: older periods from the hourly long-term statistics of the inputs (rougher: binary sensors have
-none), and rewriting the history of a single consumer.
+Not built yet: rewriting the history of a single consumer.
+
+### Estimate of older periods
+
+Chosen as well (a box of its own in the setup, `estimate` in the action), the time before the recorded states is
+estimated from the hourly long-term statistics, back to the first hour every meter has them (`engine/estimate.py`,
+whose docstring has the details). Demands in percent are hourly means; everything without statistics (on/off,
+`hvac_action`, pumps) counts as always on, so every consumer's weight is calibrated on the hours calculated from the
+states, until the hourly calculation splits them like the exact one did. Its hours are written in front of the others
+in the same run; if it is not possible, the recorded days are written all the same and the reason is noted.
 
 ## Tests
 
