@@ -892,17 +892,23 @@ def test_every_subentry_has_a_text_for_its_end() -> None:
 
 @pytest.mark.usefixtures("entities")
 async def test_first_setup_offers_the_past_days_with_a_recorder(hass: HomeAssistant) -> None:
-    """Calculating the past days is offered where there is a recorder, not ticked; ticked, the entry remembers it."""
+    """Calculating the past days, and estimating the time before, is offered where there is a recorder, not ticked;
+    ticked, the entry remembers it. The estimate is calibrated on the past days, so it brings them along."""
     steps = ({"name": "House"}, HEAT_SOURCE, {})
     result = await first_setup(hass, *steps)
     assert "backfill" not in result["data_schema"].schema
+    assert "estimate" not in result["data_schema"].schema
 
     hass.config.components.add("recorder")
     result = await first_setup(hass, *steps)
-    assert result["data_schema"]({}) == {"backfill": False}
+    assert result["data_schema"]({}) == {"backfill": False, "estimate": False}
     result = await first_setup(hass, *steps, {})
     assert dict(result["result"].data) == {}
     result = await first_setup(hass, *steps, {"backfill": False})
     assert dict(result["result"].data) == {}
     result = await first_setup(hass, *steps, {"backfill": True})
     assert dict(result["result"].data) == {"backfill": True}
+    result = await first_setup(hass, *steps, {"backfill": True, "estimate": True})
+    assert dict(result["result"].data) == {"backfill": True, "estimate": True}
+    result = await first_setup(hass, *steps, {"backfill": False, "estimate": True})
+    assert dict(result["result"].data) == {"backfill": True, "estimate": True}

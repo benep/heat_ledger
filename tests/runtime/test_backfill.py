@@ -34,7 +34,7 @@ from custom_components.heat_ledger.backfill import (
     async_backfill,
     async_backfill_at_setup,
 )
-from custom_components.heat_ledger.const import CONF_BACKFILL, CONF_METER_ENTITY, DOMAIN
+from custom_components.heat_ledger.const import CONF_BACKFILL, CONF_ESTIMATE, CONF_METER_ENTITY, DOMAIN
 from custom_components.heat_ledger.diagnostics import async_get_config_entry_diagnostics
 from custom_components.heat_ledger.runtime import HeatLedgerRuntime
 
@@ -1119,3 +1119,259 @@ async def test_the_starts_of_home_assistant_at_their_time(recorder_mock: Recorde
     starts = await get_instance(hass).async_add_executor_job(backfill._recorder_starts, hass, at(0))
 
     assert abs(starts[-1] - at(6).timestamp()) < 5
+
+
+# The estimate of the time before: hourly statistics of the inputs, as Home Assistant keeps them for good.
+# Per hour of the day: boiler at the end of the hour (kWh), heat pump input at the end of the hour (kWh, factor 3),
+# living room demand (mean, %). Hours 6 to 9 are the ones the recorded states give as well.
+OLDER = {0: (90.0, 10.0, 50), 1: (92.0, 10.0, 50), 2: (92.0, 10.0, 50), 3: (94.0, 10.0, 100), 4: (94.0, 10.0, 0)}
+OLDER |= {5: (95.0, 10.5, 0)}  # 2 + 2 + 1 kWh of the boiler, 1.5 kWh of the heat pump
+RECORDED = {6: (97.0, 10.5, 50), 7: (97.0, 11.5, 50), 8: (97.0, 11.5, 50), 9: (98.6, 11.5, 50)}
+Inputs = dict[int, tuple[float | None, float | None, float | None]]
+
+
+async def import_inputs(hass: HomeAssistant, hours: Inputs, *, heat_pump_unit: str | None = "kWh") -> None:
+    """`heat_pump_unit`: the heat pump counts in this unit (None: pulses, say)."""
+
+    def meter(statistic_id: str, unit: str | None) -> dict[str, Any]:
+        return {
+            "mean_type": StatisticMeanType.NONE,
+            "has_sum": True,
+            "name": None,
+            "source": "recorder",
+            "statistic_id": statistic_id,
+            "unit_class": "energy" if unit else None,
+            "unit_of_measurement": unit,
+        }
+
+    for i, (statistic_id, unit) in enumerate(((BOILER, "kWh"), (HEAT_PUMP, heat_pump_unit))):
+        rows = [{"start": at(h), "sum": v[i], "state": v[i]} for h, v in hours.items() if v[i] is not None]
+        if rows:
+            async_import_statistics(hass, meter(statistic_id, unit), rows)
+    demand = {
+        "mean_type": StatisticMeanType.ARITHMETIC,
+        "has_sum": False,
+        "name": None,
+        "source": "recorder",
+        "statistic_id": LIVING_DEMAND,
+        "unit_class": None,
+        "unit_of_measurement": "%",
+    }
+    rows = [{"start": at(h), "mean": v[2], "min": v[2], "max": v[2]} for h, v in hours.items() if v[2] is not None]
+    if rows:
+        async_import_statistics(hass, demand, rows)
+    await async_wait_recording_done(hass)
+
+
+@pytest.fixture
+def short_calibration(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The recorded days of the tests are four hours: enough to calibrate on here."""
+    monkeypatch.setattr(backfill, "CALIBRATION_HOURS", 3)
+
+
+async def test_the_time_before_is_estimated_from_the_hourly_statistics(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+    await async_wait_recording_done(hass)
+
+    estimate = summary["estimate"]
+    assert estimate["start"] == at(0).isoformat()  # hour 0 is the baseline of the meters
+    assert estimate["hours"] == 5
+    assert estimate["source_heat"] == pytest.approx(6.5)
+    assert estimate["unassigned"] == pytest.approx(0.0)
+    assert set(estimate["factors"]) == {entity_id(hass, key) for key in ("living_heat", "bath_heat", "hot_water_heat")}
+    assert summary["hours"] == 9
+
+    living, bath, hot_water = [await sums(hass, key) for key in ("living_heat", "bath_heat", "hot_water_heat")]
+    older = {"living": living[at(5)], "bath": bath[at(5)], "hot_water": hot_water[at(5)]}
+    assert sum(older.values()) == pytest.approx(6.5)  # all of the sources' heat, split
+    # Calibrated on the recorded hours: no hot water there, so it keeps only a little (1 % of a typical weight).
+    assert older["hot_water"] < 0.1 * 6.5
+    # Hour 3 at 100 %: the living room gets more than its usual share; hours 4 and 5 at 0 %: nothing.
+    assert living[at(3)] - living[at(2)] > 2 * (bath[at(3)] - bath[at(2)])
+    assert living[at(5)] == pytest.approx(living[at(3)])
+    # The recorded hours continue on top, and the live statistics are raised by both.
+    assert living[at(6)] == pytest.approx(older["living"] + 1.25)
+    assert living[at(9)] == pytest.approx(older["living"] + 4.125)
+    pending = entry.runtime_data.backfill[KEY_PENDING]
+    assert pending["living_heat"] == pytest.approx(older["living"] + 4.625)
+    assert pending["heat_pump_source_heat"] == pytest.approx(1.5 + 3.0)
+    assert entry.runtime_data.backfill["estimate"]["hours"] == 5
+
+
+@pytest.mark.parametrize(
+    ("hours", "key"),
+    [
+        (RECORDED, "estimate_nothing_older"),
+        ({h: (None, *v[1:]) for h, v in (OLDER | RECORDED).items()}, "estimate_no_statistics"),
+    ],
+    ids=["nothing older", "a source without statistics"],
+)
+async def test_without_an_estimate_the_recorded_days_are_written(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    short_calibration: None,
+    hours: Inputs,
+    key: str,
+) -> None:
+    await record_past(hass, freezer)
+    await import_inputs(hass, hours)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+
+    assert summary["hours"] == 4
+    assert summary["estimate"]["skipped"]["key"] == key
+    assert entry.runtime_data.backfill["estimate"]["skipped"]["key"] == key
+    assert entry.runtime_data.backfill[KEY_PENDING]["living_heat"] == pytest.approx(4.625)
+
+
+async def test_too_few_recorded_hours_to_calibrate_on(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+
+    assert summary["hours"] == 4
+    assert summary["estimate"]["skipped"]["key"] == "estimate_too_short"
+    assert "3 hours" in summary["estimate"]["skipped"]["reason"]
+
+
+async def test_inputs_whose_statistics_start_later(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    """The estimate starts where every meter has statistics; a demand with statistics from later on counts as always
+    on throughout, so the living room gets heat in hour 5 although its mean was 0 % then."""
+    await record_past(hass, freezer)
+    hours = {h: (v[0], v[1] if h >= 2 else None, v[2] if h >= 4 else None) for h, v in (OLDER | RECORDED).items()}
+    await import_inputs(hass, hours)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+    await async_wait_recording_done(hass)
+
+    assert summary["estimate"]["start"] == at(2).isoformat()
+    living = await sums(hass, "living_heat")
+    assert min(living) == at(3)
+    assert living[at(5)] > living[at(4)]
+
+
+@pytest.mark.parametrize(
+    ("hours", "issue"), [(OLDER | RECORDED, True), (RECORDED, False)], ids=["skipped", "nothing older"]
+)
+async def test_estimate_chosen_in_the_first_setup(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, hours: Inputs, issue: bool
+) -> None:
+    """Calibrating needs more recorded hours than the test has: an issue says why there is no estimate. Without older
+    statistics there was simply nothing to estimate: no issue."""
+    await record_past(hass, freezer)
+    await import_inputs(hass, hours)
+    entry = new_entry(hass, **{CONF_BACKFILL: True, CONF_ESTIMATE: True})
+
+    await setup(hass, entry)
+    await background(hass)
+
+    assert entry.runtime_data.backfill["hours"] == 4
+    found = ir.async_get(hass).async_get_issue(DOMAIN, backfill.estimate_issue_id(entry))
+    assert (found is not None) is issue
+    if issue:
+        assert found.translation_placeholders["reason"].startswith("Only 3 hours")
+    assert ir.async_get(hass).async_get_issue(DOMAIN, backfill.issue_id(entry)) is None
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    assert ir.async_get(hass).async_get_issue(DOMAIN, backfill.estimate_issue_id(entry)) is None
+
+
+async def test_estimate_with_the_action(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    response = await hass.services.async_call(
+        DOMAIN, "backfill", {"config_entry_id": entry.entry_id, "estimate": True}, blocking=True, return_response=True
+    )
+
+    assert response["hours"] == 9
+    assert response["estimate"]["hours"] == 5
+
+
+async def test_a_meter_without_a_unit(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    """A meter counting pulses: its statistics have no unit, and are read as they are, not as a ratio in %."""
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED, heat_pump_unit=None)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+
+    assert summary["estimate"]["source_heat"] == pytest.approx(6.5)
+    assert entry.runtime_data.backfill[KEY_PENDING]["heat_pump_source_heat"] == pytest.approx(1.5 + 3.0)
+
+
+async def test_a_sum_that_drops(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    """The sum of a meter drops (corrected by hand, or a meter reported as `total` ran back): the drop counts for
+    nothing, the gains after it do."""
+    await record_past(hass, freezer)
+    dropped = {h: (v[0] - (12.0 if 2 <= h <= 5 else 0.0), *v[1:]) for h, v in OLDER.items()}
+    await import_inputs(hass, dropped | RECORDED)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    summary = await async_backfill(hass, entry, estimate=True)
+
+    assert summary["estimate"]["source_heat"] == pytest.approx(6.5)
+
+
+async def test_an_error_in_the_estimate_leaves_the_recorded_days(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await record_past(hass, freezer)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    async def broken(*_: Any) -> None:
+        raise RuntimeError("database gone")
+
+    monkeypatch.setattr(backfill, "_async_estimate", broken)
+    summary = await async_backfill(hass, entry, estimate=True)
+
+    assert summary["hours"] == 4
+    assert summary["estimate"]["skipped"]["key"] == "estimate_failed"
+    assert entry.runtime_data.backfill[KEY_PENDING]["living_heat"] == pytest.approx(4.625)
+
+
+async def test_the_action_estimates_as_chosen_in_the_setup(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, short_calibration: None
+) -> None:
+    """The backfill of the setup wrote nothing and the issue sends the user to the action: left out there, the
+    estimate is done as it was chosen."""
+    await record_past(hass, freezer)
+    await import_inputs(hass, OLDER | RECORDED)
+    entry = new_entry(hass, **{CONF_ESTIMATE: True})  # as if the backfill of the setup had been tried already
+    await setup(hass, entry)
+
+    response = await hass.services.async_call(
+        DOMAIN, "backfill", {"config_entry_id": entry.entry_id}, blocking=True, return_response=True
+    )
+
+    assert response["estimate"]["hours"] == 5

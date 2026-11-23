@@ -48,6 +48,7 @@ from .const import (
     CONF_DEMAND_ENTITY,
     CONF_DEMAND_TYPE,
     CONF_ENTITY,
+    CONF_ESTIMATE,
     CONF_FACTOR,
     CONF_KIND,
     CONF_LOSS_KW,
@@ -498,9 +499,14 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
                 if (info := check.entity(entity_id, ("climate",), CONF_THERMOSTATS))
             ]
             if not check.errors:
+                data: dict[str, Any] = {}
+                if user_input.get(CONF_ESTIMATE):  # calibrated on the past days: it needs them
+                    data = {CONF_BACKFILL: True, CONF_ESTIMATE: True}
+                elif user_input.get(CONF_BACKFILL):
+                    data = {CONF_BACKFILL: True}
                 return self.async_create_entry(
                     title=self._name,
-                    data={CONF_BACKFILL: True} if user_input.get(CONF_BACKFILL) else {},
+                    data=data,
                     options={},
                     subentries=self._subentries(await async_texts(self.hass), thermostats, *self._pumps),
                 )
@@ -510,6 +516,8 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
         if "recorder" in self.hass.config.components:
             # The past days come from the recorded states; not ticked by default, as it writes statistics.
             fields[vol.Optional(CONF_BACKFILL, default=False)] = BooleanSelector()
+            # Further back from the hourly statistics: a very rough estimate, so a box of its own.
+            fields[vol.Optional(CONF_ESTIMATE, default=False)] = BooleanSelector()
         schema = vol.Schema(fields)
         return self.async_show_form(
             step_id="thermostats",

@@ -52,11 +52,13 @@
         "description": "Choose the thermostats of your radiators or underfloor heating, also room controllers with actuators: each one becomes a room heating with its own sensor for its estimated heat (kWh). Many thermostats (Tado, for example) carry the name of their room, so you may see room names here. If a thermostat reports its heating demand in %, that is used.\n\nSizes, circuits and more room heating can be added later on the integration page. Home Assistant then asks for the area of each new device; it is already filled in where the thermostat or pump has one.",
         "data": {
           "thermostats": "Thermostats",
-          "backfill": "Calculate the past days as well"
+          "backfill": "Calculate the past days as well",
+          "estimate": "Also estimate the time before, very roughly"
         },
         "data_description": {
           "thermostats": "Climate entities, one per room or radiator.",
-          "backfill": "Heat Ledger works out the heat of every room for the days Home Assistant still has recorded, 10 days by default, so your dashboard does not start empty. It uses the heating system as you set it up here. This writes statistics for the past once and cannot be undone with a click."
+          "backfill": "Heat Ledger works out the heat of every room for the days Home Assistant still has recorded, 10 days by default, so your dashboard does not start empty. It uses the heating system as you set it up here. This writes statistics for the past once and cannot be undone with a click.",
+          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: Home Assistant does not keep the history of pumps and on/off thermostats that long, so they count as always on, and each room gets the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more. Includes the past days above."
         }
       }
     },
@@ -337,6 +339,10 @@
     "backfill_skipped": {
       "title": "The past days of {name} were not calculated",
       "description": "You ticked **Calculate the past days as well** in the setup of {name}, but nothing was written:\n\n{reason}\n\nOnce that is sorted out, you can start it again: go to **Developer tools → Actions** and perform **Heat Ledger: Calculate the past days**. If you do not need the past days, ignore this."
+    },
+    "estimate_skipped": {
+      "title": "The time before the recorded days of {name} was not estimated",
+      "description": "You ticked **Also estimate the time before, very roughly** in the setup of {name}. The recorded days were calculated, but the time before them was not estimated:\n\n{reason}\n\nIt cannot be started again for this heating system. If you do not need the time before, ignore this."
     }
   },
   "services": {
@@ -347,6 +353,10 @@
         "config_entry_id": {
           "name": "Heating system",
           "description": "The heating system of Heat Ledger to calculate the past days for."
+        },
+        "estimate": {
+          "name": "Also estimate the time before, very roughly",
+          "description": "Goes further back, as far as Home Assistant has hourly statistics of the heat source. A very rough estimate, calibrated on the recorded days: it only works together with them, in the same run. Left out, it is done if it was ticked in the setup."
         }
       }
     }
@@ -387,6 +397,21 @@
     },
     "backfill_reloaded": {
       "message": "The heating system was changed while the past days were calculated. Nothing was written; start it again."
+    },
+    "estimate_nothing_older": {
+      "message": "Home Assistant has no hourly statistics of the heat source from before the recorded days."
+    },
+    "estimate_no_statistics": {
+      "message": "Home Assistant has no usable hourly statistics of {entity} (a meter needs a state class), so the time before the recorded days cannot be estimated."
+    },
+    "estimate_too_short": {
+      "message": "Only {hours} hours could be calculated from the recorded states; the estimate needs at least {needed} to be calibrated on."
+    },
+    "estimate_not_calibrated": {
+      "message": "In the recorded days the rooms got too little heat (outside the heating season, for instance), so the estimate has nothing to be calibrated on."
+    },
+    "estimate_failed": {
+      "message": "Estimating failed unexpectedly; the log of Home Assistant has the details."
     }
   }
 }

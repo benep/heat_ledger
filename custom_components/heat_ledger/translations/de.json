@@ -52,11 +52,13 @@
         "description": "Wähle die Thermostate deiner Heizkörper oder Fußbodenheizung, auch Raumregler mit Stellantrieben: Jedes wird eine Raumheizung mit eigenem Sensor für ihre geschätzte Wärme (kWh). Viele Thermostate (z. B. Tado) tragen den Namen ihres Raums, deshalb siehst du hier eventuell Raumnamen. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.\n\nGröße, Heizkreise und weitere Raumheizungen lassen sich danach auf der Seite der Integration ergänzen. Home Assistant fragt anschließend nach dem Bereich jedes neuen Geräts; wo Thermostat oder Pumpe einen haben, ist er schon eingetragen.",
         "data": {
           "thermostats": "Thermostate",
-          "backfill": "Vergangene Tage nachrechnen"
+          "backfill": "Vergangene Tage nachrechnen",
+          "estimate": "Auch die Zeit davor schätzen, sehr grob"
         },
         "data_description": {
           "thermostats": "Klima-Entitäten, eine je Raum oder Heizkörper.",
-          "backfill": "Heat Ledger rechnet die Wärme jedes Raums für die Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. So beginnt dein Dashboard nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie hier einrichtest. Das schreibt einmalig Statistiken für die Vergangenheit und lässt sich nicht mit einem Klick rückgängig machen."
+          "backfill": "Heat Ledger rechnet die Wärme jedes Raums für die Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. So beginnt dein Dashboard nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie hier einrichtest. Das schreibt einmalig Statistiken für die Vergangenheit und lässt sich nicht mit einem Klick rückgängig machen.",
+          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Den Verlauf von Pumpen und An/Aus-Thermostaten hebt Home Assistant nicht so lange auf, sie gelten deshalb als immer an, und jeder Raum bekommt den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen. Schließt die vergangenen Tage oben ein."
         }
       }
     },
@@ -337,6 +339,10 @@
     "backfill_skipped": {
       "title": "Die vergangenen Tage von {name} wurden nicht nachgerechnet",
       "description": "Du hast bei der Einrichtung von {name} **Vergangene Tage nachrechnen** angekreuzt, aber es wurde nichts geschrieben:\n\n{reason}\n\nWenn das behoben ist, kannst du es noch einmal starten: Gehe zu **Entwicklerwerkzeuge → Aktionen** und führe **Heat Ledger: Vergangene Tage nachrechnen** aus. Brauchst du die vergangenen Tage nicht, ignoriere diesen Hinweis."
+    },
+    "estimate_skipped": {
+      "title": "Die Zeit vor den aufgezeichneten Tagen von {name} wurde nicht geschätzt",
+      "description": "Du hast bei der Einrichtung von {name} **Auch die Zeit davor schätzen, sehr grob** angekreuzt. Die aufgezeichneten Tage sind nachgerechnet, die Zeit davor wurde aber nicht geschätzt:\n\n{reason}\n\nFür diese Heizungsanlage lässt sich das nicht noch einmal starten. Brauchst du die Zeit davor nicht, ignoriere diesen Hinweis."
     }
   },
   "services": {
@@ -347,6 +353,10 @@
         "config_entry_id": {
           "name": "Heizungsanlage",
           "description": "Die Heizungsanlage von Heat Ledger, deren vergangene Tage nachgerechnet werden."
+        },
+        "estimate": {
+          "name": "Auch die Zeit davor schätzen, sehr grob",
+          "description": "Geht weiter zurück, so weit Home Assistant Stundenstatistiken der Wärmequelle hat. Eine sehr grobe Schätzung, geeicht an den aufgezeichneten Tagen: Sie geht nur zusammen mit ihnen, im selben Lauf. Weggelassen, wird geschätzt, wenn es bei der Einrichtung angekreuzt war."
         }
       }
     }
@@ -387,6 +397,21 @@
     },
     "backfill_reloaded": {
       "message": "Die Heizungsanlage wurde geändert, während die vergangenen Tage nachgerechnet wurden. Es wurde nichts geschrieben; starte es noch einmal."
+    },
+    "estimate_nothing_older": {
+      "message": "Home Assistant hat keine Stundenstatistiken der Wärmequelle aus der Zeit vor den aufgezeichneten Tagen."
+    },
+    "estimate_no_statistics": {
+      "message": "Home Assistant hat keine brauchbaren Stundenstatistiken von {entity} (ein Zähler braucht eine Zustandsklasse), deshalb lässt sich die Zeit vor den aufgezeichneten Tagen nicht schätzen."
+    },
+    "estimate_too_short": {
+      "message": "Aus den aufgezeichneten Zuständen ließen sich nur {hours} Stunden nachrechnen; zum Eichen der Schätzung braucht es mindestens {needed}."
+    },
+    "estimate_not_calibrated": {
+      "message": "In den aufgezeichneten Tagen haben die Räume zu wenig Wärme bekommen (etwa außerhalb der Heizperiode), deshalb gibt es nichts, woran sich die Schätzung eichen ließe."
+    },
+    "estimate_failed": {
+      "message": "Das Schätzen ist unerwartet fehlgeschlagen; Einzelheiten stehen im Log von Home Assistant."
     }
   }
 }

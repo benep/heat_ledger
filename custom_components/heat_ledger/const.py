@@ -18,6 +18,8 @@ STORAGE_SAVE_DELAY: Final = 30  # seconds; the state is also saved on shutdown
 CONF_LOSS_KW: Final = "loss_kw"
 # Main entry, in data: chosen in the first setup, the days before it are calculated from the recorder once.
 CONF_BACKFILL: Final = "backfill"
+# Main entry, in data: chosen as well, the time before is estimated from the hourly statistics, very roughly.
+CONF_ESTIMATE: Final = "estimate"
 
 # Subentry types
 SUBENTRY_SOURCE: Final = "source"

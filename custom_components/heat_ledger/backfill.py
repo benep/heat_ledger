@@ -13,6 +13,10 @@ statistics the recorder has compiled since are then raised by what was backfille
   to the live ledger.
 - Once per entry. Importing twice would be harmless, raising the sums twice would not.
 
+If chosen as well, the time before the recorded states is estimated from the hourly statistics of the inputs, which
+Home Assistant keeps for good (engine/estimate.py): very roughly, calibrated on the recorded days. Its hours are
+written in front of the others, in the same run.
+
 The recorder is imported where it is used: Heat Ledger runs without it.
 """
 
@@ -45,7 +49,8 @@ from .const import (
     TRANSLATION_SOURCE_HEAT,
 )
 from .engine import PlantSpec, Reading, Replay, ReplayResult
-from .model import InputKind, parse_state
+from .engine.estimate import Calibration, Hour, calibrate, hourly_demands, meter_keys, replay_hours, rough_plant
+from .model import InputKind, convert, parse_state
 
 if TYPE_CHECKING:
     from .runtime import HeatLedgerRuntime
@@ -65,6 +70,11 @@ WRITTEN_TRIES = 6
 # States recorded within this time after Home Assistant started are the ones it writes when it starts.
 START_GRACE = timedelta(minutes=10)
 UNIT = "kWh"
+# The estimate needs at least this many hours calculated from the recorded states to calibrate on.
+CALIBRATION_HOURS = 72
+# Hourly statistics are read in pieces of this length.
+STATISTICS_CHUNK = timedelta(days=31)
+HOUR = timedelta(hours=1)
 
 # Stored with the ledger (runtime.backfill):
 KEY_START = "start"  # the replay started here, as a timestamp
@@ -80,6 +90,7 @@ KEY_TRIES = "tries"  # intervals in which a pending counter had no statistics to
 KEY_RAISED = "raised"  # how many counters' live statistics were raised
 KEY_LOST = "lost"  # how many counters' hours were not in the statistics
 KEY_SKIPPED = "skipped"  # why the backfill of the first setup wrote nothing (a key of the exceptions), if so
+KEY_ESTIMATE = "estimate"  # if chosen: start, hours and factors of the estimate, or why it was skipped (KEY_SKIPPED)
 
 # Reasons (translation keys of the exceptions)
 DONE = "backfill_done"
@@ -92,8 +103,15 @@ NOT_RECORDED = "backfill_not_recorded"
 NOTHING_SPLIT = "backfill_nothing_split"
 HAS_STATISTICS = "backfill_has_statistics"
 RELOADED = "backfill_reloaded"
+# Why the estimate was skipped (the recorded days are written all the same)
+ESTIMATE_NOTHING_OLDER = "estimate_nothing_older"
+ESTIMATE_NO_STATISTICS = "estimate_no_statistics"
+ESTIMATE_TOO_SHORT = "estimate_too_short"
+ESTIMATE_NOT_CALIBRATED = "estimate_not_calibrated"
+ESTIMATE_FAILED = "estimate_failed"
 
 ISSUE_SKIPPED = "backfill_skipped"
+ISSUE_ESTIMATE_SKIPPED = "estimate_skipped"
 
 _starts_unreadable_logged = False
 
@@ -136,8 +154,21 @@ def issue_id(entry: ConfigEntry) -> str:
     return f"{ISSUE_SKIPPED}_{entry.entry_id}"
 
 
-async def async_backfill(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
-    """Backfill the counters of a loaded entry. Returns what was written, raises BackfillError if nothing was."""
+def estimate_issue_id(entry: ConfigEntry) -> str:
+    return f"{ISSUE_ESTIMATE_SKIPPED}_{entry.entry_id}"
+
+
+@dataclass(frozen=True)
+class _Estimate:
+    result: ReplayResult
+    calibration: Calibration
+
+
+async def async_backfill(hass: HomeAssistant, entry: ConfigEntry, *, estimate: bool = False) -> dict[str, Any]:
+    """Backfill the counters of a loaded entry. Returns what was written, raises BackfillError if nothing was.
+
+    `estimate`: also estimate the time before the recorded states, from the hourly statistics.
+    """
     runtime: HeatLedgerRuntime = entry.runtime_data
     if runtime.backfill is not None and KEY_SKIPPED not in runtime.backfill:
         raise BackfillError(DONE)
@@ -147,14 +178,15 @@ async def async_backfill(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, A
         raise BackfillError(NO_RECORDER)
     runtime.backfilling = True
     try:
-        summary = await _async_backfill(hass, entry, runtime)
+        summary = await _async_backfill(hass, entry, runtime, estimate)
     finally:
         runtime.backfilling = False
     ir.async_delete_issue(hass, DOMAIN, issue_id(entry))
+    ir.async_delete_issue(hass, DOMAIN, estimate_issue_id(entry))
     return summary
 
 
-async def async_backfill_at_setup(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_backfill_at_setup(hass: HomeAssistant, entry: ConfigEntry, *, estimate: bool = False) -> None:
     """The backfill chosen in the first setup.
 
     If nothing could be written, that is noted, so it is not tried again with every start, and shown as a repair
@@ -165,7 +197,7 @@ async def async_backfill_at_setup(hass: HomeAssistant, entry: ConfigEntry) -> No
     runtime: HeatLedgerRuntime = entry.runtime_data
     try:
         try:
-            summary = await async_backfill(hass, entry)
+            summary = await async_backfill(hass, entry, estimate=estimate)
         except BackfillError as err:
             if err.key not in (DONE, RUNNING, RELOADED):
                 await _async_skipped(hass, entry, runtime, err)
@@ -174,12 +206,37 @@ async def async_backfill_at_setup(hass: HomeAssistant, entry: ConfigEntry) -> No
         _LOGGER.exception("%s: calculating the past days failed, it is tried again with the next start", entry.title)
         return
     _LOGGER.info(
-        "%s: calculated %s hours from %s, %s kWh of the sources, %s kWh of it not assigned",
+        "%s: calculated the days from %s, %s kWh of the sources, %s kWh of it not assigned",
         entry.title,
-        summary[KEY_HOURS],
         summary[KEY_START],
         summary["source_heat"],
         summary["unassigned"],
+    )
+    estimate = summary.get(KEY_ESTIMATE) or {}
+    skipped = estimate.get(KEY_SKIPPED)
+    if skipped is None:
+        if estimate:
+            _LOGGER.info(
+                "%s: estimated %s hours before them from %s, %s kWh of the sources",
+                entry.title,
+                estimate[KEY_HOURS],
+                estimate[KEY_START],
+                estimate["source_heat"],
+            )
+        return
+    if skipped["key"] == ESTIMATE_NOTHING_OLDER:
+        _LOGGER.info("%s: nothing older to estimate: %s", entry.title, skipped["reason"])
+        return
+    _LOGGER.warning("%s: the time before the recorded days was not estimated: %s", entry.title, skipped["reason"])
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        estimate_issue_id(entry),
+        is_fixable=False,
+        is_persistent=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_ESTIMATE_SKIPPED,
+        translation_placeholders={"name": entry.title, "reason": skipped["reason"]},
     )
 
 
@@ -207,7 +264,9 @@ async def _async_skipped(
     await runtime.async_save()
 
 
-async def _async_backfill(hass: HomeAssistant, entry: ConfigEntry, runtime: HeatLedgerRuntime) -> dict[str, Any]:
+async def _async_backfill(
+    hass: HomeAssistant, entry: ConfigEntry, runtime: HeatLedgerRuntime, with_estimate: bool
+) -> dict[str, Any]:
     from homeassistant.components.recorder import get_instance, statistics
     from homeassistant.components.recorder.models import (
         StatisticData,
@@ -258,13 +317,40 @@ async def _async_backfill(hass: HomeAssistant, entry: ConfigEntry, runtime: Heat
     if not any(total > 0 for total in result.consumer_totals.values()):
         raise BackfillError(NOTHING_SPLIT, heat=f"{result.source_heat:.1f}")
 
-    # Leading hours in which nothing was booked yet are left out. If everything was booked in the hour the entry was
-    # created in, there is no hour to write: that hour's statistics are the live ones, raised later.
-    hourly = {target.unique_id: target.hourly(result) for target in targets}
-    count = len(result.hours)
+    estimate: _Estimate | None = None
+    estimate_note: dict[str, Any] | None = None
+    if with_estimate:
+        try:
+            estimate = await _async_estimate(hass, runtime, result)
+        except BackfillError as err:
+            estimate_note = {KEY_SKIPPED: {"key": err.key, "reason": await _async_reason(hass, err)}}
+        except Exception:
+            # The recorded days are written all the same; trying again would mean calculating them again too.
+            _LOGGER.exception("%s: estimating the time before the recorded days failed", entry.title)
+            failed = BackfillError(ESTIMATE_FAILED)
+            estimate_note = {KEY_SKIPPED: {"key": failed.key, "reason": await _async_reason(hass, failed)}}
+        if not _is_loaded(entry, runtime):
+            raise BackfillError(RELOADED)
+    older = estimate.result if estimate is not None else None
+
+    # The estimated hours come first, the ones calculated from the states continue their totals. Leading hours in
+    # which nothing was booked yet are left out. If everything was booked in the hour the entry was created in, there
+    # is no hour to write: that hour's statistics are the live ones, raised later.
+    hourly = {target.unique_id: _series(target, older, result) for target in targets}
+    all_hours = (older.hours if older is not None else ()) + result.hours
+    count = len(all_hours)
     first = next((i for i in range(count) if any(totals[i] > 0 for totals in hourly.values())), count)
-    hours = [dt_util.utc_from_timestamp(hour) for hour in result.hours[first:]]
-    heat = {target.unique_id: target.total(result) for target in targets}
+    hours = [dt_util.utc_from_timestamp(hour) for hour in all_hours[first:]]
+    heat = {
+        target.unique_id: target.total(result) + (target.total(older) if older is not None else 0.0)
+        for target in targets
+    }
+    if estimate is not None:
+        estimate_note = {
+            KEY_START: older.start,
+            KEY_HOURS: max(0, len(older.hours) - first),
+            "factors": {cid: round(factor, 4) for cid, factor in estimate.calibration.factors.items()},
+        }
     # Noted before the hours are queued for the recorder: whatever stops Home Assistant from here on, the note says
     # what to look for. Hours that never arrive are found missing, and nothing is raised for them.
     runtime.backfill = {
@@ -281,6 +367,8 @@ async def _async_backfill(hass: HomeAssistant, entry: ConfigEntry, runtime: Heat
         KEY_RAISED: 0,
         KEY_LOST: 0,
     }
+    if estimate_note is not None:
+        runtime.backfill[KEY_ESTIMATE] = estimate_note
     await runtime.async_save()
     if hours:
         for target in targets:
@@ -298,7 +386,7 @@ async def _async_backfill(hass: HomeAssistant, entry: ConfigEntry, runtime: Heat
                 StatisticData(start=hour, sum=total, state=total) for hour, total in zip(hours, totals, strict=True)
             ]
             statistics.async_import_statistics(hass, metadata, rows)
-    return {
+    summary: dict[str, Any] = {
         KEY_START: dt_util.utc_from_timestamp(result.start).isoformat(),
         KEY_END: end.isoformat(),
         KEY_HOURS: len(hours),
@@ -306,6 +394,139 @@ async def _async_backfill(hass: HomeAssistant, entry: ConfigEntry, runtime: Heat
         "unassigned": round(result.unassigned, 3),
         KEY_HEAT: {target.entity_id: round(heat[target.unique_id], 3) for target in targets},
     }
+    if estimate is not None:
+        by_id = {target.spec_id: target.entity_id for target in targets if target.kind == SUBENTRY_CONSUMER}
+        summary[KEY_ESTIMATE] = {
+            KEY_START: dt_util.utc_from_timestamp(older.start).isoformat(),
+            KEY_HOURS: estimate_note[KEY_HOURS],
+            "source_heat": round(older.source_heat, 3),
+            "unassigned": round(older.unassigned, 3),
+            "factors": {by_id[cid]: factor for cid, factor in estimate_note["factors"].items() if cid in by_id},
+        }
+    elif estimate_note is not None:
+        summary[KEY_ESTIMATE] = estimate_note
+    return summary
+
+
+def _series(target: _Target, older: ReplayResult | None, result: ReplayResult) -> tuple[float, ...]:
+    """The totals of a counter at the end of every hour: the estimated hours, then the calculated ones on top."""
+    if older is None:
+        return target.hourly(result)
+    offset = target.total(older)
+    return target.hourly(older) + tuple(total + offset for total in target.hourly(result))
+
+
+async def _async_estimate(hass: HomeAssistant, runtime: HeatLedgerRuntime, result: ReplayResult) -> _Estimate:
+    """Estimate the time before the replay from the hourly statistics, calibrated on the hours of the replay.
+
+    The estimate starts at the first hour every meter has statistics for; a demand whose statistics start later (or
+    are missing) counts as always on throughout, the calibration included. It ends where the replay starts: the hour
+    the replay started in is its, from the moment it started.
+    """
+    from homeassistant.components.recorder import get_instance, statistics
+
+    instance = get_instance(hass)
+    plant = runtime.plant
+    calibration_count = max(0, len(result.hours) - 1)  # the first hour of the replay is not a whole one
+    meters = sorted(meter_keys(plant))
+    demands = sorted(hourly_demands(plant))
+    metadata = await instance.async_add_executor_job(_metadata, hass, set(meters) | set(demands))
+    if missing := [key for key in meters if key not in metadata]:
+        raise BackfillError(ESTIMATE_NO_STATISTICS, entity=missing[0])
+    if not result.hours:
+        raise BackfillError(ESTIMATE_TOO_SHORT, hours="0", needed=str(CALIBRATION_HOURS))
+    replay_hour = dt_util.utc_from_timestamp(result.hours[0])  # the replay started in this hour
+    last_hour = dt_util.utc_from_timestamp(result.hours[-1])
+
+    def during(
+        begin: datetime, stop: datetime, keys: set[str], period: str, units: dict[str, str] | None
+    ) -> dict[str, list[dict[str, Any]]]:
+        return statistics.statistics_during_period(hass, begin, stop, keys, period, units, {"mean", "sum"})
+
+    def first_hours() -> dict[str, datetime]:
+        firsts = {}
+        found = during(dt_util.utc_from_timestamp(0), replay_hour, set(metadata), "month", None)
+        for key, rows in found.items():
+            if rows:
+                month = dt_util.utc_from_timestamp(rows[0]["start"])
+                if hourly := during(month, month + STATISTICS_CHUNK, {key}, "hour", None).get(key):
+                    firsts[key] = dt_util.utc_from_timestamp(hourly[0]["start"])
+        return firsts
+
+    firsts = await instance.async_add_executor_job(first_hours)
+    if any(key not in firsts for key in meters):
+        raise BackfillError(ESTIMATE_NOTHING_OLDER)  # its statistics start with the recorded days or later
+    start = max(firsts[key] for key in meters)
+    if start >= replay_hour - HOUR:
+        raise BackfillError(ESTIMATE_NOTHING_OLDER)
+    if calibration_count < CALIBRATION_HOURS:
+        raise BackfillError(ESTIMATE_TOO_SHORT, hours=str(calibration_count), needed=str(CALIBRATION_HOURS))
+    # The first hour of the estimate is only the baseline of the meters: a demand may start an hour later.
+    hourly = {key for key in demands if key in firsts and firsts[key] <= start + HOUR}
+
+    # Each meter in a unit Heat Ledger converts from (without one, Home Assistant converts to the unit the entity
+    # shows now); demands in %, not as a ratio, which a demand without a unit of its own would come as.
+    reading_units: dict[str, str | None] = {}
+    for key in meters:
+        unit_class, unit = metadata[key]
+        reading_units[key] = {"energy": "kWh", "volume": "m³"}.get(unit_class or "", unit)
+
+    def read(begin: datetime, stop: datetime) -> list[Hour]:
+        rows: dict[float, dict[str, dict[str, Any]]] = {}
+
+        def collect(keys: set[str], units: dict[str, str] | None) -> None:
+            at = begin
+            while at < stop and keys:
+                chunk_end = min(at + STATISTICS_CHUNK, stop)
+                for key, items in during(at, chunk_end, keys, "hour", units).items():
+                    for row in items:
+                        rows.setdefault(row["start"], {})[key] = row
+                at = chunk_end
+
+        for key in meters:
+            unit_class = metadata[key][0]
+            collect({key}, {unit_class: reading_units[key]} if unit_class and reading_units[key] else None)
+        collect(hourly, {"unitless": "%"})
+        hours = []
+        sums: dict[str, float] = {}  # last sum of each meter
+        totals: dict[str, float] = {}  # its gains since, drops left out
+        for t in sorted(rows):
+            row = rows[t]
+            readings: dict[str, Reading] = {}
+            for key in meters:
+                if key not in row or row[key].get("sum") is None:
+                    continue
+                value = convert(row[key]["sum"], reading_units[key], runtime.units.get(key))
+                if value is None:
+                    raise BackfillError(ESTIMATE_NO_STATISTICS, entity=key)
+                # The sum continues across a reset of the meter already; what is left of a drop is a correction
+                # (or a meter reported as `total` that ran back): it counts for nothing, the gains after it do.
+                totals[key] = totals.get(key, 0.0) + max(0.0, value - sums.get(key, value))
+                sums[key] = value
+                readings[key] = totals[key]
+            means = {key: row[key]["mean"] / 100 for key in hourly if row.get(key, {}).get("mean") is not None}
+            hours.append(Hour(t, means, readings))
+        return hours
+
+    older_hours = await instance.async_add_executor_job(read, start, replay_hour)
+    calibration_hours = await instance.async_add_executor_job(read, replay_hour, last_hour + HOUR)
+    exact = {cid: totals[-1] - totals[0] for cid, totals in result.consumers.items()}
+    try:
+        calibration = await hass.async_add_executor_job(calibrate, plant, calibration_hours, hourly, exact)
+    except ValueError as err:
+        raise BackfillError(ESTIMATE_NOT_CALIBRATED) from err
+    older = await hass.async_add_executor_job(
+        replay_hours, rough_plant(plant, calibration.factors, hourly), older_hours, hourly
+    )
+    return _Estimate(older, calibration)
+
+
+def _metadata(hass: HomeAssistant, statistic_ids: set[str]) -> dict[str, tuple[str | None, str | None]]:
+    """Unit class and unit of the statistics of each that has statistics."""
+    from homeassistant.components.recorder import statistics
+
+    found = statistics.get_metadata(hass, statistic_ids=statistic_ids)
+    return {key: (meta.get("unit_class"), meta["unit_of_measurement"]) for key, (_, meta) in found.items()}
 
 
 async def async_adjust_pending(hass: HomeAssistant, runtime: HeatLedgerRuntime) -> None:

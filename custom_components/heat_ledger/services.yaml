@@ -5,3 +5,6 @@ backfill:
       selector:
         config_entry:
           integration: heat_ledger
+    estimate:
+      selector:
+        boolean:

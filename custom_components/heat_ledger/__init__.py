@@ -13,9 +13,9 @@ from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
-from .backfill import async_backfill, async_backfill_at_setup, issue_id
+from .backfill import async_backfill, async_backfill_at_setup, estimate_issue_id, issue_id
 from .cards import async_register_cards
-from .const import CONF_BACKFILL, DOMAIN, STORAGE_VERSION
+from .const import CONF_BACKFILL, CONF_ESTIMATE, DOMAIN, STORAGE_VERSION
 from .model import build_plant
 from .runtime import HeatLedgerRuntime, store_key
 
@@ -24,6 +24,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 SERVICE_BACKFILL = "backfill"
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
+ATTR_ESTIMATE = "estimate"
 
 type HeatLedgerConfigEntry = ConfigEntry[HeatLedgerRuntime]
 
@@ -38,7 +39,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="entry_not_found")
         if entry.state is not ConfigEntryState.LOADED:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="entry_not_loaded")
-        return await async_backfill(hass, entry)
+        # Left out, as chosen in the setup: after a first try that wrote nothing, the action is what starts it again.
+        estimate = call.data.get(ATTR_ESTIMATE, bool(entry.data.get(CONF_ESTIMATE)))
+        return await async_backfill(hass, entry, estimate=estimate)
 
     # Only for administrators: it writes statistics once, for good.
     async_register_admin_service(
@@ -46,7 +49,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN,
         SERVICE_BACKFILL,
         backfill,
-        schema=vol.Schema({vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string}),
+        schema=vol.Schema({vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string, vol.Optional(ATTR_ESTIMATE): cv.boolean}),
         supports_response=SupportsResponse.OPTIONAL,
     )
     return True
@@ -67,7 +70,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeatLedgerConfigEntry) -
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     if entry.data.get(CONF_BACKFILL) and runtime.backfill is None:
         # Chosen in the first setup and not done yet. In the background: reading days of states takes a moment.
-        entry.async_create_background_task(hass, async_backfill_at_setup(hass, entry), f"{DOMAIN} backfill at setup")
+        entry.async_create_background_task(
+            hass,
+            async_backfill_at_setup(hass, entry, estimate=bool(entry.data.get(CONF_ESTIMATE))),
+            f"{DOMAIN} backfill at setup",
+        )
     return True
 
 
@@ -81,6 +88,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: HeatLedgerConfigEntry) 
 async def async_remove_entry(hass: HomeAssistant, entry: HeatLedgerConfigEntry) -> None:
     await Store(hass, STORAGE_VERSION, store_key(entry.entry_id)).async_remove()
     ir.async_delete_issue(hass, DOMAIN, issue_id(entry))
+    ir.async_delete_issue(hass, DOMAIN, estimate_issue_id(entry))
 
 
 async def _async_reload(hass: HomeAssistant, entry: HeatLedgerConfigEntry) -> None:
