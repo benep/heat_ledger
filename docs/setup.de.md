@@ -113,7 +113,8 @@ Statistik geschrieben und lässt sich nicht mit einem Klick rückgängig machen,
 
 **Auch die Zeit davor schätzen, sehr grob** (optional): Reicht weiter zurück, so weit Home Assistant
 Stundenstatistiken deiner Wärmequelle hat, oft ein Jahr oder mehr. Den Verlauf von Pumpen und An/Aus-Thermostaten hebt
-Home Assistant nicht so lange auf, sie gelten dort deshalb als immer an; jeder Raum bekommt den Anteil, den er in den
+Home Assistant nicht so lange auf, sie gelten dort deshalb als immer an (außer die Leistung einer Pumpe wird gemessen,
+siehe [Genauer machen](more-accurate.md#pumpen-wann-warme-fliet)); jeder Raum bekommt den Anteil, den er in den
 aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet (zum
 Beispiel Tado). Nimm das Ergebnis als grobes Bild des letzten Winters, nicht als Abrechnung: Ein Monat eines Raums kann
 leicht um ein Viertel oder mehr danebenliegen. Geeicht wird an den vergangenen Tagen, deshalb rechnet es die mit.

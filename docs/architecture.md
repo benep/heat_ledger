@@ -184,7 +184,8 @@ Not built yet: rewriting the history of a single consumer.
 
 Chosen as well (a box of its own in the setup, `estimate` in the action), the time before the recorded states is
 estimated from the hourly long-term statistics, back to the first hour every meter has them (`engine/estimate.py`,
-whose docstring has the details). Demands in percent are hourly means; everything without statistics (on/off,
+whose docstring has the details). Demands in percent are hourly means, a pump with a power sensor (`history_key`)
+ran the share of the hour its mean shows of its usual hourly maximum; everything else without statistics (on/off,
 `hvac_action`, pumps) counts as always on, so every consumer's weight is calibrated on the hours calculated from the
 states, until the hourly calculation splits them like the exact one did. Its hours are written in front of the others
 in the same run; if it is not possible, the recorded days are written all the same and the reason is noted.

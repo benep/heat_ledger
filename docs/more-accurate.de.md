@@ -25,6 +25,12 @@ Die Heizkreispumpe trägst du mit **Heizkreis hinzufügen** ein, das Warmwasser 
 Warmwasser**. Danach wählst du in jeder Raumheizung den Heizkreis. Wie du aus einer Steckdose mit Leistungsmessung
 einen Pumpen-Sensor machst, steht unter [Einrichtung](setup.md#schritt-3-pumpen).
 
+Beim Schätzen der Zeit vor den aufgezeichneten Tagen gilt eine Pumpe als immer an, weil Home Assistant den Verlauf
+von Binärsensoren nicht lange aufhebt. Wird die Leistung der Pumpe gemessen (der Leistungssensor der Steckdose), wähle
+sie, bevor die Schätzung läuft, denn sie läuft nur einmal: bei der Einrichtung unter **Genauer machen** im Schritt
+Pumpen, oder als **Leistung der Pumpe** im Heizkreis und im Warmwasser, bevor du sie mit der Aktion startest. Dann
+weiß sie, wie lange jede Pumpe in jeder Stunde lief, ab der ersten Stunde, für die ihre Leistung Statistiken hat.
+
 ## Anforderung in %
 
 Ein Thermostat, das nur *heizt* oder *heizt nicht* meldet, zählt als 100 % oder 0 %. Viele Thermostate melden mehr:

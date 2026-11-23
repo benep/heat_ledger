@@ -113,7 +113,8 @@ with a click, which is why it is not ticked by default.
 
 **Also estimate the time before, very roughly** (optional): goes back further, as far as Home Assistant has hourly
 statistics of your heat source, often a year or more. Home Assistant does not keep the history of pumps and on/off
-thermostats that long, so they count as always on there; each room gets the share it had in the recorded days,
+thermostats that long, so they count as always on there (unless a pump's power is measured, see
+[More accurate](more-accurate.md#pumps-when-heat-flows)); each room gets the share it had in the recorded days,
 adjusted by its hourly heating demand where a thermostat reports it in % (Tado, for example). Take the result as a
 rough picture of the last winter, not as a bill: a room's month can easily be off by a quarter or more. It needs the
 past days to be calibrated on, so it calculates those as well.

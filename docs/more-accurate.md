@@ -23,6 +23,12 @@ only heats the hot water. Without the hot water charging, the heat for hot water
 Add the circuit pump with **Add heating circuit**, the hot water with **Add consumer → Hot water**. Then choose the
 circuit in each room heating. [Setup](setup.md#step-3-pumps) shows how to make a pump sensor from a smart plug.
 
+For estimating the time before the recorded days, a pump counts as always running, because Home Assistant keeps no
+long history of binary sensors. If the pump's power is measured (the smart plug's power sensor), choose it before the
+estimate runs, as it runs only once: in the first setup under **More accurate** in the pumps step, or as **Pump power**
+in the circuit and the hot water before you start it with the action. It then knows how long each pump ran in every
+hour, from the first hour its power has statistics.
+
 ## Demand in %
 
 A thermostat that only says *heating* or *idle* counts as 100 % or 0 %. Many thermostats report more: how much they
