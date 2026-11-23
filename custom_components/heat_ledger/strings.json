@@ -51,10 +51,12 @@
         "title": "Room heating",
         "description": "Choose the thermostats of your radiators or underfloor heating, also room controllers with actuators: each one becomes a room heating with its own sensor for its estimated heat (kWh). Many thermostats (Tado, for example) carry the name of their room, so you may see room names here. If a thermostat reports its heating demand in %, that is used.\n\nSizes, circuits and more room heating can be added later on the integration page. Home Assistant then asks for the area of each new device; it is already filled in where the thermostat or pump has one.",
         "data": {
-          "thermostats": "Thermostats"
+          "thermostats": "Thermostats",
+          "backfill": "Calculate the past days as well"
         },
         "data_description": {
-          "thermostats": "Climate entities, one per room or radiator."
+          "thermostats": "Climate entities, one per room or radiator.",
+          "backfill": "Heat Ledger works out the heat of every room for the days Home Assistant still has recorded, 10 days by default, so your dashboard does not start empty. It uses the heating system as you set it up here. This writes statistics for the past once and cannot be undone with a click."
         }
       }
     },
@@ -329,6 +331,62 @@
           }
         }
       }
+    }
+  },
+  "issues": {
+    "backfill_skipped": {
+      "title": "The past days of {name} were not calculated",
+      "description": "You ticked **Calculate the past days as well** in the setup of {name}, but nothing was written:\n\n{reason}\n\nOnce that is sorted out, you can start it again: go to **Developer tools → Actions** and perform **Heat Ledger: Calculate the past days**. If you do not need the past days, ignore this."
+    }
+  },
+  "services": {
+    "backfill": {
+      "name": "Calculate the past days",
+      "description": "Works out the heat of every room for the days before the heating system was set up, as far as Home Assistant still has them recorded, and writes it into the statistics. For a heating system set up without it; it runs once per heating system.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Heating system",
+          "description": "The heating system of Heat Ledger to calculate the past days for."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "This is not a heating system of Heat Ledger."
+    },
+    "entry_not_loaded": {
+      "message": "The heating system is not loaded."
+    },
+    "backfill_done": {
+      "message": "The past days of this heating system have already been calculated."
+    },
+    "backfill_running": {
+      "message": "The past days are being calculated right now."
+    },
+    "backfill_no_recorder": {
+      "message": "Home Assistant does not record history here (the Recorder integration is not set up), so there is nothing to calculate the past days from."
+    },
+    "backfill_no_counters": {
+      "message": "This heating system has no room heating or hot water yet, or their sensors are disabled."
+    },
+    "backfill_no_history": {
+      "message": "Home Assistant has no recorded states of this heating system from before it was set up."
+    },
+    "backfill_no_heat": {
+      "message": "The heat source delivered nothing in the recorded days, so there is nothing to calculate."
+    },
+    "backfill_not_recorded": {
+      "message": "Home Assistant has no recorded state of {entity} from the days before the heating system was set up, so the past days cannot be calculated. It may be excluded from the Recorder, or it was unavailable all the time."
+    },
+    "backfill_nothing_split": {
+      "message": "The heat source delivered {heat} kWh in the recorded days, but no room was heating and no hot water was charged while it could be split."
+    },
+    "backfill_has_statistics": {
+      "message": "The sensors of this heating system already have statistics from before it was set up. Nothing was changed."
+    },
+    "backfill_reloaded": {
+      "message": "The heating system was changed while the past days were calculated. Nothing was written; start it again."
     }
   }
 }

@@ -16,6 +16,8 @@ STORAGE_SAVE_DELAY: Final = 30  # seconds; the state is also saved on shutdown
 
 # Main entry (the plant), in options so it can change without removing the entry.
 CONF_LOSS_KW: Final = "loss_kw"
+# Main entry, in data: chosen in the first setup, the days before it are calculated from the recorder once.
+CONF_BACKFILL: Final = "backfill"
 
 # Subentry types
 SUBENTRY_SOURCE: Final = "source"

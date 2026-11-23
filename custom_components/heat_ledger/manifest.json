@@ -1,7 +1,7 @@
 {
   "domain": "heat_ledger",
   "name": "Heat Ledger",
-  "after_dependencies": ["energy", "frontend", "http", "websocket_api"],
+  "after_dependencies": ["energy", "frontend", "http", "recorder", "websocket_api"],
   "codeowners": ["@benep"],
   "config_flow": true,
   "dependencies": [],

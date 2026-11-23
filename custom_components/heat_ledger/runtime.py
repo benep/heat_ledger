@@ -18,6 +18,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .backfill import KEY_PENDING, async_adjust_pending
 from .const import (
     CONF_DEMAND_ENTITY,
     CONF_ENTITY,
@@ -34,6 +35,7 @@ from .model import InputKind, Subentry, input_kinds, parse_state, reference_unit
 _LOGGER = logging.getLogger(__name__)
 
 STORE_KEY_LEDGER = "ledger"
+STORE_KEY_BACKFILL = "backfill"
 
 
 def store_key(entry_id: str) -> str:
@@ -56,6 +58,11 @@ class HeatLedgerRuntime:
         self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, store_key(entry.entry_id))
         self._listeners: list[CALLBACK_TYPE] = []
         self._unsubscribe: list[CALLBACK_TYPE] = []
+        # The backfill of this entry, once it ran (backfill.py): what it wrote, and which counters' statistics are
+        # still to be raised by it. Stored with the ledger.
+        self.backfill: dict[str, Any] | None = None
+        self.backfilling = False
+        self.adjusting = False
 
     # --- Lifecycle ---------------------------------------------------------------------------------------------
 
@@ -68,6 +75,8 @@ class HeatLedgerRuntime:
             except (KeyError, TypeError, ValueError, AttributeError, IndexError):
                 # The counters keep their values through their restored states; only the split starts over.
                 _LOGGER.warning("Stored state of %s is unreadable, starting over", self.entry.title, exc_info=True)
+        if stored and isinstance(stored.get(STORE_KEY_BACKFILL), dict):
+            self.backfill = stored[STORE_KEY_BACKFILL]
         self.ledger.observe(self._now(), {key: self._read(key, self.hass.states.get(key)) for key in self.kinds})
 
         if self.kinds:
@@ -131,7 +140,10 @@ class HeatLedgerRuntime:
         return reading
 
     def _data(self) -> dict[str, Any]:
-        return {STORE_KEY_LEDGER: self.ledger.to_dict()}
+        data: dict[str, Any] = {STORE_KEY_LEDGER: self.ledger.to_dict()}
+        if self.backfill is not None:
+            data[STORE_KEY_BACKFILL] = self.backfill
+        return data
 
     @callback
     def _on_state(self, event: Event[EventStateChangedData]) -> None:
@@ -147,6 +159,11 @@ class HeatLedgerRuntime:
         for update in list(self._listeners):
             update()
         self._store.async_delay_save(self._data, STORAGE_SAVE_DELAY)
+        if self.backfill and self.backfill.get(KEY_PENDING):
+            # Statistics still to be raised by the backfill: possible once the recorder has compiled the first ones.
+            self.entry.async_create_background_task(
+                self.hass, async_adjust_pending(self.hass, self), f"{DOMAIN} backfill {self.entry.entry_id}"
+            )
 
     async def _on_stop(self, _event: Event) -> None:
         await self.async_save()

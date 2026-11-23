@@ -51,10 +51,12 @@
         "title": "Raumheizung",
         "description": "Wähle die Thermostate deiner Heizkörper oder Fußbodenheizung, auch Raumregler mit Stellantrieben: Jedes wird eine Raumheizung mit eigenem Sensor für ihre geschätzte Wärme (kWh). Viele Thermostate (z. B. Tado) tragen den Namen ihres Raums, deshalb siehst du hier eventuell Raumnamen. Meldet ein Thermostat seinen Heizbedarf in %, wird der genommen.\n\nGröße, Heizkreise und weitere Raumheizungen lassen sich danach auf der Seite der Integration ergänzen. Home Assistant fragt anschließend nach dem Bereich jedes neuen Geräts; wo Thermostat oder Pumpe einen haben, ist er schon eingetragen.",
         "data": {
-          "thermostats": "Thermostate"
+          "thermostats": "Thermostate",
+          "backfill": "Vergangene Tage nachrechnen"
         },
         "data_description": {
-          "thermostats": "Klima-Entitäten, eine je Raum oder Heizkörper."
+          "thermostats": "Klima-Entitäten, eine je Raum oder Heizkörper.",
+          "backfill": "Heat Ledger rechnet die Wärme jedes Raums für die Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. So beginnt dein Dashboard nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie hier einrichtest. Das schreibt einmalig Statistiken für die Vergangenheit und lässt sich nicht mit einem Klick rückgängig machen."
         }
       }
     },
@@ -329,6 +331,62 @@
           }
         }
       }
+    }
+  },
+  "issues": {
+    "backfill_skipped": {
+      "title": "Die vergangenen Tage von {name} wurden nicht nachgerechnet",
+      "description": "Du hast bei der Einrichtung von {name} **Vergangene Tage nachrechnen** angekreuzt, aber es wurde nichts geschrieben:\n\n{reason}\n\nWenn das behoben ist, kannst du es noch einmal starten: Gehe zu **Entwicklerwerkzeuge → Aktionen** und führe **Heat Ledger: Vergangene Tage nachrechnen** aus. Brauchst du die vergangenen Tage nicht, ignoriere diesen Hinweis."
+    }
+  },
+  "services": {
+    "backfill": {
+      "name": "Vergangene Tage nachrechnen",
+      "description": "Rechnet die Wärme jedes Raums für die Tage vor der Einrichtung der Heizungsanlage nach, soweit Home Assistant sie noch aufgezeichnet hat, und schreibt sie in die Statistik. Für eine Heizungsanlage, die ohne das eingerichtet wurde; läuft einmal pro Heizungsanlage.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Heizungsanlage",
+          "description": "Die Heizungsanlage von Heat Ledger, deren vergangene Tage nachgerechnet werden."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "Das ist keine Heizungsanlage von Heat Ledger."
+    },
+    "entry_not_loaded": {
+      "message": "Die Heizungsanlage ist nicht geladen."
+    },
+    "backfill_done": {
+      "message": "Die vergangenen Tage dieser Heizungsanlage sind schon nachgerechnet."
+    },
+    "backfill_running": {
+      "message": "Die vergangenen Tage werden gerade nachgerechnet."
+    },
+    "backfill_no_recorder": {
+      "message": "Home Assistant zeichnet hier keinen Verlauf auf (die Integration Recorder ist nicht eingerichtet), es gibt also nichts, woraus sich die vergangenen Tage nachrechnen ließen."
+    },
+    "backfill_no_counters": {
+      "message": "Diese Heizungsanlage hat noch keine Raumheizung und kein Warmwasser, oder deren Sensoren sind deaktiviert."
+    },
+    "backfill_no_history": {
+      "message": "Home Assistant hat keine aufgezeichneten Zustände dieser Heizungsanlage aus der Zeit vor ihrer Einrichtung."
+    },
+    "backfill_no_heat": {
+      "message": "Die Wärmequelle hat in den aufgezeichneten Tagen nichts geliefert, es gibt also nichts nachzurechnen."
+    },
+    "backfill_not_recorded": {
+      "message": "Home Assistant hat keinen aufgezeichneten Zustand von {entity} aus den Tagen vor der Einrichtung der Heizungsanlage, deshalb lassen sich die vergangenen Tage nicht nachrechnen. Die Entität ist vielleicht vom Recorder ausgeschlossen, oder sie war die ganze Zeit nicht verfügbar."
+    },
+    "backfill_nothing_split": {
+      "message": "Die Wärmequelle hat in den aufgezeichneten Tagen {heat} kWh geliefert, aber kein Raum hat geheizt und kein Warmwasser wurde geladen, während sich die Wärme aufteilen ließ."
+    },
+    "backfill_has_statistics": {
+      "message": "Die Sensoren dieser Heizungsanlage haben schon Statistiken aus der Zeit vor ihrer Einrichtung. Es wurde nichts geändert."
+    },
+    "backfill_reloaded": {
+      "message": "Die Heizungsanlage wurde geändert, während die vergangenen Tage nachgerechnet wurden. Es wurde nichts geschrieben; starte es noch einmal."
     }
   }
 }

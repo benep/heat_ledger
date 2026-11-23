@@ -22,6 +22,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: HeatLed
     result: dict[str, Any] = {
         "versions": {"heat_ledger": str(integration.version), "home_assistant": HA_VERSION},
         "language": hass.config.language,
+        "data": dict(entry.data),
         "options": dict(entry.options),
         "subentries": [
             {"id": s.subentry_id, "type": s.subentry_type, "title": s.title, "data": dict(s.data)}
@@ -58,4 +59,5 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: HeatLed
     result["account_kwh"] = ledger.account_total
     result["blocked_by"] = list(ledger.blocked_by)
     result["ledger"] = ledger.to_dict()
+    result["backfill"] = runtime.backfill
     return result

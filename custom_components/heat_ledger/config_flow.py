@@ -43,6 +43,7 @@ from homeassistant.util.ulid import ulid_now
 
 from . import texts
 from .const import (
+    CONF_BACKFILL,
     CONF_CIRCUIT,
     CONF_DEMAND_ENTITY,
     CONF_DEMAND_TYPE,
@@ -499,13 +500,17 @@ class HeatLedgerConfigFlow(_SourceSteps, ConfigFlow, domain=DOMAIN):
             if not check.errors:
                 return self.async_create_entry(
                     title=self._name,
-                    data={},
+                    data={CONF_BACKFILL: True} if user_input.get(CONF_BACKFILL) else {},
                     options={},
                     subentries=self._subentries(await async_texts(self.hass), thermostats, *self._pumps),
                 )
-        schema = vol.Schema(
-            {vol.Optional(CONF_THERMOSTATS): EntitySelector(EntitySelectorConfig(domain="climate", multiple=True))}
-        )
+        fields: dict[vol.Marker, Any] = {
+            vol.Optional(CONF_THERMOSTATS): EntitySelector(EntitySelectorConfig(domain="climate", multiple=True))
+        }
+        if "recorder" in self.hass.config.components:
+            # The past days come from the recorded states; not ticked by default, as it writes statistics.
+            fields[vol.Optional(CONF_BACKFILL, default=False)] = BooleanSelector()
+        schema = vol.Schema(fields)
         return self.async_show_form(
             step_id="thermostats",
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
