@@ -23,10 +23,16 @@ class ReplayResult:
     hours: tuple[float, ...]  # start of every hour that ended within the replay, in order
     consumers: dict[str, tuple[float, ...]]  # total of each consumer at the end of these hours
     circuits: dict[str, tuple[float, ...]]  # the same for each circuit
+    sources: dict[str, tuple[float, ...]]  # and the heat each source had delivered by then
     consumer_totals: dict[str, float]  # at the end of the replay
     circuit_totals: dict[str, float]
-    source_heat: float  # heat the sources delivered
-    unassigned: float  # of it, still in the account at the end: no consumer had a weight since it arrived
+    source_totals: dict[str, float]
+    unassigned: float  # of the sources' heat, still in the account at the end: no consumer had a weight since
+
+    @property
+    def source_heat(self) -> float:
+        """Heat all sources delivered."""
+        return sum(self.source_totals.values())
 
 
 class Replay:
@@ -39,6 +45,7 @@ class Replay:
         self._hours: list[float] = []
         self._consumers: dict[str, list[float]] = {c.id: [] for c in plant.consumers}
         self._circuits: dict[str, list[float]] = {c.id: [] for c in plant.circuits}
+        self._sources: dict[str, list[float]] = {s.id: [] for s in plant.sources}
 
     def observe(self, t: float, readings: Readings) -> None:
         """Readings at time t. A time before the one of the readings before counts as that one."""
@@ -60,9 +67,10 @@ class Replay:
             hours=tuple(self._hours),
             consumers={k: tuple(v) for k, v in self._consumers.items()},
             circuits={k: tuple(v) for k, v in self._circuits.items()},
+            sources={k: tuple(v) for k, v in self._sources.items()},
             consumer_totals=dict(ledger.totals),
             circuit_totals=dict(ledger.circuit_totals),
-            source_heat=sum(ledger.source_heat.values()),
+            source_totals={source_id: ledger.source_heat[source_id] for source_id in self._sources},
             unassigned=ledger.account_total,
         )
 
@@ -77,4 +85,6 @@ class Replay:
                     totals.append(ledger.totals[consumer_id])
                 for circuit_id, totals in self._circuits.items():
                     totals.append(ledger.circuit_totals[circuit_id])
+                for source_id, totals in self._sources.items():
+                    totals.append(ledger.source_heat[source_id])
             self._next_close = boundary + INTERVAL_S

@@ -161,3 +161,23 @@ def test_a_time_going_back_counts_as_the_time_before():
     result = replay.finish(T0 + 300)
 
     assert sum(result.consumer_totals.values()) == pytest.approx(3.0)
+
+
+def test_heat_of_every_source_at_every_full_hour():
+    """A source that counts energy input: its reading times the factor, as its own counter shows it."""
+    plant = PlantSpec(
+        (SOURCE, SourceSpec("heat_pump", "sensor.heat_pump", factor=3.0)),
+        consumers=(consumer("living", None, 2000, DemandMethod.PERCENT, "sensor.a"),),
+    )
+    replay = Replay(plant)
+    replay.observe(T0 + 60, {"sensor.boiler": 10.0, "sensor.heat_pump": 5.0, "sensor.a": 1.0})
+    replay.observe(T0 + 120, {"sensor.boiler": 12.0})
+    replay.observe(T0 + HOUR + 60, {"sensor.heat_pump": 6.0})
+    replay.observe(T0 + 2 * HOUR + 60, {"sensor.heat_pump": 6.5})
+
+    result = replay.finish(T0 + 2 * HOUR + 300)
+
+    assert result.sources == {"boiler": pytest.approx((2.0, 2.0)), "heat_pump": pytest.approx((0.0, 3.0))}
+    assert result.source_totals == pytest.approx({"boiler": 2.0, "heat_pump": 4.5})
+    assert result.source_heat == pytest.approx(6.5)
+    assert result.consumer_totals["living"] == pytest.approx(6.5)
