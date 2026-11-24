@@ -52,7 +52,7 @@ Heat Ledger braucht eine Zahl, die zählt, was deine Heizung verbraucht oder erz
 |---|---|
 | **Kessel oder Wärmepumpe mit Integration** | Sieh zuerst bei den Entitäten ihrer Integration nach: Viele melden Gasverbrauch, Energie oder Wärmemenge. Einfacher geht es nicht. |
 | **Gastherme** | Den Gaszähler auslesen: Die meisten haben einen Magneten oder eine spiegelnde Marke an der letzten Ziffer. Ein Impulssensor oder ein optischer Lesekopf (fertig gekauft oder mit ESPHome gebaut) zählt sie in m³. |
-| **Ölbrenner** | Die Stunden zählen, die der Brenner läuft: ein Template-Sensor, der 1 zeigt, solange er läuft, sonst 0, und darüber ein Helfer **Integral**. Als Faktor die Leistung des Brenners in kW eintragen (nur bei einem Brenner ohne Modulation). |
+| **Ölbrenner** | [Fuel Ledger](https://benep.github.io/fuel_ledger/de/), die Schwester-Integration, rechnet das Öl aus der Laufzeit des Brenners, einem An/Aus-Sensor oder einer Steckdose mit Leistungsmessung vor dem Kessel. Wähle seine **Heizöl Wärme** als Wärme, ohne Faktor. Oder von Hand: ein Template-Sensor, der 1 zeigt, solange der Brenner läuft, sonst 0, darüber ein Helfer **Integral** und als Faktor die Leistung des Brenners in kW (nur bei einem Brenner ohne Modulation). |
 
 Was du auch nimmst: Der Zählerstand darf nur steigen und sollte auch im Energie-Dashboard als Gas-Quelle stehen.
 

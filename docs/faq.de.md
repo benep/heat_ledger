@@ -40,7 +40,8 @@
 ??? question "Meine Heizung hat keinen Zähler in Home Assistant."
 
     Heat Ledger braucht eine Zahl, die zählt, was deine Heizung verbraucht oder erzeugt: die Integration deines
-    Kessels oder deiner Wärmepumpe, einen Lesekopf am Gaszähler oder die Laufzeit eines Ölbrenners.
+    Kessels oder deiner Wärmepumpe, einen Lesekopf am Gaszähler oder bei einer Ölheizung
+    [Fuel Ledger](https://benep.github.io/fuel_ledger/de/).
     [Einrichtung](setup.md#noch-kein-zahler) zeigt die drei Wege.
 
 ## Die Zahlen

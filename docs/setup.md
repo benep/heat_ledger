@@ -52,7 +52,7 @@ Heat Ledger needs one number that counts what your heating uses or makes. Three 
 |---|---|
 | **Boiler or heat pump with an integration** | Look at the entities of its integration first: many report gas consumption, energy or heat energy. That is the simplest meter there is. |
 | **Gas boiler** | Read the gas meter: most have a magnet or a reflective mark on the last digit. A pulse sensor or an optical reader (ready-made, or built with ESPHome) counts it in m³. |
-| **Oil burner** | Count the hours the burner runs: a template sensor that is 1 while it runs and 0 otherwise, and an **Integral** helper over it. Enter the burner's output in kW as factor (only for a burner without modulation). |
+| **Oil burner** | [Fuel Ledger](https://benep.github.io/fuel_ledger/), the sister integration, works out the oil from the burner's run time, an on/off sensor or a smart plug in front of the boiler. Choose its **Heating oil Heat** as heat, without a factor. Or by hand: a template sensor that is 1 while the burner runs and 0 otherwise, an **Integral** helper over it, and the burner's output in kW as factor (only for a burner without modulation). |
 
 Whichever you use, it must only go up, and it should show in the Energy dashboard as gas source too.
 
