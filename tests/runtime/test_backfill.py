@@ -1123,7 +1123,7 @@ async def test_a_meter_without_states_in_the_days(
 
 async def test_the_starts_of_home_assistant_at_their_time(recorder_mock: Recorder, hass: HomeAssistant) -> None:
     """The recorder started with the test, at 6:00 UTC: read back at that time, not shifted by a time zone."""
-    await hass.config.async_set_time_zone("Europe/Berlin")
+    await hass.config.async_set_time_zone("America/New_York")
     starts = await get_instance(hass).async_add_executor_job(backfill._recorder_starts, hass, at(0))
 
     assert abs(starts[-1] - at(6).timestamp()) < 5
