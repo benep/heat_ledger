@@ -27,7 +27,7 @@
       },
       "factor": {
         "title": "Conversion to heat",
-        "description": "Your meter {meter} counts in {unit}. How many kWh of heat does 1 {unit} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
+        "description": "“{meter}” counts in {unit}. How many kWh of heat does 1 {unit} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
         "data": {
           "factor": "Factor"
         },
@@ -49,7 +49,7 @@
         "sections": {
           "accuracy": {
             "name": "More accurate",
-            "description": "Only for estimating the time before the recorded days (next step): Home Assistant does not keep the history of a pump's binary sensor that long, but it keeps hourly means of its power. Without it, the pump counts as always running there.",
+            "description": "Only for the rough estimate of the time before the recorded days (next step): if a smart plug measures the power of a pump, choose it here. Without, the pump counts as always running there.",
             "data": {
               "circuit_pump_power": "Power of the heating circuit pump",
               "hot_water_pump_power": "Power of the hot water charging pump"
@@ -67,8 +67,8 @@
         },
         "data_description": {
           "thermostats": "Climate entities, one per room or radiator.",
-          "backfill": "Heat Ledger works out the heat of every room for the days Home Assistant still has recorded, 10 days by default, so your dashboard does not start empty. It uses the heating system as you set it up here. This writes statistics for the past once and cannot be undone with a click.",
-          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: Home Assistant does not keep the history of pumps and on/off thermostats that long, so they count as always on (pumps whose power you chose in the step before do not), and each room gets the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more. Includes the past days above."
+          "backfill": "Heat Ledger works out the heat of every room for the days Home Assistant still has recorded, 10 days by default, so your dashboard does not start empty. It calculates with the heating system as you set it up here, once per heating system. Want to add more first (sizes, say)? Leave it and choose Calculate the past in the gear of the heating system later, within a few days.",
+          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: each room gets about the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more. Includes the past days above."
         }
       }
     },
@@ -110,7 +110,7 @@
           "estimate": "Also estimate the time before, very roughly"
         },
         "data_description": {
-          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: Home Assistant does not keep the history of pumps and on/off thermostats that long, so they count as always on (pumps whose power you chose do not), and each room gets the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more."
+          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: each room gets about the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more."
         }
       }
     },
@@ -123,7 +123,7 @@
       "calculated_estimated": "Done: {heat} kWh of the heat sources from {start} to {end} are split between the rooms and the hot water, and {estimate_heat} kWh from {estimate_start} on are roughly estimated. The statistics are complete in a few minutes.",
       "calculated_not_estimated": "The recorded days are calculated: {heat} kWh of the heat sources from {start} to {end}. The time before them was not estimated:\n\n{reason}",
       "already_calculated": "The past of {name} has been calculated already; it works once per heating system. To calculate it with different settings, you start over: the help pages (Questions) say how.",
-      "start_over": "{reason}\n\nThey were left by an earlier heating system with the same names. To calculate the past, start over: delete {name}, then delete the statistics of these sensors under **Settings → Tools → Statistics**, and set it up again.\n\n{entities}",
+      "start_over": "{reason}\n\nThey were left by an earlier heating system with the same names. To calculate the past, start over: delete the heating system “{name}”, then delete the statistics of these sensors under **Settings → Tools → Statistics**, and set it up again.\n\n{entities}",
       "not_calculated": "Nothing was calculated:\n\n{reason}"
     },
     "error": {
@@ -154,7 +154,7 @@
         },
         "factor": {
           "title": "Conversion to heat",
-          "description": "Your meter {meter} counts in {unit}. How many kWh of heat does 1 {unit} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
+          "description": "“{meter}” counts in {unit}. How many kWh of heat does 1 {unit} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
           "data": {
             "factor": "Factor"
           },
@@ -200,7 +200,7 @@
                 "history_entity_id": "Pump power"
               },
               "data_description": {
-                "history_entity_id": "Only for estimating the time before the recorded days: Home Assistant does not keep the history of the pump's binary sensor that long, but it keeps hourly means of its power. Without it, the pump counts as always running there."
+                "history_entity_id": "Only for the rough estimate of the time before the recorded days: if a smart plug measures the power of the pump, choose it here. Without, the pump counts as always running there."
               }
             }
           }
@@ -296,7 +296,7 @@
               "data_description": {
                 "meter_entity_id": "Only if a heat meter is installed: it measures the heat for hot water and replaces the estimate, pump and charging power are then not needed.",
                 "charging_power_kw": "Heat while the pump runs, in kW. Default: 10 kW.",
-                "history_entity_id": "Only for estimating the time before the recorded days: Home Assistant does not keep the history of the pump's binary sensor that long, but it keeps hourly means of its power. Without it, the pump counts as always running there."
+                "history_entity_id": "Only for the rough estimate of the time before the recorded days: if a smart plug measures the power of the pump, choose it here. Without, the pump counts as always running there."
               }
             }
           }

@@ -27,7 +27,7 @@
       },
       "factor": {
         "title": "Umrechnung in Wärme",
-        "description": "Dein Zähler {meter} zählt in {unit}. Wie viele kWh Wärme ergibt 1 {unit}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
+        "description": "„{meter}“ zählt in {unit}. Wie viele kWh Wärme ergibt 1 {unit}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
         "data": {
           "factor": "Faktor"
         },
@@ -49,7 +49,7 @@
         "sections": {
           "accuracy": {
             "name": "Genauer machen",
-            "description": "Nur für das Schätzen der Zeit vor den aufgezeichneten Tagen (nächster Schritt): Den Verlauf des Binärsensors einer Pumpe hebt Home Assistant nicht so lange auf, Stundenmittel ihrer Leistung schon. Ohne gilt die Pumpe dort als immer an.",
+            "description": "Nur für die grobe Schätzung der Zeit vor den aufgezeichneten Tagen (nächster Schritt): Misst eine Steckdose die Leistung einer Pumpe, wähle sie hier. Ohne gilt die Pumpe dort als immer an.",
             "data": {
               "circuit_pump_power": "Leistung der Heizkreispumpe",
               "hot_water_pump_power": "Leistung der Warmwasser-Ladepumpe"
@@ -67,8 +67,8 @@
         },
         "data_description": {
           "thermostats": "Klima-Entitäten, eine je Raum oder Heizkörper.",
-          "backfill": "Heat Ledger rechnet die Wärme jedes Raums für die Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. So beginnt dein Dashboard nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie hier einrichtest. Das schreibt einmalig Statistiken für die Vergangenheit und lässt sich nicht mit einem Klick rückgängig machen.",
-          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Den Verlauf von Pumpen und An/Aus-Thermostaten hebt Home Assistant nicht so lange auf, sie gelten deshalb als immer an (Pumpen mit gemessener Leistung im Schritt davor nicht), und jeder Raum bekommt den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen. Schließt die vergangenen Tage oben ein."
+          "backfill": "Heat Ledger rechnet die Wärme jedes Raums für die Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. So beginnt dein Dashboard nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie hier einrichtest, einmal pro Heizungsanlage. Willst du vorher mehr eintragen (etwa Größen)? Dann lass den Haken weg und wähle später, innerhalb weniger Tage, im Zahnrad der Heizungsanlage Vergangene Zeit berechnen.",
+          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Jeder Raum bekommt etwa den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen. Schließt die vergangenen Tage oben ein."
         }
       }
     },
@@ -110,7 +110,7 @@
           "estimate": "Auch die Zeit davor schätzen, sehr grob"
         },
         "data_description": {
-          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Den Verlauf von Pumpen und An/Aus-Thermostaten hebt Home Assistant nicht so lange auf, sie gelten deshalb als immer an (Pumpen mit gemessener Leistung nicht), und jeder Raum bekommt den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen."
+          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Jeder Raum bekommt etwa den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen."
         }
       }
     },
@@ -123,7 +123,7 @@
       "calculated_estimated": "Fertig: {heat} kWh der Wärmequellen vom {start} bis {end} sind auf die Räume und das Warmwasser verteilt, dazu {estimate_heat} kWh ab {estimate_start} grob geschätzt. In wenigen Minuten ist die Statistik vollständig.",
       "calculated_not_estimated": "Die aufgezeichneten Tage sind berechnet: {heat} kWh der Wärmequellen vom {start} bis {end}. Die Zeit davor wurde nicht geschätzt:\n\n{reason}",
       "already_calculated": "Die vergangene Zeit von {name} ist schon berechnet; das geht einmal pro Heizungsanlage. Um sie mit anderen Einstellungen zu berechnen, fängst du von vorn an: Wie, steht in der Hilfe (Häufige Fragen).",
-      "start_over": "{reason}\n\nSie stammen von einer früheren Heizungsanlage mit denselben Namen. Um die vergangene Zeit zu berechnen, fang von vorn an: Lösche {name}, lösche dann die Statistiken dieser Sensoren unter **Einstellungen → Werkzeuge → Statistik** und richte sie neu ein.\n\n{entities}",
+      "start_over": "{reason}\n\nSie stammen von einer früheren Heizungsanlage mit denselben Namen. Um die vergangene Zeit zu berechnen, fang von vorn an: Lösche die Heizungsanlage „{name}“, lösche dann die Statistiken dieser Sensoren unter **Einstellungen → Werkzeuge → Statistik** und richte sie neu ein.\n\n{entities}",
       "not_calculated": "Es wurde nichts berechnet:\n\n{reason}"
     },
     "error": {
@@ -154,7 +154,7 @@
         },
         "factor": {
           "title": "Umrechnung in Wärme",
-          "description": "Dein Zähler {meter} zählt in {unit}. Wie viele kWh Wärme ergibt 1 {unit}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
+          "description": "„{meter}“ zählt in {unit}. Wie viele kWh Wärme ergibt 1 {unit}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
           "data": {
             "factor": "Faktor"
           },
@@ -200,7 +200,7 @@
                 "history_entity_id": "Leistung der Pumpe"
               },
               "data_description": {
-                "history_entity_id": "Nur für das Schätzen der Zeit vor den aufgezeichneten Tagen: Den Verlauf des Binärsensors der Pumpe hebt Home Assistant nicht so lange auf, Stundenmittel ihrer Leistung schon. Ohne gilt die Pumpe dort als immer an."
+                "history_entity_id": "Nur für die grobe Schätzung der Zeit vor den aufgezeichneten Tagen: Misst eine Steckdose die Leistung der Pumpe, wähle sie hier. Ohne gilt die Pumpe dort als immer an."
               }
             }
           }
@@ -296,7 +296,7 @@
               "data_description": {
                 "meter_entity_id": "Nur wenn ein Wärmemengenzähler eingebaut ist: Er misst die Wärme für Warmwasser und ersetzt die Schätzung, Pumpe und Ladeleistung braucht es dann nicht.",
                 "charging_power_kw": "Wärme, solange die Pumpe läuft, in kW. Standard: 10 kW.",
-                "history_entity_id": "Nur für das Schätzen der Zeit vor den aufgezeichneten Tagen: Den Verlauf des Binärsensors der Pumpe hebt Home Assistant nicht so lange auf, Stundenmittel ihrer Leistung schon. Ohne gilt die Pumpe dort als immer an."
+                "history_entity_id": "Nur für die grobe Schätzung der Zeit vor den aufgezeichneten Tagen: Misst eine Steckdose die Leistung der Pumpe, wähle sie hier. Ohne gilt die Pumpe dort als immer an."
               }
             }
           }
