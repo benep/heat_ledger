@@ -28,7 +28,7 @@ body:
     attributes:
       label: Home Assistant version
       description: Settings → About.
-      placeholder: "2026.12.0"
+      placeholder: "2026.11.2"
     validations:
       required: true
   - type: input
@@ -43,5 +43,5 @@ body:
     id: logs
     attributes:
       label: Log messages
-      description: Settings → System → Logs, search for heat_ledger. Optional.
+      description: Lines with `heat_ledger` from Settings → System → Logs, if there are any.
       render: text

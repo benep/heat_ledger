@@ -36,7 +36,8 @@ jobs:
           path: site
 
   deploy:
-    if: github.event_name != 'pull_request'
+    # GitHub Pages needs a public repository (or a paid plan).
+    if: github.event_name != 'pull_request' && !github.event.repository.private
     needs: build
     runs-on: ubuntu-latest
     environment:
