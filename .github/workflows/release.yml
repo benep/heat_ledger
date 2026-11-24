@@ -1,0 +1,31 @@
+name: Release
+
+# Attaches heat_ledger.zip to every published release. The Marketplace installs that file (zip_release in
+# hacs.json), so the download counter of the release counts every installation and update.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag matches the version in the manifest
+        run: |
+          version=$(jq -r .version custom_components/heat_ledger/manifest.json)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME, but manifest.json has version $version"
+            exit 1
+          fi
+      - name: Zip the integration
+        # The Marketplace unpacks the file into custom_components/heat_ledger, so the zip holds its content.
+        run: cd custom_components/heat_ledger && zip -r "$GITHUB_WORKSPACE/heat_ledger.zip" . -x '*__pycache__*'
+      - name: Attach it to the release
+        run: gh release upload "$GITHUB_REF_NAME" heat_ledger.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

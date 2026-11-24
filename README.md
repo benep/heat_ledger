@@ -8,7 +8,9 @@
 Integration selbst ist übersetzt.
 
 [![Release](https://img.shields.io/github/v/release/benep/heat_ledger?include_prereleases&label=release)](https://github.com/benep/heat_ledger/releases)
-[![License](https://img.shields.io/github/license/benep/heat_ledger)](LICENSE)
+[![Home Assistant 2026.10 or newer](https://img.shields.io/badge/Home%20Assistant-2026.10%2B-41BDF5?logo=homeassistant&logoColor=white)](#does-it-fit-your-home)
+[![Help pages in English and German](https://img.shields.io/badge/help-English%20%7C%20Deutsch-orange)](https://benep.github.io/heat_ledger/)
+[![Tests](https://github.com/benep/heat_ledger/actions/workflows/tests.yml/badge.svg)](https://github.com/benep/heat_ledger/actions/workflows/tests.yml)
 
 Your gas meter, your oil consumption or your heat pump tells Home Assistant how much heat the whole house used. Heat
 Ledger splits that heat between your rooms and your hot water and gives each of them a counter in kWh. No new
