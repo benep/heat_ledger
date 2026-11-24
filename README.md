@@ -15,6 +15,8 @@ Ledger splits that heat between your rooms and your hot water and gives each of 
 hardware: it works with the meter and the thermostats you already have.
 
 ![The gas tab of the Energy dashboard: the heat flows from the boiler through the floors to every room and the hot water](https://raw.githubusercontent.com/benep/heat_ledger/main/docs/assets/screenshots/energy-sankey.png)
+*The gas flow in the Energy dashboard, from Home Assistant 2026.12 on. Before that, the heat dashboard below shows
+the rooms.*
 
 Step-by-step help, with pictures: in [English](https://benep.github.io/heat_ledger/) and in
 [German (Deutsch)](https://benep.github.io/heat_ledger/de/).
