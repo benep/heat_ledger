@@ -48,8 +48,9 @@ method it allows; nothing else changes. This is the extension point: new levels 
 | circuit active | always → pump binary sensor |
 | consumer heat | weight split → heat meter (measured) |
 
-Each result sensor has three attributes: `level` (`measured`, `calculated`, `estimated`), `basis` (the method per
-factor) and `next_improvement` (the input that would improve it most). The method is chosen from the
+Each result sensor has the attributes `level` (`measured`, `calculated`, `estimated`), one per factor with its method
+(`demand`, `size`, `circuit`; left out when measured; plain values, so the frontend translates them) and
+`next_improvement` (the input that would improve it most). The method is chosen from the
 configuration, not at runtime: an input that becomes unavailable does not silently fall back to a rougher method.
 
 Planned methods that fit this structure without changes: heat cost allocators (weight from counter increments

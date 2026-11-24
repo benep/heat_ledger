@@ -60,7 +60,10 @@ TRANSLATION_ACCOUNT: Final = "account"  # diagnostic: heat not yet assigned
 
 # State attributes of the counters
 ATTR_LEVEL: Final = "level"  # engine.Level value
-ATTR_BASIS: Final = "basis"  # dict factor -> method
+# How a split result is computed, one attribute per factor (method, as in engine/spec.py); left out when measured.
+ATTR_DEMAND: Final = "demand"
+ATTR_SIZE: Final = "size"
+ATTR_CIRCUIT: Final = "circuit"
 ATTR_NEXT_IMPROVEMENT: Final = "next_improvement"  # e.g. "demand_percent", or None
 ATTR_BY_SOURCE: Final = "by_source"  # dict source name -> kWh
 ATTR_BLOCKED_BY: Final = "blocked_by"  # account sensor: entity IDs that stop the split right now

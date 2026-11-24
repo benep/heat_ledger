@@ -390,6 +390,7 @@ class _SourceSteps:
     _source_title: str
     _source_data: dict[str, Any]
     _source_unit: str
+    _source_meter: str  # the name of the meter, which the factor converts
     _factor_is_last_step = True
 
     def _taken_sources(self) -> set[str]:
@@ -410,6 +411,7 @@ class _SourceSteps:
             if self._source_data[CONF_QUANTITY] == QUANTITY_HEAT:
                 return await self._source_done(self._source_title, self._source_data)
             self._source_unit = _factor_unit(info)
+            self._source_meter = info.name
             return await self.async_step_factor()
 
         if user_input is not None:
@@ -447,7 +449,7 @@ class _SourceSteps:
             step_id="factor",
             data_schema=self.add_suggested_values_to_schema(_factor_schema(), suggested),  # type: ignore[attr-defined]
             errors=check.errors,
-            description_placeholders={"name": self._source_title, "unit": self._source_unit},
+            description_placeholders={"meter": self._source_meter, "unit": self._source_unit},
             last_step=self._factor_is_last_step,
         )
 

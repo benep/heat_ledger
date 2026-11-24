@@ -24,11 +24,13 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import HeatLedgerConfigEntry, texts
 from .const import (
-    ATTR_BASIS,
     ATTR_BLOCKED_BY,
     ATTR_BY_SOURCE,
+    ATTR_CIRCUIT,
+    ATTR_DEMAND,
     ATTR_LEVEL,
     ATTR_NEXT_IMPROVEMENT,
+    ATTR_SIZE,
     CONF_DEMAND_ENTITY,
     CONF_ENTITY,
     CONF_KIND,
@@ -280,9 +282,11 @@ class _SplitSensor(_CounterSensor):
                 continue  # a removed source this one never received anything from
             title = self._titles.get(source_id, source_id)
             by_source[title] = by_source.get(title, 0.0) + kwh
+        # One plain attribute per factor, so the frontend translates its value (it does not translate inside a dict).
+        factors = {ATTR_DEMAND: "demand", ATTR_SIZE: "size", ATTR_CIRCUIT: "circuit"}
         return {
             ATTR_LEVEL: str(basis.level),
-            ATTR_BASIS: basis.methods,
+            **{attr: basis.methods[factor] for attr, factor in factors.items() if factor in basis.methods},
             ATTR_NEXT_IMPROVEMENT: basis.next_improvement,
             ATTR_BY_SOURCE: {title: round(kwh, 3) for title, kwh in by_source.items()},
         }

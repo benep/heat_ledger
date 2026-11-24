@@ -27,7 +27,7 @@
       },
       "factor": {
         "title": "Conversion to heat",
-        "description": "How many kWh of heat does 1 {unit} of {name} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
+        "description": "Your meter {meter} counts in {unit}. How many kWh of heat does 1 {unit} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
         "data": {
           "factor": "Factor"
         },
@@ -154,7 +154,7 @@
         },
         "factor": {
           "title": "Conversion to heat",
-          "description": "How many kWh of heat does 1 {unit} of {name} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
+          "description": "Your meter {meter} counts in {unit}. How many kWh of heat does 1 {unit} give?\n\n- **Gas in m³:** about 9 to 10. Calorific value × z-number × boiler efficiency; calorific value and z-number are on the gas bill.\n- **Heating oil in litres:** about 9. A litre of heating oil holds about 10 kWh, the boiler turns about 90 % of it into heat.\n- **Gas, oil or pellets in kWh:** about 0.9, the efficiency of the boiler.\n- **Burner run time in hours:** the output of the burner in kW, only for a burner without modulation.\n- **Electricity of an immersion heater:** 1.\n- **Electricity of a heat pump:** not recommended, its efficiency changes a lot with the outdoor temperature. Use the heat output the heat pump reports instead, as a source that counts heat: close this dialog and start again. Only if there is none: about 3.",
           "data": {
             "factor": "Factor"
           },
@@ -359,11 +359,43 @@
               "measured": "Measured"
             }
           },
-          "basis": {
-            "name": "Basis"
+          "demand": {
+            "name": "Demand",
+            "state": {
+              "always": "Always",
+              "hvac_action": "Thermostat heating or not",
+              "on_off": "On or off",
+              "percent": "Demand in %",
+              "valve": "Valve position"
+            }
+          },
+          "size": {
+            "name": "Size",
+            "state": {
+              "default": "All equal",
+              "area": "Floor area",
+              "calculated": "Calculated",
+              "nominal_power": "Nominal power"
+            }
+          },
+          "circuit": {
+            "name": "Heating circuit",
+            "state": {
+              "always": "Always active",
+              "pump": "Pump"
+            }
           },
           "next_improvement": {
-            "name": "Next improvement"
+            "name": "Next improvement",
+            "state": {
+              "demand_hvac_action": "Choose its thermostat",
+              "demand_percent": "Choose a heating demand in %",
+              "demand_valve": "Choose a valve position in %",
+              "size_area": "Enter the floor area",
+              "size_calculated": "Enter the nominal power",
+              "size_nominal_power": "Enter the nominal power",
+              "circuit_pump": "Add the circuit pump"
+            }
           },
           "by_source": {
             "name": "By source"

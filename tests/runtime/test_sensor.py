@@ -113,7 +113,8 @@ async def test_attributes(hass: HomeAssistant, entry: MockConfigEntry, freezer) 
 
     living = attributes(hass, "living_heat")
     assert living["level"] == "estimated"
-    assert living["basis"] == {"size": "nominal_power", "demand": "percent", "circuit": "pump"}
+    assert (living["demand"], living["size"], living["circuit"]) == ("percent", "nominal_power", "pump")
+    assert "basis" not in living  # a dict the frontend would not translate
     assert living["next_improvement"] is None
     assert living["by_source"] == {
         "Boiler": pytest.approx(round(LIVING_SHARE, 3)),
@@ -122,12 +123,12 @@ async def test_attributes(hass: HomeAssistant, entry: MockConfigEntry, freezer) 
 
     circuit = attributes(hass, "ground_floor_heat")
     assert circuit["level"] == "estimated"
-    assert circuit["basis"] == {"size": "area", "demand": "always", "circuit": "pump"}
+    assert (circuit["demand"], circuit["size"], circuit["circuit"]) == ("always", "area", "pump")
     assert circuit["next_improvement"] == "demand_hvac_action"
     assert circuit["by_source"] == {"Boiler": pytest.approx(1.0), "Heat pump": pytest.approx(3.0)}
 
     hot_water = attributes(hass, "hot_water_heat")
-    assert hot_water["basis"] == {"size": "default", "demand": "on_off", "circuit": "always"}
+    assert (hot_water["demand"], hot_water["size"], hot_water["circuit"]) == ("on_off", "default", "always")
     assert hot_water["next_improvement"] == "size_nominal_power"
 
 

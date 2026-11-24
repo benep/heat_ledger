@@ -27,7 +27,7 @@
       },
       "factor": {
         "title": "Umrechnung in Wärme",
-        "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
+        "description": "Dein Zähler {meter} zählt in {unit}. Wie viele kWh Wärme ergibt 1 {unit}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
         "data": {
           "factor": "Faktor"
         },
@@ -154,7 +154,7 @@
         },
         "factor": {
           "title": "Umrechnung in Wärme",
-          "description": "Wie viele kWh Wärme ergibt 1 {unit} von {name}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
+          "description": "Dein Zähler {meter} zählt in {unit}. Wie viele kWh Wärme ergibt 1 {unit}?\n\n- **Gas in m³:** etwa 9 bis 10. Brennwert × Zustandszahl × Wirkungsgrad des Kessels; Brennwert und Zustandszahl stehen auf der Gasrechnung.\n- **Heizöl in Litern:** etwa 9. Ein Liter Heizöl enthält rund 10 kWh, der Kessel macht davon rund 90 % zu Wärme.\n- **Gas, Öl oder Pellets in kWh:** etwa 0,9, der Wirkungsgrad des Kessels.\n- **Brennerlaufzeit in Stunden:** die Leistung des Brenners in kW, nur bei einem Brenner ohne Modulation.\n- **Strom eines Heizstabs:** 1.\n- **Strom einer Wärmepumpe:** nicht empfohlen, ihr Wirkungsgrad schwankt stark mit der Außentemperatur. Nimm stattdessen die Wärmemenge, die die Wärmepumpe meldet, als Quelle, die Wärme zählt: Dialog schließen und neu beginnen. Nur wenn es die nicht gibt: etwa 3.",
           "data": {
             "factor": "Faktor"
           },
@@ -359,11 +359,43 @@
               "measured": "Gemessen"
             }
           },
-          "basis": {
-            "name": "Grundlage"
+          "demand": {
+            "name": "Anforderung",
+            "state": {
+              "always": "Immer",
+              "hvac_action": "Thermostat heizt oder nicht",
+              "on_off": "An oder aus",
+              "percent": "Anforderung in %",
+              "valve": "Ventilstellung"
+            }
+          },
+          "size": {
+            "name": "Größe",
+            "state": {
+              "default": "Alle gleich",
+              "area": "Raumfläche",
+              "calculated": "Berechnet",
+              "nominal_power": "Nennleistung"
+            }
+          },
+          "circuit": {
+            "name": "Heizkreis",
+            "state": {
+              "always": "Immer aktiv",
+              "pump": "Pumpe"
+            }
           },
           "next_improvement": {
-            "name": "Nächste Verbesserung"
+            "name": "Nächste Verbesserung",
+            "state": {
+              "demand_hvac_action": "Thermostat wählen",
+              "demand_percent": "Anforderung in % wählen",
+              "demand_valve": "Ventilstellung in % wählen",
+              "size_area": "Raumfläche eintragen",
+              "size_calculated": "Nennleistung eintragen",
+              "size_nominal_power": "Nennleistung eintragen",
+              "circuit_pump": "Heizkreispumpe eintragen"
+            }
           },
           "by_source": {
             "name": "Nach Quelle"

@@ -268,7 +268,8 @@ async def test_first_setup_factor_step(hass: HomeAssistant) -> None:
         hass, {"name": "House"}, {"name": "Gas boiler", CONF_ENTITY: GAS, CONF_QUANTITY: "input"}
     )
     assert (result["step_id"], result["last_step"]) == ("factor", False)
-    assert result["description_placeholders"] == {"name": "Gas boiler", "unit": "m³"}
+    # The meter, not the name given to the source: the factor converts what the meter counts.
+    assert result["description_placeholders"] == {"meter": "Gas meter", "unit": "m³"}
 
 
 @pytest.mark.usefixtures("entities")
@@ -384,7 +385,7 @@ async def test_source_energy_input_asks_for_the_factor(hass: HomeAssistant, entr
     result = await start(hass, entry, SUBENTRY_SOURCE)
     result = await configure(hass, result, {CONF_ENTITY: GAS, CONF_QUANTITY: "input"})
     assert result["step_id"] == "factor"
-    assert result["description_placeholders"] == {"name": "Gas meter", "unit": "m³"}
+    assert result["description_placeholders"] == {"meter": "Gas meter", "unit": "m³"}
     result = await configure(hass, result, {CONF_FACTOR: 0})
     assert result["errors"] == {CONF_FACTOR: "not_positive"}
     result = await configure(hass, result, {CONF_FACTOR: 9.6})
