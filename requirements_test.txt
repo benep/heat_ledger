@@ -1,2 +1,3 @@
-pytest-homeassistant-custom-component
-hypothesis
+pytest-homeassistant-custom-component==0.13.375
+hypothesis==6.170.15
+ruff==0.17.5
