@@ -24,12 +24,10 @@ Step-by-step help, with pictures: in [English](https://benep.github.io/heat_ledg
 - **The whole picture in the Energy dashboard**: which room used how much, per day, week or month, grouped by floor.
 - **Two extra cards** for a heat dashboard of your own: your rooms over time and compared.
 
-<details>
-<summary>What a heat dashboard looks like</summary>
+All of it on one page, a heat dashboard as the [help pages](https://benep.github.io/heat_ledger/energy-dashboard/#a-heat-dashboard)
+show it: the heat per day, the totals and costs, every room per day and compared, and where the heat flows.
 
 ![A heat dashboard: heat per day, totals, the rooms per day and compared, and the heat flow](https://raw.githubusercontent.com/benep/heat_ledger/main/docs/assets/screenshots/heat-dashboard.png)
-
-</details>
 
 ## Does it fit your home?
 
