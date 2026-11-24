@@ -7,6 +7,8 @@ keeps its ID, so its counters continue.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -15,6 +17,7 @@ import probatio as vol
 from homeassistant.config_entries import (
     SOURCE_RECONFIGURE,
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
@@ -39,10 +42,24 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
     TextSelector,
 )
+from homeassistant.util import dt as dt_util
 from homeassistant.util.ulid import ulid_now
 from homeassistant.util.unit_conversion import PowerConverter
 
 from . import texts
+from .backfill import (
+    DONE,
+    FAILED,
+    HAS_STATISTICS,
+    KEY_ESTIMATE,
+    KEY_SKIPPED,
+    RELOADED,
+    BackfillError,
+    async_backfill,
+    async_check,
+    async_reason,
+    counter_entity_ids,
+)
 from .const import (
     CONF_BACKFILL,
     CONF_CIRCUIT,
@@ -74,6 +91,12 @@ from .const import (
 from .engine import DemandMethod, SizeMethod
 from .model import ENERGY_TO_KWH
 from .texts import async_texts
+
+_LOGGER = logging.getLogger(__name__)
+
+# Steps of the plant's gear.
+STEP_LOSSES = "losses"
+STEP_PAST = "past"
 
 # Form-only keys: not stored.
 SECTION_ACCURACY = "accuracy"
@@ -668,9 +691,22 @@ def _hot_water_data(
 
 
 class HeatLedgerOptionsFlow(OptionsFlow):
-    """Plant options. Changing them reloads the entry through the runtime's update listener."""
+    """The gear of the plant: its options, and calculating the past.
+
+    Changing the options reloads the entry through the runtime's update listener. Calculating the past changes no
+    option: it ends with a message (an abort), so the entry is not reloaded.
+    """
+
+    _estimate = False
+    _task: asyncio.Task[dict[str, Any]] | None = None
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        options = [STEP_LOSSES]
+        if "recorder" in self.hass.config.components:
+            options.append(STEP_PAST)
+        return self.async_show_menu(step_id="init", menu_options=options)
+
+    async def async_step_losses(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         check = _Checker(self.hass)
         if user_input is not None:
             loss = check.positive(user_input.get(CONF_LOSS_KW), CONF_LOSS_KW)
@@ -680,12 +716,99 @@ class HeatLedgerOptionsFlow(OptionsFlow):
                     options[CONF_LOSS_KW] = loss
                 return self.async_create_entry(data=options)
         return self.async_show_form(
-            step_id="init",
+            step_id=STEP_LOSSES,
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(_loss_schema()), user_input if user_input is not None else self.config_entry.options
             ),
             errors=check.errors,
         )
+
+    async def async_step_past(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Whether it can be done is told right away: it runs once per heating system."""
+        if self.config_entry.state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="not_loaded")
+        if user_input is None:
+            try:
+                await async_check(self.hass, self.config_entry)
+            except BackfillError as err:
+                return await self._async_not_calculated(err)
+            schema = vol.Schema({vol.Optional(CONF_ESTIMATE, default=False): BooleanSelector()})
+            return self.async_show_form(step_id=STEP_PAST, data_schema=schema)
+        self._estimate = bool(user_input.get(CONF_ESTIMATE))
+        return await self.async_step_calculating()
+
+    async def async_step_calculating(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if self._task is None:
+            # Runs with the entry: closing the dialog only stops the waiting (shielded), not the calculation.
+            job = self.config_entry.async_create_background_task(
+                self.hass, _async_calculate(self.hass, self.config_entry, self._estimate), f"{DOMAIN} past"
+            )
+            self._task = self.hass.async_create_task(_async_wait(job), f"{DOMAIN} past dialog")
+        if not self._task.done():
+            return self.async_show_progress(
+                step_id="calculating", progress_action="calculating", progress_task=self._task
+            )
+        return self.async_show_progress_done(next_step_id="calculated")
+
+    async def async_step_calculated(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        assert self._task is not None
+        try:
+            summary = self._task.result()
+        except BackfillError as err:
+            return await self._async_not_calculated(err)
+        except asyncio.CancelledError:  # the entry was reloaded meanwhile, which stops its background tasks
+            return await self._async_not_calculated(BackfillError(RELOADED))
+        except Exception:  # logged by _async_calculate
+            return await self._async_not_calculated(BackfillError(FAILED))
+        estimate = summary.get(KEY_ESTIMATE)
+        placeholders = {
+            "start": _date(summary["start"]),
+            "end": _date(summary["end"]),
+            "heat": f"{summary['source_heat']:.0f}",
+        }
+        if estimate is None:
+            return self.async_abort(reason="calculated", description_placeholders=placeholders)
+        if skipped := estimate.get(KEY_SKIPPED):
+            placeholders["reason"] = skipped["reason"]
+            return self.async_abort(reason="calculated_not_estimated", description_placeholders=placeholders)
+        placeholders["estimate_start"] = _date(estimate["start"])
+        placeholders["estimate_heat"] = f"{estimate['source_heat']:.0f}"
+        return self.async_abort(reason="calculated_estimated", description_placeholders=placeholders)
+
+    async def _async_not_calculated(self, err: BackfillError) -> ConfigFlowResult:
+        """Why nothing was calculated. Calculated already, it is done; statistics of an earlier heating system in the
+        way mean starting over, which the message explains, with the sensors whose statistics to delete."""
+        placeholders = {"name": self.config_entry.title, "reason": await async_reason(self.hass, err)}
+        if err.key == DONE:
+            return self.async_abort(reason="already_calculated", description_placeholders=placeholders)
+        if err.key == HAS_STATISTICS:
+            sensors = counter_entity_ids(self.hass, self.config_entry)
+            placeholders["entities"] = "\n".join(f"- {entity_id}" for entity_id in sensors)
+            return self.async_abort(reason="start_over", description_placeholders=placeholders)
+        return self.async_abort(reason="not_calculated", description_placeholders=placeholders)
+
+
+async def _async_calculate(hass: HomeAssistant, entry: ConfigEntry, estimate: bool) -> dict[str, Any]:
+    """Calculate the past from the options; the log says how it ended, as the dialog may be closed by then."""
+    try:
+        summary = await async_backfill(hass, entry, estimate=estimate)
+    except BackfillError as err:
+        _LOGGER.warning("%s: the past was not calculated: %s", entry.title, err)
+        raise
+    except Exception:
+        _LOGGER.exception("%s: calculating the past failed", entry.title)
+        raise
+    _LOGGER.info("%s: calculated the past up to %s, %s hours", entry.title, summary["end"], summary["hours"])
+    return summary
+
+
+async def _async_wait(job: asyncio.Task[dict[str, Any]]) -> dict[str, Any]:
+    return await asyncio.shield(job)
+
+
+def _date(moment: str) -> str:
+    """A moment of the summary as a local date."""
+    return dt_util.as_local(dt_util.parse_datetime(moment) or dt_util.utcnow()).date().isoformat()
 
 
 # --- Subentries --------------------------------------------------------------------------------------------------

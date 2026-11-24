@@ -89,13 +89,42 @@
       "init": {
         "title": "Heating system",
         "description": "Sources, circuits and consumers are edited on the integration page, each through its own entry.",
+        "menu_options": {
+          "losses": "Fixed losses",
+          "past": "Calculate the past"
+        }
+      },
+      "losses": {
+        "title": "Fixed losses",
         "data": {
           "loss_kw": "Fixed losses"
         },
         "data_description": {
           "loss_kw": "Heat lost all the time by a storage tank and pipes, in kW. It is taken off before the split and shows as \"Untracked\" in the Energy dashboard. Leave empty if unknown: the losses then go to the consumers as well."
         }
+      },
+      "past": {
+        "title": "Calculate the past",
+        "description": "Heat Ledger works out the heat of every room for the days before the setup that Home Assistant still has recorded, 10 days by default, and writes it into the statistics, so your dashboard shows them as well. Every day you wait, one day less is left.\n\n**This works once per heating system.** It calculates with the heating system as it is set up now, so complete it first: pumps, pump power, sizes.",
+        "data": {
+          "estimate": "Also estimate the time before, very roughly"
+        },
+        "data_description": {
+          "estimate": "Goes back as far as Home Assistant has hourly statistics of the heat source, often a year or more. Only a very rough estimate: Home Assistant does not keep the history of pumps and on/off thermostats that long, so they count as always on (pumps whose power you chose do not), and each room gets the share it had in the recorded days, adjusted by its hourly heating demand where a thermostat reports it in %. A room's month can easily be off by a quarter or more."
+        }
       }
+    },
+    "progress": {
+      "calculating": "Calculating the past. With the estimate of a year or more this can take a minute; it goes on if you close this."
+    },
+    "abort": {
+      "not_loaded": "The heating system is not loaded.",
+      "calculated": "Done: {heat} kWh of the heat sources from {start} to {end} are split between the rooms and the hot water. The statistics are complete in a few minutes.",
+      "calculated_estimated": "Done: {heat} kWh of the heat sources from {start} to {end} are split between the rooms and the hot water, and {estimate_heat} kWh from {estimate_start} on are roughly estimated. The statistics are complete in a few minutes.",
+      "calculated_not_estimated": "The recorded days are calculated: {heat} kWh of the heat sources from {start} to {end}. The time before them was not estimated:\n\n{reason}",
+      "already_calculated": "The past of {name} has been calculated already; it works once per heating system. To calculate it with different settings, you start over: the help pages (Questions) say how.",
+      "start_over": "{reason}\n\nThey were left by an earlier heating system with the same names. To calculate the past, start over: delete {name}, then delete the statistics of these sensors under **Settings → Tools → Statistics**, and set it up again.\n\n{entities}",
+      "not_calculated": "Nothing was calculated:\n\n{reason}"
     },
     "error": {
       "not_positive": "Enter a number greater than 0."
@@ -370,17 +399,17 @@
   "issues": {
     "backfill_skipped": {
       "title": "The past days of {name} were not calculated",
-      "description": "You ticked **Calculate the past days as well** in the setup of {name}, but nothing was written:\n\n{reason}\n\nOnce that is sorted out, you can start it again: go to **Developer tools → Actions** and perform **Heat Ledger: Calculate the past days**. If you do not need the past days, ignore this."
+      "description": "You ticked **Calculate the past days as well** in the setup of {name}, but nothing was written:\n\n{reason}\n\nOnce that is sorted out, you can start it again: go to **Settings → Devices & services → Heat Ledger**, choose the gear of {name} and **Calculate the past**. If you do not need the past days, ignore this."
     },
     "estimate_skipped": {
       "title": "The time before the recorded days of {name} was not estimated",
-      "description": "You ticked **Also estimate the time before, very roughly** in the setup of {name}. The recorded days were calculated, but the time before them was not estimated:\n\n{reason}\n\nIt cannot be started again for this heating system. If you do not need the time before, ignore this."
+      "description": "You ticked **Also estimate the time before, very roughly** in the setup of {name}. The recorded days were calculated, but the time before them was not estimated:\n\n{reason}\n\nIt cannot be started again for this heating system without starting over (the help pages say how). If you do not need the time before, ignore this."
     }
   },
   "services": {
     "backfill": {
       "name": "Calculate the past days",
-      "description": "Works out the heat of every room for the days before the heating system was set up, as far as Home Assistant still has them recorded, and writes it into the statistics. For a heating system set up without it; it runs once per heating system.",
+      "description": "Works out the heat of every room for the days before the heating system was set up, as far as Home Assistant still has them recorded, and writes it into the statistics. The same as Calculate the past in the gear of the heating system; it runs once per heating system.",
       "fields": {
         "config_entry_id": {
           "name": "Heating system",
@@ -429,6 +458,9 @@
     },
     "backfill_reloaded": {
       "message": "The heating system was changed while the past days were calculated. Nothing was written; start it again."
+    },
+    "backfill_failed": {
+      "message": "Calculating failed unexpectedly; the log of Home Assistant has the details."
     },
     "estimate_nothing_older": {
       "message": "Home Assistant has no hourly statistics of the heat source from before the recorded days."

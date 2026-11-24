@@ -11,7 +11,8 @@ statistics the recorder has compiled since are then raised by what was backfille
   delivered before is left out: it cannot be split.
 - Heat still in the account at the end of the replay (it arrived while no consumer had a weight) is not handed over
   to the live ledger.
-- Once per entry. Importing twice would be harmless, raising the sums twice would not.
+- Once per entry: importing twice would be harmless, raising the sums twice would not. Starting over means a new
+  entry, after the statistics of the old one were deleted.
 
 If chosen as well, the time before the recorded states is estimated from the hourly statistics of the inputs, which
 Home Assistant keeps for good (engine/estimate.py): very roughly, calibrated on the recorded days. Its hours are
@@ -127,6 +128,7 @@ NOT_RECORDED = "backfill_not_recorded"
 NOTHING_SPLIT = "backfill_nothing_split"
 HAS_STATISTICS = "backfill_has_statistics"
 RELOADED = "backfill_reloaded"
+FAILED = "backfill_failed"
 # Why the estimate was skipped (the recorded days are written all the same)
 ESTIMATE_NOTHING_OLDER = "estimate_nothing_older"
 ESTIMATE_NO_STATISTICS = "estimate_no_statistics"
@@ -225,6 +227,47 @@ async def async_backfill(hass: HomeAssistant, entry: ConfigEntry, *, estimate: b
     return summary
 
 
+async def async_check(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Whether the past of a loaded entry can be calculated now: raises the BackfillError a calculation would, as far
+    as it can be told without calculating. For the dialog in the options, before it asks anything."""
+    runtime: HeatLedgerRuntime = entry.runtime_data
+    if runtime.backfill is not None and KEY_SKIPPED not in runtime.backfill:
+        raise BackfillError(DONE)
+    if runtime.backfilling:
+        raise BackfillError(RUNNING)
+    if "recorder" not in hass.config.components:
+        raise BackfillError(NO_RECORDER)
+    targets = _targets(hass, entry)
+    if not any(target.kind == SUBENTRY_CONSUMER for target in targets):
+        raise BackfillError(NO_COUNTERS)
+    if await _async_older_statistics(hass, targets, entry.created_at):
+        raise BackfillError(HAS_STATISTICS)
+
+
+async def _async_older_statistics(hass: HomeAssistant, targets: list[_Target], created: datetime) -> bool:
+    """Whether a counter has statistics from before the entry was created: imported some other way, or left by a
+    counter removed earlier that had the same entity ID. Continuing a sum behind them is not for a backfill to
+    decide."""
+    from homeassistant.components.recorder import get_instance, statistics
+
+    existing = await get_instance(hass).async_add_executor_job(
+        statistics.statistics_during_period,
+        hass,
+        dt_util.utc_from_timestamp(0),
+        created.replace(minute=0, second=0, microsecond=0),
+        {target.entity_id for target in targets},
+        "hour",
+        None,
+        {"sum"},
+    )
+    return any(existing.values())
+
+
+def counter_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
+    """The sensors the past is written into: whose statistics to delete for starting over."""
+    return sorted(target.entity_id for target in _targets(hass, entry))
+
+
 async def async_backfill_at_setup(hass: HomeAssistant, entry: ConfigEntry, *, estimate: bool = False) -> None:
     """The backfill chosen in the first setup.
 
@@ -298,7 +341,7 @@ async def _async_skipped(
             is_persistent=True,
             severity=ir.IssueSeverity.WARNING,
             translation_key=ISSUE_SKIPPED,
-            translation_placeholders={"name": entry.title, "reason": await _async_reason(hass, err)},
+            translation_placeholders={"name": entry.title, "reason": await async_reason(hass, err)},
         )
     runtime.backfill = {KEY_END: entry.created_at.timestamp(), KEY_SKIPPED: err.key, KEY_PENDING: {}}
     await runtime.async_save()
@@ -326,20 +369,7 @@ async def _async_backfill(
         raise BackfillError(NO_HISTORY)  # the recorder keeps nothing from before the setup any more
 
     await instance.async_block_till_done()  # states written just now, as right after the setup
-    first_live_hour = end.replace(minute=0, second=0, microsecond=0)
-    existing = await instance.async_add_executor_job(
-        statistics.statistics_during_period,
-        hass,
-        dt_util.utc_from_timestamp(0),
-        first_live_hour,
-        {target.entity_id for target in targets},
-        "hour",
-        None,
-        {"sum"},
-    )
-    if any(existing.values()):
-        # A counter already has statistics from before it existed: imported some other way, or left by a counter
-        # removed earlier that had the same entity ID. Continuing a sum behind them is not for a backfill to decide.
+    if await _async_older_statistics(hass, targets, end):
         raise BackfillError(HAS_STATISTICS)
 
     feeder = await _async_replay(hass, runtime, begin, end)
@@ -363,12 +393,12 @@ async def _async_backfill(
         try:
             estimate = await _async_estimate(hass, runtime, result)
         except BackfillError as err:
-            estimate_note = {KEY_SKIPPED: {"key": err.key, "reason": await _async_reason(hass, err)}}
+            estimate_note = {KEY_SKIPPED: {"key": err.key, "reason": await async_reason(hass, err)}}
         except Exception:
             # The recorded days are written all the same; trying again would mean calculating them again too.
             _LOGGER.exception("%s: estimating the time before the recorded days failed", entry.title)
             failed = BackfillError(ESTIMATE_FAILED)
-            estimate_note = {KEY_SKIPPED: {"key": failed.key, "reason": await _async_reason(hass, failed)}}
+            estimate_note = {KEY_SKIPPED: {"key": failed.key, "reason": await async_reason(hass, failed)}}
         if not _is_loaded(entry, runtime):
             raise BackfillError(RELOADED)
     older = estimate.result if estimate is not None else None
@@ -785,7 +815,7 @@ async def _async_check_hours(hass: HomeAssistant, runtime: HeatLedgerRuntime, ba
     return True
 
 
-async def _async_reason(hass: HomeAssistant, err: BackfillError) -> str:
+async def async_reason(hass: HomeAssistant, err: BackfillError) -> str:
     """The message of an error in the language of Home Assistant (str() of it is always English)."""
     translations = await async_get_translations(hass, hass.config.language, "exceptions", {DOMAIN})
     text = translations.get(f"component.{DOMAIN}.exceptions.{err.key}.message")

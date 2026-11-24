@@ -10,7 +10,7 @@ from unittest.mock import patch
 import probatio
 import pytest
 from homeassistant.components.energy.data import async_get_manager
-from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER, ConfigSubentry
+from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER, ConfigFlowResult, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import config_validation as cv
@@ -334,8 +334,14 @@ async def test_first_setup_errors(hass: HomeAssistant) -> None:
     assert result["errors"] == {"thermostats": "entity_not_found"}
 
 
-async def test_options_flow(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+async def losses(hass: HomeAssistant, entry: MockConfigEntry) -> ConfigFlowResult:
     result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.MENU
+    return await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "losses"})
+
+
+async def test_options_flow(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await losses(hass, entry)
     assert result["type"] is FlowResultType.FORM
     result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_LOSS_KW: -1})
     assert result["errors"] == {CONF_LOSS_KW: "not_positive"}
@@ -343,10 +349,18 @@ async def test_options_flow(hass: HomeAssistant, entry: MockConfigEntry) -> None
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options == {CONF_LOSS_KW: 0.5}
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await losses(hass, entry)
     assert suggested(result, CONF_LOSS_KW) == 0.5
     result = await hass.config_entries.options.async_configure(result["flow_id"], {})
     assert entry.options == {}
+
+
+async def test_the_past_is_offered_with_a_recorder(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["menu_options"] == ["losses"]
+    hass.config.components.add("recorder")
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["menu_options"] == ["losses", "past"]
 
 
 # --- Sources -----------------------------------------------------------------------------------------------------

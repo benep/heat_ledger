@@ -14,9 +14,11 @@ from homeassistant.components.recorder.models import StatisticMeanType
 from homeassistant.components.recorder.statistics import async_import_statistics
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, MockUser
 from pytest_homeassistant_custom_component.components.recorder.common import (
     async_wait_recording_done,
@@ -1573,3 +1575,155 @@ async def test_a_power_that_never_shows_the_pump_running(
     assert f"The power {power} is not used" in caplog.text
     circuit = await sums(hass, "ground_floor_heat")
     assert circuit[at(1)] - circuit.get(at(0), 0.0) > 0.9 * 2.0  # hour 0 is the baseline, not written
+
+
+# Calculate the past from the gear of the plant.
+
+
+async def past(hass: HomeAssistant, entry: MockConfigEntry) -> Any:
+    """Settings → the gear of the plant → Calculate the past."""
+    flows = hass.config_entries.options
+    result = await flows.async_init(entry.entry_id)
+    return await flows.async_configure(result["flow_id"], {"next_step_id": "past"})
+
+
+async def calculate(hass: HomeAssistant, result: Any) -> Any:
+    """Submit the dialog and wait for its message."""
+    flows = hass.config_entries.options
+    result = await flows.async_configure(result["flow_id"], {CONF_ESTIMATE: False})
+    if result["type"] is FlowResultType.SHOW_PROGRESS:  # unless it was done at once
+        await hass.async_block_till_done()
+        result = await flows.async_configure(result["flow_id"])
+    return result
+
+
+async def test_calculated_from_the_gear_of_the_plant(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """A message says what was done; the second time, that it is done."""
+    await record_past(hass, freezer)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    result = await past(hass, entry)
+    assert result["type"] is FlowResultType.FORM
+    result = await calculate(hass, result)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "calculated"
+    day = {"start": at(6), "end": SETUP}  # as local dates
+    dates = {key: dt_util.as_local(moment).date().isoformat() for key, moment in day.items()}
+    assert result["description_placeholders"] == dates | {"heat": "7"}
+    assert entry.runtime_data.backfill[KEY_PENDING]["living_heat"] == pytest.approx(4.625)
+
+    result = await past(hass, entry)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_calculated"
+    assert result["description_placeholders"]["name"] == "Heating"
+
+
+async def test_statistics_of_an_earlier_heating_system_in_the_gear(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Told right away, with the way to start over and the sensors whose statistics to delete."""
+    await record_past(hass, freezer)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+    await import_hour(hass, entity_id(hass, "bath_heat"), at(8), 500.0)
+
+    result = await past(hass, entry)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "start_over"
+    sensors = result["description_placeholders"]["entities"].splitlines()
+    assert sensors == [f"- {entity}" for entity in backfill.counter_entity_ids(hass, entry)]
+    assert f"- {entity_id(hass, 'bath_heat')}" in sensors
+
+
+async def test_two_calculations_at_once(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Started together (the setup and the gear, say): the second is refused, not run as well."""
+    await record_past(hass, freezer)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    results = await asyncio.gather(async_backfill(hass, entry), async_backfill(hass, entry), return_exceptions=True)
+
+    assert isinstance(results[0], dict)
+    assert isinstance(results[1], BackfillError)
+    assert results[1].key == "backfill_running"
+
+
+async def slow_backfill(monkeypatch: pytest.MonkeyPatch) -> asyncio.Event:
+    """The calculation waits for the event to be set."""
+    release = asyncio.Event()
+    original = backfill._async_backfill
+
+    async def slow(*args: Any) -> dict[str, Any]:
+        await release.wait()
+        return await original(*args)
+
+    monkeypatch.setattr(backfill, "_async_backfill", slow)
+    return release
+
+
+async def test_closing_the_dialog_does_not_stop_it(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The calculation runs with the entry: closing the dialog only stops the waiting."""
+    await record_past(hass, freezer)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+    release = await slow_backfill(monkeypatch)
+    flows = hass.config_entries.options
+    result = await past(hass, entry)
+    result = await flows.async_configure(result["flow_id"], {CONF_ESTIMATE: False})
+    assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+    flows.async_abort(result["flow_id"])  # closed
+    await hass.async_block_till_done()
+    release.set()
+    await background(hass)
+
+    assert entry.runtime_data.backfill[KEY_PENDING]["living_heat"] == pytest.approx(4.625)
+
+
+async def test_reloaded_while_the_dialog_waits(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reload stops the calculation with the entry: the dialog says so instead of breaking."""
+    await record_past(hass, freezer)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+    await slow_backfill(monkeypatch)
+    flows = hass.config_entries.options
+    result = await past(hass, entry)
+    result = await flows.async_configure(result["flow_id"], {CONF_ESTIMATE: False})
+    assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    result = await flows.async_configure(result["flow_id"])
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "not_calculated"
+    assert result["description_placeholders"]["reason"].startswith("The heating system was changed")
+
+
+async def test_an_unexpected_error_in_the_dialog(
+    recorder_mock: Recorder, hass: HomeAssistant, freezer: FrozenDateTimeFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await record_past(hass, freezer)
+    entry = new_entry(hass)
+    await setup(hass, entry)
+
+    async def broken(*_: Any) -> dict[str, Any]:
+        raise RuntimeError("database gone")
+
+    monkeypatch.setattr(backfill, "_async_backfill", broken)
+    result = await calculate(hass, await past(hass, entry))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "not_calculated"
+    assert result["description_placeholders"]["reason"].startswith("Calculating failed unexpectedly")

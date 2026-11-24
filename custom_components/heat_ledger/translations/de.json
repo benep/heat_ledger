@@ -89,13 +89,42 @@
       "init": {
         "title": "Heizungsanlage",
         "description": "Quellen, Heizkreise und Verbraucher bearbeitest du auf der Seite der Integration, jeweils über ihre eigenen Einträge.",
+        "menu_options": {
+          "losses": "Feste Verluste",
+          "past": "Vergangene Zeit berechnen"
+        }
+      },
+      "losses": {
+        "title": "Feste Verluste",
         "data": {
           "loss_kw": "Feste Verluste"
         },
         "data_description": {
           "loss_kw": "Wärme, die Speicher und Leitungen ständig verlieren, in kW. Wird vor der Aufteilung abgezogen und erscheint im Energie-Dashboard als „Nicht erfasst“. Leer lassen, wenn unbekannt: Dann landen auch die Verluste bei den Verbrauchern."
         }
+      },
+      "past": {
+        "title": "Vergangene Zeit berechnen",
+        "description": "Heat Ledger rechnet die Wärme jedes Raums für die Tage vor der Einrichtung nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage, und schreibt sie in die Statistik. So zeigt dein Dashboard auch sie. Mit jedem Tag Warten bleibt ein Tag weniger.\n\n**Das geht einmal pro Heizungsanlage.** Gerechnet wird mit der Heizungsanlage, wie sie jetzt eingerichtet ist; vervollständige sie also vorher: Pumpen, Leistung der Pumpen, Größen.",
+        "data": {
+          "estimate": "Auch die Zeit davor schätzen, sehr grob"
+        },
+        "data_description": {
+          "estimate": "Reicht so weit zurück, wie Home Assistant Stundenstatistiken der Wärmequelle hat, oft ein Jahr oder mehr. Nur eine sehr grobe Schätzung: Den Verlauf von Pumpen und An/Aus-Thermostaten hebt Home Assistant nicht so lange auf, sie gelten deshalb als immer an (Pumpen mit gemessener Leistung nicht), und jeder Raum bekommt den Anteil, den er in den aufgezeichneten Tagen hatte, angepasst an seinen stündlichen Heizbedarf, wo ein Thermostat ihn in % meldet. Ein Monat eines Raums kann leicht um ein Viertel oder mehr danebenliegen."
+        }
       }
+    },
+    "progress": {
+      "calculating": "Die vergangene Zeit wird berechnet. Mit der Schätzung von einem Jahr oder mehr kann das eine Minute dauern; schließt du das hier, rechnet es weiter."
+    },
+    "abort": {
+      "not_loaded": "Die Heizungsanlage ist nicht geladen.",
+      "calculated": "Fertig: {heat} kWh der Wärmequellen vom {start} bis {end} sind auf die Räume und das Warmwasser verteilt. In wenigen Minuten ist die Statistik vollständig.",
+      "calculated_estimated": "Fertig: {heat} kWh der Wärmequellen vom {start} bis {end} sind auf die Räume und das Warmwasser verteilt, dazu {estimate_heat} kWh ab {estimate_start} grob geschätzt. In wenigen Minuten ist die Statistik vollständig.",
+      "calculated_not_estimated": "Die aufgezeichneten Tage sind berechnet: {heat} kWh der Wärmequellen vom {start} bis {end}. Die Zeit davor wurde nicht geschätzt:\n\n{reason}",
+      "already_calculated": "Die vergangene Zeit von {name} ist schon berechnet; das geht einmal pro Heizungsanlage. Um sie mit anderen Einstellungen zu berechnen, fängst du von vorn an: Wie, steht in der Hilfe (Häufige Fragen).",
+      "start_over": "{reason}\n\nSie stammen von einer früheren Heizungsanlage mit denselben Namen. Um die vergangene Zeit zu berechnen, fang von vorn an: Lösche {name}, lösche dann die Statistiken dieser Sensoren unter **Einstellungen → Werkzeuge → Statistik** und richte sie neu ein.\n\n{entities}",
+      "not_calculated": "Es wurde nichts berechnet:\n\n{reason}"
     },
     "error": {
       "not_positive": "Gib eine Zahl größer als 0 ein."
@@ -370,17 +399,17 @@
   "issues": {
     "backfill_skipped": {
       "title": "Die vergangenen Tage von {name} wurden nicht nachgerechnet",
-      "description": "Du hast bei der Einrichtung von {name} **Vergangene Tage nachrechnen** angekreuzt, aber es wurde nichts geschrieben:\n\n{reason}\n\nWenn das behoben ist, kannst du es noch einmal starten: Gehe zu **Entwicklerwerkzeuge → Aktionen** und führe **Heat Ledger: Vergangene Tage nachrechnen** aus. Brauchst du die vergangenen Tage nicht, ignoriere diesen Hinweis."
+      "description": "Du hast bei der Einrichtung von {name} **Vergangene Tage nachrechnen** angekreuzt, aber es wurde nichts geschrieben:\n\n{reason}\n\nWenn das behoben ist, kannst du es noch einmal starten: Gehe zu **Einstellungen → Geräte & Dienste → Heat Ledger**, wähle das Zahnrad von {name} und **Vergangene Zeit berechnen**. Brauchst du die vergangenen Tage nicht, ignoriere diesen Hinweis."
     },
     "estimate_skipped": {
       "title": "Die Zeit vor den aufgezeichneten Tagen von {name} wurde nicht geschätzt",
-      "description": "Du hast bei der Einrichtung von {name} **Auch die Zeit davor schätzen, sehr grob** angekreuzt. Die aufgezeichneten Tage sind nachgerechnet, die Zeit davor wurde aber nicht geschätzt:\n\n{reason}\n\nFür diese Heizungsanlage lässt sich das nicht noch einmal starten. Brauchst du die Zeit davor nicht, ignoriere diesen Hinweis."
+      "description": "Du hast bei der Einrichtung von {name} **Auch die Zeit davor schätzen, sehr grob** angekreuzt. Die aufgezeichneten Tage sind nachgerechnet, die Zeit davor wurde aber nicht geschätzt:\n\n{reason}\n\nFür diese Heizungsanlage lässt sich das nur mit einem Neuanfang noch einmal starten (wie, steht in der Hilfe). Brauchst du die Zeit davor nicht, ignoriere diesen Hinweis."
     }
   },
   "services": {
     "backfill": {
       "name": "Vergangene Tage nachrechnen",
-      "description": "Rechnet die Wärme jedes Raums für die Tage vor der Einrichtung der Heizungsanlage nach, soweit Home Assistant sie noch aufgezeichnet hat, und schreibt sie in die Statistik. Für eine Heizungsanlage, die ohne das eingerichtet wurde; läuft einmal pro Heizungsanlage.",
+      "description": "Rechnet die Wärme jedes Raums für die Tage vor der Einrichtung der Heizungsanlage nach, soweit Home Assistant sie noch aufgezeichnet hat, und schreibt sie in die Statistik. Dasselbe wie Vergangene Zeit berechnen im Zahnrad der Heizungsanlage; läuft einmal pro Heizungsanlage.",
       "fields": {
         "config_entry_id": {
           "name": "Heizungsanlage",
@@ -429,6 +458,9 @@
     },
     "backfill_reloaded": {
       "message": "Die Heizungsanlage wurde geändert, während die vergangenen Tage nachgerechnet wurden. Es wurde nichts geschrieben; starte es noch einmal."
+    },
+    "backfill_failed": {
+      "message": "Die Berechnung ist unerwartet fehlgeschlagen; Details stehen im Log von Home Assistant."
     },
     "estimate_nothing_older": {
       "message": "Home Assistant hat keine Stundenstatistiken der Wärmequelle aus der Zeit vor den aufgezeichneten Tagen."
