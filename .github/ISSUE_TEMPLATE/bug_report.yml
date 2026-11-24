@@ -1,0 +1,47 @@
+name: Something is wrong
+description: A wrong split, an error message, a setup step that does not work.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Heat Ledger. Have a look at the [questions](https://benep.github.io/heat_ledger/faq/) first, the answer may already be there.
+        English or German, both are fine.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        On the integration page, the three dots of Heat Ledger, **Download diagnostics**, then drag the file here.
+        It contains your setup, the state of the split and the entities Heat Ledger reads, nothing else.
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: "2026.12.0"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Heat Ledger version
+      description: Shown at the top of the integration page.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log messages
+      description: Settings → System → Logs, search for heat_ledger. Optional.
+      render: text

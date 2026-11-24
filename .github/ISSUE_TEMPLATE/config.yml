@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Help pages
+    url: https://benep.github.io/heat_ledger/
+    about: Setup, how the split works, and how to make it more accurate.
+  - name: Questions
+    url: https://benep.github.io/heat_ledger/faq/
+    about: Answers to the most common questions.
