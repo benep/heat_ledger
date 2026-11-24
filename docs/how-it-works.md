@@ -59,3 +59,15 @@ improvement** says which detail would help that room most. [More accurate](more-
     - **Per hour** it is rougher, because the heat sometimes waits (see above).
     - If your meter counts fuel (gas, oil) instead of heat, the losses of the boiler are part of the rooms' heat. The
       shares between the rooms stay right.
+
+### What the estimate does not know
+
+Heat Ledger sees the meter, the pumps and what each thermostat asks for, not the heat itself. So it misses:
+
+- **Heat between rooms.** With the door open, the warm living room heats the hall: the hall's radiator stays off and
+  gets nothing, the living room gets it all.
+- **Radiators without a thermostat** in Home Assistant (a towel rail, a hallway radiator on a manual valve). Their heat
+  is shared out between the rooms that have one.
+- **Radiators that only get lukewarm** although their thermostat asks for heat, in a system without hydraulic
+  balancing. [Questions](faq.md#the-numbers) explains what to enter for them.
+- **Sun and other heat** (a fireplace, cooking, people) only count as far as they make a thermostat ask for less.

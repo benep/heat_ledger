@@ -36,11 +36,9 @@
 
 ??? question "My heating has no meter in Home Assistant."
 
-    Heat Ledger needs one number that counts what your heating uses or makes. Ideas:
-
-    - The integration of your boiler or heat pump often has one (gas consumption, energy, heat energy).
-    - A gas meter can be read with an optical reader or a pulse sensor.
-    - For an oil burner, the run time of the burner multiplied by its output works as well (factor: the output in kW).
+    Heat Ledger needs one number that counts what your heating uses or makes: the integration of your boiler or heat
+    pump, a reader on the gas meter, or the run time of an oil burner. [Setup](setup.md#no-meter-yet) shows the three
+    ways.
 
 ## The numbers
 

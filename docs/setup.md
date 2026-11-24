@@ -44,6 +44,18 @@ heating uses or makes and only goes up.
     Choose that one, as **heat**. Its electricity would be the wrong meter: a heat pump makes 3 to 4 times as much
     heat as it uses electricity, and that ratio changes with the weather.
 
+### No meter yet?
+
+Heat Ledger needs one number that counts what your heating uses or makes. Three common ways to get one:
+
+| Heating | How |
+|---|---|
+| **Boiler or heat pump with an integration** | Look at the entities of its integration first: many report gas consumption, energy or heat energy. That is the simplest meter there is. |
+| **Gas boiler** | Read the gas meter: most have a magnet or a reflective mark on the last digit. A pulse sensor or an optical reader (ready-made, or built with ESPHome) counts it in m³. |
+| **Oil burner** | Count the hours the burner runs: a template sensor that is 1 while it runs and 0 otherwise, and an **Integral** helper over it. Enter the burner's output in kW as factor (only for a burner without modulation). |
+
+Whichever you use, it must only go up, and it should show in the Energy dashboard as gas source too.
+
 ### Step 2b: Factor (only for energy input)
 
 How many kWh of heat does one unit of your meter give? Typical values:

@@ -64,3 +64,17 @@ steht unter [Genauer machen](more-accurate.md).
     - **Pro Stunde** ist sie gröber, weil die Wärme manchmal wartet (siehe oben).
     - Zählt dein Zähler Brennstoff (Gas, Öl) statt Wärme, stecken die Verluste des Kessels in der Wärme der Räume. Die
       Anteile der Räume untereinander stimmen trotzdem.
+
+### Was die Schätzung nicht weiß
+
+Heat Ledger sieht den Zähler, die Pumpen und was jedes Thermostat anfordert, nicht die Wärme selbst. Deshalb entgeht
+ihm:
+
+- **Wärme zwischen Räumen.** Bei offener Tür heizt das warme Wohnzimmer den Flur mit: Der Heizkörper im Flur bleibt
+  aus und bekommt nichts, das Wohnzimmer bekommt alles.
+- **Heizkörper ohne Thermostat** in Home Assistant (ein Handtuchheizkörper, ein Heizkörper im Flur mit Handventil).
+  Ihre Wärme wird auf die Räume verteilt, die eines haben.
+- **Heizkörper, die nur lauwarm werden**, obwohl ihr Thermostat Wärme will, in einer Anlage ohne hydraulischen
+  Abgleich. Was du dann einträgst, steht unter [Häufige Fragen](faq.md#die-zahlen).
+- **Sonne und andere Wärme** (Kamin, Kochen, Menschen) zählen nur so weit, wie ein Thermostat deshalb weniger
+  anfordert.
