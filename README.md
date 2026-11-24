@@ -1,5 +1,7 @@
 # Heat Ledger
 
+<img src="https://raw.githubusercontent.com/benep/heat_ledger/main/custom_components/heat_ledger/brand/icon@2x.png" alt="Heat Ledger logo" width="112" align="right">
+
 **See where the heat of your heating goes: room by room, right in the Energy dashboard of Home Assistant.**
 
 **Deutsch?** Die ganze Anleitung gibt es [auf Deutsch](https://benep.github.io/heat_ledger/de/), und auch die
@@ -24,8 +26,10 @@ Step-by-step help, with pictures: in [English](https://benep.github.io/heat_ledg
 - **The whole picture in the Energy dashboard**: which room used how much, per day, week or month, grouped by floor.
 - **Two extra cards** for a heat dashboard of your own: your rooms over time and compared.
 
-All of it on one page, a heat dashboard as the [help pages](https://benep.github.io/heat_ledger/energy-dashboard/#a-heat-dashboard)
-show it: the heat per day, the totals and costs, every room per day and compared, and where the heat flows.
+All of it on one page: a heat dashboard of your own that works like the Energy dashboard, only extended. Same date
+picker, same sources and rooms from your energy settings, plus the room charts the gas tab does not have yet. New
+rooms show up by themselves. The [help pages](https://benep.github.io/heat_ledger/energy-dashboard/#a-heat-dashboard)
+have it ready to copy.
 
 ![A heat dashboard: heat per day, totals, the rooms per day and compared, and the heat flow](https://raw.githubusercontent.com/benep/heat_ledger/main/docs/assets/screenshots/heat-dashboard.png)
 
