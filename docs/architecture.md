@@ -87,7 +87,7 @@ Rules:
   shows it as a negative bar instead; the sums agree, the days do not). Negative readings are skipped.
 - **No plausibility check:** like Home Assistant, Heat Ledger does not judge whether an increase is plausible. A
   spike of the source, or a template reporting 0 for a moment, ends up in the source's statistics and in those of the
-  consumers, and is corrected there by hand (Developer tools, Statistics). A template source avoids it with an
+  consumers, and is corrected there by hand (Settings, Tools, Statistics). A template source avoids it with an
   `availability` template. A spike while no consumer has a weight (pumps off at night) waits in the account and
   reaches the consumers' statistics only when they heat again, possibly hours later.
 - **Source unavailable:** its increase is booked when it is back, measured from the last valid value. Heat that

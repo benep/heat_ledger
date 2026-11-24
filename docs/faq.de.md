@@ -93,8 +93,9 @@
 
     Springt dein Zähler kurz (ein Template, das beim Neustart 0 meldet, ein falscher Wert), zählt Heat Ledger das wie
     Home Assistant: als Wärme. Die Spitze steht dann in der Quelle und in den Räumen. Korrigiere sie wie bei jedem
-    anderen Sensor: **Entwicklerwerkzeuge → Statistiken**, den Sensor suchen, auf das Rampen-Symbol
-    :material-chart-timeline-variant: klicken und den Wert zu dieser Stunde anpassen.
+    anderen Sensor: **Einstellungen → Werkzeuge → Statistik** (in älteren Versionen **Entwicklerwerkzeuge**), den
+    Sensor suchen, auf das Rampen-Symbol :material-chart-timeline-variant: klicken und den Wert zu dieser Stunde
+    anpassen.
 
     Ist dein Zähler ein **Template**, verhindere es: Gib dem Template ein `availability`-Template, damit es *nicht
     verfügbar* ist statt 0, solange seine Eingänge fehlen.

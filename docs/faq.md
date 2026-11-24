@@ -88,8 +88,8 @@
 
     If your meter jumps for a moment (a template that reports 0 during a restart, a wrong reading), Heat Ledger counts
     it like Home Assistant does: as heat. The spike then appears in the source and in the rooms. Correct it the same
-    way as for any other sensor: **Developer tools → Statistics**, find the sensor, click the ramp icon
-    :material-chart-timeline-variant: and adjust the value at that hour.
+    way as for any other sensor: **Settings → Tools → Statistics** (in older versions **Developer tools**), find the
+    sensor, click the ramp icon :material-chart-timeline-variant: and adjust the value at that hour.
 
     If your meter is a **template**, prevent it: give the template an `availability` template, so it is *unavailable*
     instead of 0 while its inputs are missing.
