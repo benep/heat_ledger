@@ -50,14 +50,17 @@ anything.
   yearly bill. Without a meter there is nothing to split.
 - No meter in Home Assistant yet? [Questions](faq.md#getting-started) lists ways to get one.
 
-**Do your thermostats report whether they are heating right now?** Open **Developer tools → States** and look for one
-of your thermostats (`climate.…`). If its attributes show `hvac_action` with a value like `heating` or `idle`, it
-fits.
+**Do your thermostats report whether they are heating right now?** Open **Settings → Tools → States** (in older
+versions **Developer tools → States**) and look for one of your thermostats (`climate.…`). If its attributes show
+`hvac_action` with a value like `heating` or `idle`, it fits.
 
 - If `hvac_action` is missing, check whether the thermostat has a sensor of its own in % (heating power, heating
   demand or valve position). Choose that one instead of the thermostat, see [More accurate](more-accurate.md#demand-in).
-- If it has neither, the room counts as heating for as long as the thermostat is switched on. The heat is then split
-  almost only by the size of the radiators, and you do not see which room really heats a lot. Heat Ledger is hardly
+- If it has neither, the room counts as heating while it is colder than the thermostat is set to
+  (`current_temperature` below `temperature`). That is rougher, as a thermostat often heats a little before and after,
+  but it still shows which rooms heat a lot.
+- If the thermostat does not report the room temperature either, the room counts as heating for as long as the
+  thermostat is switched on. The heat is then split almost only by the size of the radiators: Heat Ledger is hardly
   worth it then.
 
 !!! info "An estimate, not a measurement"

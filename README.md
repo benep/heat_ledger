@@ -38,7 +38,7 @@ Heat Ledger needs two things that are already in your Home Assistant. Check them
 | | Fits | Does not fit |
 |---|---|---|
 | **A meter for your heating** | Your own gas boiler, oil boiler, heat pump or district heating, with a counter in Home Assistant that only goes up: gas, oil, a heat meter, or the heat a heat pump reports. | A flat on a central heating for the whole building, of which you only know the yearly bill. Without a meter there is nothing to split. |
-| **Thermostats, one per room or radiator** | They report whether they are heating right now (`hvac_action`), or a heating demand or valve position in %. Many do, for example Tado, Netatmo, Homematic or Zigbee radiator valves. | They report neither. The heat is then split almost only by the size of the radiators. |
+| **Thermostats, one per room or radiator** | They report whether they are heating right now (`hvac_action`), or a heating demand or valve position in %. Many do, for example Tado, Netatmo, Homematic or Zigbee radiator valves. Others (Fritz, for one) count as heating while the room is colder than set, which is rougher. | They report neither, nor the room temperature. The heat is then split almost only by the size of the radiators. |
 
 Not sure? [Check both in a minute](https://benep.github.io/heat_ledger/#does-it-fit-your-home).
 

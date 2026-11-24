@@ -128,7 +128,9 @@ Rules:
 | `backfill.py` | The days before the setup, from the recorder: replays the inputs, imports the hours as statistics and raises the live ones; if chosen, estimates older periods from the hourly statistics (see Backfill). |
 
 Converting states to readings: `climate` → `hvac_action` is `heating` or `preheating` (anything else off; a
-thermostat that does not report `hvac_action` counts as heating in `heat`, `heat_cool` or `auto`);
+thermostat that does not report `hvac_action` counts as heating in `heat`, `heat_cool` or `auto` while
+`current_temperature` is below `temperature`, or `target_temp_low`: the middle of the hysteresis of Home Assistant's
+generic thermostat; without both, throughout those modes);
 binary sensors → `on`; percent sensors → value / 100, clamped to 0..1; energy sensors → kWh using the unit of the
 entity. `unavailable` and `unknown` become `None`.
 

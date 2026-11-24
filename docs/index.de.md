@@ -51,15 +51,18 @@ etwas installierst.
   jährliche Abrechnung kennst. Ohne Zähler gibt es nichts zu verteilen.
 - Noch kein Zähler in Home Assistant? Wege dorthin stehen unter [Häufige Fragen](faq.md#erste-schritte).
 
-**Melden deine Thermostate, ob sie gerade heizen?** Öffne **Entwicklerwerkzeuge → Zustände** und suche eines deiner
-Thermostate (`climate.…`). Steht bei seinen Attributen `hvac_action` mit einem Wert wie `heating` oder `idle`, passt
-es.
+**Melden deine Thermostate, ob sie gerade heizen?** Öffne **Einstellungen → Werkzeuge → Zustände** (in älteren
+Versionen **Entwicklerwerkzeuge → Zustände**) und suche eines deiner Thermostate (`climate.…`). Steht bei seinen
+Attributen `hvac_action` mit einem Wert wie `heating` oder `idle`, passt es.
 
 - Fehlt `hvac_action`, sieh nach, ob das Thermostat einen eigenen Sensor in % hat (Heizleistung, Heizbedarf oder
   Ventilstellung). Den wählst du dann statt des Thermostats, siehe [Genauer machen](more-accurate.md#anforderung-in).
-- Hat es keines von beiden, zählt der Raum als heizend, solange das Thermostat eingeschaltet ist. Die Wärme wird dann
-  fast nur nach der Größe der Heizkörper verteilt, und du siehst nicht, welcher Raum wirklich viel heizt. Dafür
-  lohnt sich Heat Ledger kaum.
+- Hat es keines von beiden, zählt der Raum als heizend, solange es kälter ist, als das Thermostat eingestellt ist
+  (`current_temperature` unter `temperature`). Das ist gröber, weil ein Thermostat oft etwas vorher und nachher heizt,
+  zeigt aber trotzdem, welche Räume viel heizen.
+- Meldet das Thermostat auch die Raumtemperatur nicht, zählt der Raum als heizend, solange das Thermostat
+  eingeschaltet ist. Die Wärme wird dann fast nur nach der Größe der Heizkörper verteilt: Dafür lohnt sich Heat Ledger
+  kaum.
 
 !!! info "Eine Schätzung, keine Messung"
 
