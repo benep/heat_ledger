@@ -110,6 +110,8 @@ Wähle die **Thermostate** deiner Heizkörper oder Fußbodenheizung. Jedes wird 
 Tage nach, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage. Deine Dashboards beginnen dann
 nicht leer. Gerechnet wird mit der Heizungsanlage, wie du sie gerade eingerichtet hast. Das wird einmalig in die
 Statistik geschrieben und lässt sich nicht mit einem Klick rückgängig machen, deshalb ist der Haken nicht gesetzt.
+Willst du vorher noch mehr eintragen (etwa die Größe der Heizkörper), lass ihn weg und wähle später, innerhalb
+weniger Tage, im Zahnrad der Heizungsanlage **Vergangene Zeit berechnen**.
 
 **Auch die Zeit davor schätzen, sehr grob** (optional): Reicht weiter zurück, so weit Home Assistant
 Stundenstatistiken deiner Wärmequelle hat, oft ein Jahr oder mehr. Den Verlauf von Pumpen und An/Aus-Thermostaten hebt

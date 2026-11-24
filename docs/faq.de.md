@@ -14,13 +14,28 @@
 
     Frühere Wärme, vor der Einrichtung, wird nur aufgeteilt, wenn du im letzten Schritt der Einrichtung **Vergangene
     Tage nachrechnen** angekreuzt hast; sonst zeigt das Energie-Dashboard sie als *nicht erfasst*. Du kannst es
-    einmalig nachholen: Gehe zu **Entwicklerwerkzeuge → Aktionen**, wähle **Heat Ledger: Vergangene Tage
-    nachrechnen**, wähle deine Heizungsanlage und klicke auf **Aktion ausführen**. Es umfasst die Tage vor der
-    Einrichtung, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage; mach es also bald nach der
-    Einrichtung, jeder Tag später ist ein Tag weniger. Schaltest du dort **Auch die Zeit davor schätzen, sehr grob**
-    ein, geht es so weit zurück, wie Home Assistant Stundenstatistiken deiner Wärmequelle hat
-    ([was das heißt](setup.md#schritt-4-raumheizung)); das geht nur zusammen mit den vergangenen Tagen, im selben
-    Lauf.
+    einmalig nachholen: Gehe zu **Einstellungen → Geräte & Dienste → Heat Ledger**, klicke auf das Zahnrad
+    :material-cog: deiner Heizungsanlage (die oberste Zeile) und wähle **Vergangene Zeit berechnen**. Es umfasst die
+    Tage vor der Einrichtung, die Home Assistant noch aufgezeichnet hat, in der Voreinstellung 10 Tage; mach es also
+    bald nach der Einrichtung, jeder Tag später ist ein Tag weniger. Vervollständige deine Heizungsanlage vorher
+    (Pumpen, Leistung der Pumpen, Größen): Gerechnet wird mit den Einstellungen, die sie dann hat. Setzt du dort den
+    Haken **Auch die Zeit davor schätzen, sehr grob**, geht es so weit zurück, wie Home Assistant Stundenstatistiken
+    deiner Wärmequelle hat ([was das heißt](setup.md#schritt-4-raumheizung)).
+
+??? question "Kann ich die vergangene Zeit mit besseren Einstellungen noch einmal berechnen?"
+
+    Nicht für dieselbe Heizungsanlage: Die vergangene Zeit wird einmal berechnet. Die Zustände, aus denen sie
+    berechnet wird, hebt Home Assistant nur 10 Tage auf; später neu zu rechnen könnte also nur verlieren, was seitdem
+    genau gezählt wurde.
+
+    Du kannst aber von vorn anfangen. Dann wird alles neu berechnet, und was vorher gezählt wurde, ist weg:
+
+    1. Lösche die Heizungsanlage: **Einstellungen → Geräte & Dienste → Heat Ledger**, die drei Punkte deiner
+       Heizungsanlage, **Löschen**.
+    2. Lösche ihre Statistiken: **Einstellungen → Werkzeuge → Statistik**. Ihre Sensoren (*Wärme* jedes Raums und
+       so weiter) zeigen *Für diese Entität ist kein Zustand verfügbar.* Wähle sie alle aus und dann **Ausgewählte
+       Statistiken löschen**.
+    3. Richte sie neu ein, mit allen Einstellungen, und berechne die vergangene Zeit.
 
 ??? question "Meine Heizung hat keinen Zähler in Home Assistant."
 

@@ -14,11 +14,25 @@
 
     Earlier heat, before the setup, is only split up if you ticked **Calculate the past days as well** in the last
     step of the setup; otherwise the Energy dashboard shows it as *untracked*. You can still do it afterwards, once:
-    go to **Developer tools → Actions**, choose **Heat Ledger: Calculate the past days**, pick your heating system and
-    click **Perform action**. It covers the days before the setup that Home Assistant still has recorded, 10 days by
-    default; so do it soon after the setup, every day later there is one day less. Switch on **Also estimate the
-    time before, very roughly** there to go back as far as Home Assistant has hourly statistics of your heat source
-    ([what that means](setup.md#step-4-room-heating)); it only works together with the past days, in the same run.
+    go to **Settings → Devices & services → Heat Ledger**, click the gear :material-cog: of your heating system (the
+    topmost row) and choose **Calculate the past**. It covers the days before the setup that Home Assistant still has
+    recorded, 10 days by default; so do it soon after the setup, every day later there is one day less. Complete your
+    heating system first (pumps, pump power, sizes): it calculates with the settings it has then. Tick **Also
+    estimate the time before, very roughly** there to go back as far as Home Assistant has hourly statistics of your
+    heat source ([what that means](setup.md#step-4-room-heating)).
+
+??? question "Can I calculate the past again, with better settings?"
+
+    Not for the same heating system: the past is calculated once. Home Assistant keeps the states it is calculated
+    from only for 10 days, so calculating again later could only lose what was counted exactly since.
+
+    You can start over instead. Everything is then calculated anew, and what was counted before is gone:
+
+    1. Delete the heating system: **Settings → Devices & services → Heat Ledger**, the three dots of your heating
+       system, **Delete**.
+    2. Delete its statistics: **Settings → Tools → Statistics**. Its sensors (*Heat* of every room and so on) show
+       *There is no state available for this entity*. Select them all and choose **Delete selected statistics**.
+    3. Set it up again, with all the settings, and calculate the past.
 
 ??? question "My heating has no meter in Home Assistant."
 

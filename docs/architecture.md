@@ -136,8 +136,11 @@ Devices: one per subentry, so the Home Assistant UI groups the sensors of a cons
 
 ## Backfill
 
-`backfill.py` calculates the days before the plant was set up, once per entry: chosen in the first setup, or later
-with the action `heat_ledger.backfill` (administrators only).
+`backfill.py` calculates the days before the plant was set up, once per entry: chosen in the first setup, or later in
+the plant's options (**Calculate the past**, which checks first whether it can run, then runs it as a background task
+of the entry and waits on it with a progress dialog) or with the action `heat_ledger.backfill` (administrators only).
+Calculating again would only replace exactly counted days by recalculated or estimated ones; starting over means a
+new entry, after the statistics of the old one were deleted.
 
 - **Recalculation:** a second ledger (`engine/replay.py`) is fed the recorded states of the inputs, read from the
   recorder day by day, up to the moment the entry was created; from then on the live counters count. It closes its
@@ -176,7 +179,7 @@ with the action `heat_ledger.backfill` (administrators only).
 - **Nothing is written** if a counter already has statistics from before the entry was created, if an input has no
   valid reading in the recording, if the sources delivered nothing or no consumer received anything, or if the
   entry is reloaded during the recalculation. Chosen in the first setup, the reason is shown as a repair issue
-  (unless there was simply nothing to calculate), and the action can be tried again.
+  (unless there was simply nothing to calculate), and the options can try again.
 
 Not built yet: rewriting the history of a single consumer.
 

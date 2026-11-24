@@ -109,7 +109,8 @@ counter.
 **Calculate the past days as well** (optional): tick this, and Heat Ledger works out the heat of every room for the
 days Home Assistant still has recorded, 10 days by default. Your dashboards then do not start empty. It calculates
 with the heating system as you have just set it up. This is written into the statistics once and cannot be undone
-with a click, which is why it is not ticked by default.
+with a click, which is why it is not ticked by default. If you want to add more first (the sizes of the radiators,
+say), leave it and choose **Calculate the past** in the gear of the heating system later, within a few days.
 
 **Also estimate the time before, very roughly** (optional): goes back further, as far as Home Assistant has hourly
 statistics of your heat source, often a year or more. Home Assistant does not keep the history of pumps and on/off
