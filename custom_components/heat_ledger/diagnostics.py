@@ -46,6 +46,10 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: HeatLed
             "hvac_action": state.attributes.get("hvac_action") if state else None,
             "last_changed": state.last_changed.isoformat() if state else None,
         }
+        if state and state.domain == "climate":
+            # Without hvac_action, whether it heats is told by these (model._wants_heat).
+            for attribute in ("current_temperature", "temperature", "target_temp_low"):
+                result["inputs"][entity_id][attribute] = state.attributes.get(attribute)
     result["consumers"] = {
         c.id: {
             "total_kwh": ledger.consumer_total(c.id),

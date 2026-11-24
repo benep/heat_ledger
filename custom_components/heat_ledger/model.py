@@ -181,9 +181,7 @@ def parse_state(
     if kind is InputKind.HVAC_ACTION:
         action = attributes.get("hvac_action")
         if action is None:
-            # The thermostat does not report whether it is heating (Home Assistant leaves the attribute out then):
-            # it counts as heating while it is in a heating mode. Rough, but blocking the whole split would be worse.
-            return state in HEATING_MODES
+            return _wants_heat(state, attributes)
         return action in HEATING_ACTIONS
     try:
         value = float(state)
@@ -194,6 +192,34 @@ def parse_state(
     if kind is InputKind.PERCENT:
         return value / 100
     return convert(value, attributes.get("unit_of_measurement"), reference)
+
+
+def _wants_heat(mode: str, attributes: Mapping[str, Any]) -> bool:
+    """Whether a thermostat that does not report if it is heating (Home Assistant leaves out hvac_action then: Fritz,
+    some Matter thermostats) is heating: in a heating mode, while the room is colder than it is set to.
+
+    Home Assistant's own generic thermostat switches on below the set temperature less a tolerance and off above it
+    plus a tolerance; without its memory, the middle of that is "colder than set". Without both temperatures it counts
+    as heating throughout the heating mode: rough, but blocking the whole split would be worse.
+    """
+    if mode not in HEATING_MODES:
+        return False
+    current = _temperature(attributes.get("current_temperature"))
+    # heat_cool sets a range: heating keeps the room above its low end.
+    target = _temperature(attributes.get("temperature"))
+    if target is None:
+        target = _temperature(attributes.get("target_temp_low"))
+    if current is None or target is None:
+        return True
+    return current < target
+
+
+def _temperature(value: Any) -> float | None:
+    try:
+        temperature = float(value)
+    except (TypeError, ValueError):
+        return None
+    return temperature if math.isfinite(temperature) else None
 
 
 def _source(subentry: Subentry) -> SourceSpec:

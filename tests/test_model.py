@@ -131,8 +131,18 @@ def test_demand_type_without_entity_is_always():
         (InputKind.HVAC_ACTION, "heat", {"hvac_action": "preheating"}, True),
         (InputKind.HVAC_ACTION, "auto", {"hvac_action": "idle"}, False),
         (InputKind.HVAC_ACTION, "off", {}, False),
-        (InputKind.HVAC_ACTION, "heat", {}, True),  # no hvac_action: heating while on
-        (InputKind.HVAC_ACTION, "auto", {}, True),
+        # No hvac_action (Fritz, say): heating while the room is colder than set, in a heating mode.
+        (InputKind.HVAC_ACTION, "heat", {"current_temperature": 19.5, "temperature": 21.0}, True),
+        (InputKind.HVAC_ACTION, "heat", {"current_temperature": 21.0, "temperature": 21.0}, False),
+        (InputKind.HVAC_ACTION, "auto", {"current_temperature": 22.5, "temperature": 21.0}, False),
+        (InputKind.HVAC_ACTION, "heat_cool", {"current_temperature": 19.0, "target_temp_low": 20.0}, True),
+        (InputKind.HVAC_ACTION, "heat_cool", {"current_temperature": 23.0, "target_temp_low": 20.0}, False),
+        (InputKind.HVAC_ACTION, "off", {"current_temperature": 15.0, "temperature": 21.0}, False),
+        (InputKind.HVAC_ACTION, "cool", {"current_temperature": 15.0, "temperature": 21.0}, False),
+        # Without both temperatures: heating while on, rough but not blocking.
+        (InputKind.HVAC_ACTION, "heat", {}, True),
+        (InputKind.HVAC_ACTION, "auto", {"current_temperature": 19.0}, True),
+        (InputKind.HVAC_ACTION, "heat", {"current_temperature": "nan", "temperature": 21.0}, True),
         (InputKind.HVAC_ACTION, "cool", {}, False),  # an air conditioner cooling: no heat
         (InputKind.PERCENT, "74", None, 0.74),
         (InputKind.PERCENT, "unknown", None, None),
