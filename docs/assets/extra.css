@@ -1,3 +1,15 @@
+/* Night blue, so the orange logo stands out from the header. */
+:root > * {
+  --md-primary-fg-color: #1e3a5f;
+  --md-primary-fg-color--light: #2d5487;
+  --md-primary-fg-color--dark: #142a45;
+}
+
+/* Links on the dark theme need a lighter blue than the header. */
+[data-md-color-scheme="slate"][data-md-color-primary="custom"] {
+  --md-typeset-a-color: #7ba7dc;
+}
+
 /* Diagrams sit on a light card of their own, so they read the same in the light and the dark theme. */
 .md-typeset img.diagram {
   display: block;
