@@ -15,6 +15,9 @@ Klicke auf diesen Knopf:
 
 [Heat Ledger zum Marketplace hinzufügen](https://my.home-assistant.io/redirect/marketplace_repository/?owner=benep&repository=heat_ledger&category=integration){ .md-button .md-button--primary }
 
+Bestätige die Frage **Benutzerdefiniertes Repository hinzufügen**. Danach bist du direkt auf der Seite von Heat Ledger
+im Marketplace.
+
 Oder von Hand:
 
 <div class="steps" markdown>
@@ -29,12 +32,16 @@ Oder von Hand:
 
     Beim ersten Mal fragt Home Assistant, ob du **GitHub verbinden** willst (ein kostenloses Konto genügt). Es zeigt
     dir einen Code; öffne den angezeigten Link, melde dich bei GitHub an und gib den Code dort ein. Dein
-    GitHub-Passwort gibst du nie in Home Assistant ein, und die Verbindung liest nur öffentliche Informationen. Sobald
-    Heat Ledger im Katalog des Marketplace steht, fällt dieser Schritt weg.
+    GitHub-Passwort gibst du nie in Home Assistant ein, und die Verbindung liest nur öffentliche Informationen. Bist du
+    über den Knopf gekommen, klicke ihn danach noch einmal. Sobald Heat Ledger im Katalog des Marketplace steht, fällt
+    dieser Schritt weg.
 
 ## 2. Installieren
 
-Öffne **Heat Ledger** im Marketplace, klicke auf **Installieren** und bestätige.
+Klicke auf der Seite von Heat Ledger auf **Installieren** und bestätige.
+
+Hast du Heat Ledger von Hand hinzugefügt, steht es weder unter **Entdecken** noch in der Suche. Du findest es über das
+Menü **⋮** oben rechts unter **Benutzerdefinierte Repositorys**.
 
 ## 3. Home Assistant neu starten
 
