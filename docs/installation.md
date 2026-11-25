@@ -4,14 +4,14 @@ Heat Ledger is installed from the **Marketplace**, which is built into Home Assi
 
 ```mermaid
 flowchart LR
-    A["1. Add Heat Ledger<br>to the Marketplace"] --> B["2. Install"] --> C["3. Restart<br>Home Assistant"] --> D["4. Add the<br>integration"]
+    A["1. Add Heat Ledger<br>to the Marketplace"] --> B["2. Install"] --> C["3. Set up"]
 ```
 
 ## 1. Add Heat Ledger to the Marketplace
 
 Heat Ledger is not in the catalog of the Marketplace yet, so you add it once by its GitHub link. Click this button:
 
-[Add Heat Ledger to the Marketplace](https://my.home-assistant.io/redirect/marketplace_repository/?owner=benep&repository=heat_ledger&category=integration){ .md-button .md-button--primary }
+[![Add Heat Ledger to the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=benep&repository=heat_ledger&category=integration)
 
 Confirm the question **Add custom repository**. You are then right on the page of Heat Ledger in the Marketplace.
 
@@ -40,20 +40,16 @@ On the page of Heat Ledger, click **Install** and confirm.
 If you added Heat Ledger by hand, it is neither under **Discover** nor in the search. You find it in the menu **⋮** at
 the top right, under **Custom repositories**.
 
-## 3. Restart Home Assistant
+## 3. Set up
 
-Home Assistant only finds a new integration after a restart. The Marketplace shows a button **Restart Home
-Assistant** right after the installation.
+The setup starts by itself right after the installation, no restart needed. Continue with [Setup](setup.md).
 
-## 4. Add the integration
-
-Click this button, or go to **Settings → Devices & services → Add integration** and search for **Heat Ledger**:
-
-[![Add Heat Ledger to Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=heat_ledger)
-
-The setup starts right away. Continue with [Setup](setup.md).
+If you closed it, or want to set up another building later,
+[add the integration again](https://my.home-assistant.io/redirect/config_flow_start/?domain=heat_ledger): under
+**Settings → Devices & services → Add integration**, search for **Heat Ledger**.
 
 ??? question "Updates"
 
-    The Marketplace shows a new version of Heat Ledger like any other update under **Settings → Updates**. Your
-    counters keep their values across updates and restarts.
+    The Marketplace shows a new version of Heat Ledger like any other update under **Settings → Updates**. An update
+    needs a restart of Home Assistant; the Marketplace asks for it. Your counters keep their values across updates and
+    restarts.
