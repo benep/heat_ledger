@@ -81,7 +81,7 @@ dashboard, and does not go online. If you remove it, only its own sensors disapp
 
 ## Install
 
-1. Add Heat Ledger to the Marketplace of Home Assistant:
+1. Add Heat Ledger to the Marketplace of your Home Assistant:
 
    [![Add Heat Ledger to the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=benep&repository=heat_ledger&category=integration)
 
